@@ -26,7 +26,11 @@ namespace franka_example_controllers {
                 "equilibrium_pose", 20, &MyCartesianImpedanceExampleController::equilibriumPoseCallback, this,
                 ros::TransportHints().reliable().tcpNoDelay());
 
-        std::cout << "\t\t WORK IN PROGRESS \n";
+        // set callback method for updating desired position
+        std::string updatePosTopic = "desiredPos";
+        sub_desired_pos_ = node_handle.subscribe("desiredPos", 20,
+                              &MyCartesianImpedanceExampleController::updatePositionCallback, this,
+                              ros::TransportHints().reliable().tcpNoDelay());
 
         std::string arm_id;
         if (!node_handle.getParam("arm_id", arm_id)) {
@@ -158,6 +162,8 @@ namespace franka_example_controllers {
         Eigen::Matrix<double, 6, 1> error;
         error.head(3) << position - position_d_;
 
+        //std::cout << position << std::endl << "---------------------" << std::endl;
+
         // orientation error
         if (orientation_d_.coeffs().dot(orientation.coeffs()) < 0.0) {
             orientation.coeffs() << -orientation.coeffs();
@@ -207,6 +213,12 @@ namespace franka_example_controllers {
         orientation_d_ = orientation_d_.slerp(filter_params_, orientation_d_target_);
     }
 
+    void MyCartesianImpedanceExampleController::updatePositionCallback(const std_msgs::String::ConstPtr& msg)
+    {
+        std::cout << "\tGOT SOMETHING\n";
+        ROS_INFO("I heard: [%s]", msg->data.c_str());
+    }
+
     Eigen::Matrix<double, 7, 1> MyCartesianImpedanceExampleController::saturateTorqueRate(
             const Eigen::Matrix<double, 7, 1> &tau_d_calculated,
             const Eigen::Matrix<double, 7, 1> &tau_J_d) {  // NOLINT (readability-identifier-naming)
@@ -238,6 +250,7 @@ namespace franka_example_controllers {
 
     void MyCartesianImpedanceExampleController::equilibriumPoseCallback(
             const geometry_msgs::PoseStampedConstPtr &msg) {
+        //std::cout << "HALLO WELT---------------------------------------\n";
         std::lock_guard <std::mutex> position_d_target_mutex_lock(
                 position_and_orientation_d_target_mutex_);
         position_d_target_ << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
