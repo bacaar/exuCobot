@@ -13,12 +13,14 @@
 #include <pluginlib/class_list_macros.h>
 #include <ros/ros.h>
 
+#include <geometry_msgs/Pose.h>
+
 #include <franka_example_controllers/pseudo_inversion.h>
 
 namespace franka_example_controllers {
 
     bool MyCartesianImpedanceExampleController::init(hardware_interface::RobotHW *robot_hw,
-                                                   ros::NodeHandle &node_handle) {
+                                                   ros::NodeHandle &node_handle){
         std::vector<double> cartesian_stiffness_vector;
         std::vector<double> cartesian_damping_vector;
 
@@ -27,10 +29,12 @@ namespace franka_example_controllers {
                 ros::TransportHints().reliable().tcpNoDelay());
 
         // set callback method for updating desired position
-        std::string updatePosTopic = "desiredPos";
-        sub_desired_pos_ = node_handle.subscribe("desiredPos", 20,
-                              &MyCartesianImpedanceExampleController::updatePositionCallback, this,
+        sub_desired_pose_ = node_handle.subscribe("setDesiredPos", 20,
+                              &MyCartesianImpedanceExampleController::updatePoseCallback, this,
                               ros::TransportHints().reliable().tcpNoDelay());
+
+        // create publisher for current pose
+        pub_current_pose_ = node_handle.advertise<geometry_msgs::Pose>("getCurrentPose", 20);
 
         std::string arm_id;
         if (!node_handle.getParam("arm_id", arm_id)) {
@@ -145,6 +149,7 @@ namespace franka_example_controllers {
                 model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
 
         //std::cout << "HEeheheheh MY mod \n";
+        //std::cout << position_d_ << std::endl << "----------------------" << std::endl;
 
         // convert to Eigen
         Eigen::Map <Eigen::Matrix<double, 7, 1>> coriolis(coriolis_array.data());
@@ -156,6 +161,17 @@ namespace franka_example_controllers {
         Eigen::Affine3d transform(Eigen::Matrix4d::Map(robot_state.O_T_EE.data()));
         Eigen::Vector3d position(transform.translation());
         Eigen::Quaterniond orientation(transform.linear());
+
+        // publish current cartesian position and orientation
+        geometry_msgs::Pose msg;
+        msg.position.x = position[0];        // TODO maybe prettier with tf function?
+        msg.position.y = position[1];
+        msg.position.z = position[2];
+        msg.orientation.x = orientation.x();
+        msg.orientation.y = orientation.y();
+        msg.orientation.z = orientation.z();
+        msg.orientation.w = orientation.w();
+        pub_current_pose_.publish(msg);
 
         // compute error to desired pose
         // position error
@@ -213,10 +229,14 @@ namespace franka_example_controllers {
         orientation_d_ = orientation_d_.slerp(filter_params_, orientation_d_target_);
     }
 
-    void MyCartesianImpedanceExampleController::updatePositionCallback(const std_msgs::String::ConstPtr& msg)
+    void MyCartesianImpedanceExampleController::updatePoseCallback(const geometry_msgs::Vector3 &msg)
     {
         std::cout << "\tGOT SOMETHING\n";
-        ROS_INFO("I heard: [%s]", msg->data.c_str());
+        //convert geometry_msgs/Vector3 to Eigen::Vector3d
+        //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
+        position_d_target_(0) = msg.x;
+        position_d_target_(1) = msg.y;
+        position_d_target_(2) = msg.z;
     }
 
     Eigen::Matrix<double, 7, 1> MyCartesianImpedanceExampleController::saturateTorqueRate(
@@ -251,6 +271,7 @@ namespace franka_example_controllers {
     void MyCartesianImpedanceExampleController::equilibriumPoseCallback(
             const geometry_msgs::PoseStampedConstPtr &msg) {
         //std::cout << "HALLO WELT---------------------------------------\n";
+        /*
         std::lock_guard <std::mutex> position_d_target_mutex_lock(
                 position_and_orientation_d_target_mutex_);
         position_d_target_ << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
@@ -260,6 +281,7 @@ namespace franka_example_controllers {
         if (last_orientation_d_target.coeffs().dot(orientation_d_target_.coeffs()) < 0.0) {
             orientation_d_target_.coeffs() << -orientation_d_target_.coeffs();
         }
+         */
     }
 
 }  // namespace franka_example_controllers

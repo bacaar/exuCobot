@@ -16,7 +16,7 @@
 #include <ros/time.h>
 #include <Eigen/Dense>
 
-#include "std_msgs/String.h"
+#include <geometry_msgs/Vector3.h>
 
 #include <franka_example_controllers/compliance_paramConfig.h>
 #include <franka_hw/franka_model_interface.h>
@@ -34,8 +34,6 @@ namespace franka_example_controllers {
         void starting(const ros::Time &) override;
 
         void update(const ros::Time &, const ros::Duration &period) override;
-
-        void updatePositionCallback(const std_msgs::String::ConstPtr& msg);
 
     private:
         // Saturation
@@ -70,11 +68,15 @@ namespace franka_example_controllers {
         void complianceParamCallback(franka_example_controllers::compliance_paramConfig &config,
                                      uint32_t level);
 
-        // Equilibrium pose subscriber
-        ros::Subscriber sub_equilibrium_pose_;
-        ros::Subscriber sub_desired_pos_;
-
         void equilibriumPoseCallback(const geometry_msgs::PoseStampedConstPtr &msg);
+
+        void updatePoseCallback(const geometry_msgs::Vector3 &msg);
+
+        ros::Publisher pub_current_pose_; // publisher for current pose
+
+        ros::Subscriber sub_equilibrium_pose_; // Equilibrium pose subscriber
+        ros::Subscriber sub_desired_pose_;   // Subscriber for new desired position
+
     };
 
 }  // namespace franka_example_controllers
