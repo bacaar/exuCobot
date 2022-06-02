@@ -28,10 +28,15 @@ namespace franka_example_controllers {
                 "equilibrium_pose", 20, &MyCartesianImpedanceExampleController::equilibriumPoseCallback, this,
                 ros::TransportHints().reliable().tcpNoDelay());
 
-        // set callback method for updating desired position
+        // set callback method for updating desired pose
         sub_desired_pose_ = node_handle.subscribe("setDesiredPose", 20,
                               &MyCartesianImpedanceExampleController::updatePoseCallback, this,
                               ros::TransportHints().reliable().tcpNoDelay());
+
+        // set callback method for updating desired position
+        sub_desired_position_ = node_handle.subscribe("setDesiredPosition", 20,
+                                                  &MyCartesianImpedanceExampleController::updatePositionCallback, this,
+                                                  ros::TransportHints().reliable().tcpNoDelay());
 
         // create publisher for current pose
         pub_current_pose_ = node_handle.advertise<geometry_msgs::Pose>("getCurrentPose", 20);
@@ -229,23 +234,26 @@ namespace franka_example_controllers {
         orientation_d_ = orientation_d_.slerp(filter_params_, orientation_d_target_);
     }
 
-    void MyCartesianImpedanceExampleController::updatePoseCallback(const geometry_msgs::Vector3 &msg)
+    void MyCartesianImpedanceExampleController::updatePoseCallback(const geometry_msgs::Pose &msg)
     {
-        std::cout << "\tGOT NEW POSE\n";
+        //convert geometry_msgs/Vector3 to Eigen::Vector3d
+        //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
+
+        position_d_target_(0) = msg.position.x;
+        position_d_target_(1) = msg.position.y;
+        position_d_target_(2) = msg.position.z;
+
+        orientation_d_.coeffs() << msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w;
+    }
+
+    void MyCartesianImpedanceExampleController::updatePositionCallback(const geometry_msgs::Vector3 &msg)
+    {
         //convert geometry_msgs/Vector3 to Eigen::Vector3d
         //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
 
         position_d_target_(0) = msg.x;
         position_d_target_(1) = msg.y;
         position_d_target_(2) = msg.z;
-
-        /*
-        position_d_target_(0) = msg.position.x;
-        position_d_target_(1) = msg.position.y;
-        position_d_target_(2) = msg.position.z;
-
-        orientation_d_.coeffs() << msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w;
-         */
     }
 
     Eigen::Matrix<double, 7, 1> MyCartesianImpedanceExampleController::saturateTorqueRate(
