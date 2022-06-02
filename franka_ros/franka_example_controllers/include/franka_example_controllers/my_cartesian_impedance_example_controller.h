@@ -17,6 +17,7 @@
 #include <Eigen/Dense>
 
 #include <geometry_msgs/Vector3.h>
+#include <geometry_msgs/Pose.h>
 
 #include <franka_example_controllers/compliance_paramConfig.h>
 #include <franka_hw/franka_model_interface.h>

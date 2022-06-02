@@ -29,7 +29,7 @@ namespace franka_example_controllers {
                 ros::TransportHints().reliable().tcpNoDelay());
 
         // set callback method for updating desired position
-        sub_desired_pose_ = node_handle.subscribe("setDesiredPos", 20,
+        sub_desired_pose_ = node_handle.subscribe("setDesiredPose", 20,
                               &MyCartesianImpedanceExampleController::updatePoseCallback, this,
                               ros::TransportHints().reliable().tcpNoDelay());
 
@@ -231,12 +231,21 @@ namespace franka_example_controllers {
 
     void MyCartesianImpedanceExampleController::updatePoseCallback(const geometry_msgs::Vector3 &msg)
     {
-        std::cout << "\tGOT SOMETHING\n";
+        std::cout << "\tGOT NEW POSE\n";
         //convert geometry_msgs/Vector3 to Eigen::Vector3d
         //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
+
         position_d_target_(0) = msg.x;
         position_d_target_(1) = msg.y;
         position_d_target_(2) = msg.z;
+
+        /*
+        position_d_target_(0) = msg.position.x;
+        position_d_target_(1) = msg.position.y;
+        position_d_target_(2) = msg.position.z;
+
+        orientation_d_.coeffs() << msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w;
+         */
     }
 
     Eigen::Matrix<double, 7, 1> MyCartesianImpedanceExampleController::saturateTorqueRate(
