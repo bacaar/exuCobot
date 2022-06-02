@@ -41,6 +41,9 @@ namespace franka_example_controllers {
         // create publisher for current pose
         pub_current_pose_ = node_handle.advertise<geometry_msgs::Pose>("getCurrentPose", 20);
 
+        // create publisher for current pose
+        pub_current_error_ = node_handle.advertise<geometry_msgs::Pose>("getCurrentError", 20);
+
         std::string arm_id;
         if (!node_handle.getParam("arm_id", arm_id)) {
             ROS_ERROR_STREAM("MyCartesianImpedanceExampleController: Could not read parameter arm_id");
@@ -195,6 +198,16 @@ namespace franka_example_controllers {
         // Transform to base frame
         error.tail(3) << -transform.linear() * error.tail(3);
 
+        // publish current error of position and orientation
+        msg.position.x = error[0];        // TODO maybe prettier with tf function?
+        msg.position.y = error[1];
+        msg.position.z = error[2];
+        msg.orientation.x = error_quaternion.x();
+        msg.orientation.y = error_quaternion.y();
+        msg.orientation.z = error_quaternion.z();
+        msg.orientation.w = error_quaternion.w();
+        pub_current_error_.publish(msg);
+
         // compute control
         // allocate variables
         Eigen::VectorXd tau_task(7), tau_nullspace(7), tau_d(7);
@@ -239,11 +252,21 @@ namespace franka_example_controllers {
         //convert geometry_msgs/Vector3 to Eigen::Vector3d
         //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
 
+        /*
         position_d_target_(0) = msg.position.x;
         position_d_target_(1) = msg.position.y;
         position_d_target_(2) = msg.position.z;
 
         orientation_d_.coeffs() << msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w;
+         */
+        std::lock_guard <std::mutex> position_d_target_mutex_lock(
+                position_and_orientation_d_target_mutex_);
+        position_d_target_ << msg.position.x, msg.position.y, msg.position.z;
+        Eigen::Quaterniond last_orientation_d_target(orientation_d_target_);
+        orientation_d_target_.coeffs() << msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w;
+        if (last_orientation_d_target.coeffs().dot(orientation_d_target_.coeffs()) < 0.0) {
+            orientation_d_target_.coeffs() << -orientation_d_target_.coeffs();
+        }
     }
 
     void MyCartesianImpedanceExampleController::updatePositionCallback(const geometry_msgs::Vector3 &msg)

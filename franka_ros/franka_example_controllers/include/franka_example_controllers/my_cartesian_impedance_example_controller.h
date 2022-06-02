@@ -75,6 +75,7 @@ namespace franka_example_controllers {
         void updatePositionCallback(const geometry_msgs::Vector3 &msg);
 
         ros::Publisher pub_current_pose_; // publisher for current pose
+        ros::Publisher pub_current_error_; // publisher for current pose
 
         ros::Subscriber sub_equilibrium_pose_; // Equilibrium pose subscriber
         ros::Subscriber sub_desired_pose_;   // Subscriber for new desired pose

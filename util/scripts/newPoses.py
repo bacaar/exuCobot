@@ -1,5 +1,13 @@
 #!/usr/bin/env python
-# license removed for brevity
+
+"""
+Author: Aaron Bacher
+Date: 01.06.2022
+
+Script for passing new target points to impedance controller
+for testing purposes
+"""
+
 import rospy
 from geometry_msgs.msg import Pose, Vector3
 
@@ -8,51 +16,53 @@ import tf
 
 import time
 
-def talker():
+def main():
 
+    # flag to decide wheter to work with full pose (position + orientation) or with position only
     pose = True
-    pub = None
+
+    # create correct publisher
     if pose:
         pub = rospy.Publisher('/my_cartesian_impedance_example_controller/setDesiredPose', Pose, queue_size=10)
     else:
         pub = rospy.Publisher('/my_cartesian_impedance_example_controller/setDesiredPosition', Vector3, queue_size=10)
 
+    # init rospy, init some variables
     rospy.init_node('newPoses', anonymous=True)
-    rate = rospy.Rate(10) # 10hz
+    rate = rospy.Rate(1000)
     npos = 1
     npose = 1
 
-    #t1 = time.time()
-    rising = True
-    x = 0.4
+    # for circle creation
+    t0 = time.time()
+    xc = 0.5
+    yc = 0.0
+    r = 0.2
 
     while not rospy.is_shutdown():
-        #t2 = time.time()
-        #dt = t1-t2
-        #print(dt)
+        # get time since program start (used as trajectory-parameter)
+        t1 = time.time()
+        t = t1-t0
 
-        if rising:
-            x = x + 0.01
-        else:
-            x = x - 0.01
-
-        if x > 0.7:
-            rising = False
-        if x < 0.4:
-            rising = True
+        # calculate coordinates for circle
+        x = xc + r * np.cos(t)
+        y = yc + r * np.sin(t)
 
         if pose:
             msg = Pose()
             msg.position.x = x
-            msg.position.y = 0.1
-            msg.position.z = 0.4
-            # Make sure the quaternion is valid and normalized
+            msg.position.y = y
+            msg.position.z = 0.3
 
-            # 90 degree rotation around one axis
+            # endeffector should point straight down
             pitch = np.radians(180)
             roll = np.radians(0)
             yaw = np.radians(0)
+
+            # create Quaternion out of Euler angles
             quaternion = tf.transformations.quaternion_from_euler(pitch, yaw, roll)
+
+            # only to be sure quaternion is correct
             assert np.linalg.norm(quaternion) == 1.0, "ERROR"
 
             msg.orientation.x = quaternion[0]
@@ -65,8 +75,8 @@ def talker():
 
         else:
             msg = Vector3()
-            msg.x = 0.4
-            msg.y = -0.1
+            msg.x = x
+            msg.y = y
             msg.z = 0.6
 
             print("publish Position " + str(npos))
@@ -75,11 +85,10 @@ def talker():
         print(msg)
         pub.publish(msg)
 
-        #t2 = time.time()
         rate.sleep()
 
 if __name__ == '__main__':
     try:
-        talker()
+        main()
     except rospy.ROSInterruptException:
         pass
