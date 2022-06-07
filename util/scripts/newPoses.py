@@ -9,7 +9,7 @@ for testing purposes
 """
 
 import rospy
-from geometry_msgs.msg import Pose, Vector3
+from geometry_msgs.msg import PoseStamped
 
 import numpy as np
 import tf
@@ -18,77 +18,66 @@ import time
 
 def main():
 
-    # flag to decide wheter to work with full pose (position + orientation) or with position only
-    pose = True
+	# create correct publisher
+	pub = rospy.Publisher('/my_cartesian_impedance_example_controller/setDesiredPose', PoseStamped, queue_size=10)
 
-    # create correct publisher
-    if pose:
-        pub = rospy.Publisher('/my_cartesian_impedance_example_controller/setDesiredPose', Pose, queue_size=10)
-    else:
-        pub = rospy.Publisher('/my_cartesian_impedance_example_controller/setDesiredPosition', Vector3, queue_size=10)
+	# init rospy, init some variables
+	rospy.init_node('newPoses', anonymous=True)
+	rate = rospy.Rate(1000)
+	#npose = 1
 
-    # init rospy, init some variables
-    rospy.init_node('newPoses', anonymous=True)
-    rate = rospy.Rate(1000)
-    npos = 1
-    npose = 1
+	# for circle creation
+	t0 = time.time()
+	xc = 0.5
+	yc = 0.0
+	r = 0.2
 
-    # for circle creation
-    t0 = time.time()
-    xc = 0.5
-    yc = 0.0
-    r = 0.2
+	while not rospy.is_shutdown():
+		# get time since program start (used as trajectory-parameter)
+		t1 = time.time()
+		t = t1-t0
 
-    while not rospy.is_shutdown():
-        # get time since program start (used as trajectory-parameter)
-        t1 = time.time()
-        t = t1-t0
+		# calculate coordinates for circle
+		x = xc + r * np.cos(t)
+		y = yc + r * np.sin(t)
 
-        # calculate coordinates for circle
-        x = xc + r * np.cos(t)
-        y = yc + r * np.sin(t)
+		# create message
+		msg = PoseStamped()
+		
+		# write position into message
+		msg.pose.position.x = x
+		msg.pose.position.y = y
+		msg.pose.position.z = 0.3
 
-        if pose:
-            msg = Pose()
-            msg.position.x = x
-            msg.position.y = y
-            msg.position.z = 0.3
+		# endeffector should point straight down
+		pitch = np.radians(180)
+		roll = np.radians(0)
+		yaw = np.radians(0)
 
-            # endeffector should point straight down
-            pitch = np.radians(180)
-            roll = np.radians(0)
-            yaw = np.radians(0)
+		# create Quaternion out of Euler angles
+		quaternion = tf.transformations.quaternion_from_euler(pitch, yaw, roll)
 
-            # create Quaternion out of Euler angles
-            quaternion = tf.transformations.quaternion_from_euler(pitch, yaw, roll)
+		# only to be sure quaternion is correct
+		assert np.linalg.norm(quaternion) == 1.0, "ERROR"
 
-            # only to be sure quaternion is correct
-            assert np.linalg.norm(quaternion) == 1.0, "ERROR"
+		# write orientation into message
+		msg.pose.orientation.x = quaternion[0]
+		msg.pose.orientation.y = quaternion[1]
+		msg.pose.orientation.z = quaternion[2]
+		msg.pose.orientation.w = quaternion[3]
 
-            msg.orientation.x = quaternion[0]
-            msg.orientation.y = quaternion[1]
-            msg.orientation.z = quaternion[2]
-            msg.orientation.w = quaternion[3]
+		#print("publish Pose " + str(npose))
+		#npose = npose+1
 
-            print("publish Pose " + str(npose))
-            npose = npose+1
+		# write current time into message
+		msg.header.stamp = rospy.Time.now()
+		print(msg)
+		pub.publish(msg)
 
-        else:
-            msg = Vector3()
-            msg.x = x
-            msg.y = y
-            msg.z = 0.6
-
-            print("publish Position " + str(npos))
-            npos = npos+1
-
-        print(msg)
-        pub.publish(msg)
-
-        rate.sleep()
+		rate.sleep()
 
 if __name__ == '__main__':
-    try:
-        main()
-    except rospy.ROSInterruptException:
-        pass
+	try:
+		main()
+	except rospy.ROSInterruptException:
+		pass
