@@ -53,8 +53,8 @@ try:
 	rospy.init_node('livePosViewer', anonymous=True)		
 
 	# setup subscirbers
-	rospy.Subscriber("/my_cartesian_impedance_example_controller/setDesiredPose", PoseStamped, targetPoseCallback)
-	rospy.Subscriber("/my_cartesian_impedance_example_controller/getCurrentPose", PoseStamped, currentPoseCallback)	
+	rospy.Subscriber("/my_cartesian_impedance_controller/setDesiredPose", PoseStamped, targetPoseCallback)
+	rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)	
 
 	rospy.spin()	# keep programm running until ctrl+C
 	

@@ -19,7 +19,7 @@ import time
 def main():
 
 	# create correct publisher
-	pub = rospy.Publisher('/my_cartesian_impedance_example_controller/setDesiredPose', PoseStamped, queue_size=10)
+	pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=10)
 
 	# init rospy, init some variables
 	rospy.init_node('newPoses', anonymous=True)

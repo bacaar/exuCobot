@@ -48,19 +48,18 @@ def main():
 	scriptStartTime = rospy.Time.now()
 	
 	# duration of recording; 12 secs are almost 4*pi, so almost 2 rotations
-	duration = rospy.Duration(12)	# duration of planned recording in seconds
+	duration = 12	# duration of planned recording in seconds
 
 	# setup subscirbers
-	rospy.Subscriber("/my_cartesian_impedance_example_controller/setDesiredPose", PoseStamped, targetPoseCallback)
-	rospy.Subscriber("/my_cartesian_impedance_example_controller/getCurrentPose", PoseStamped, currentPoseCallback)
-	rospy.Subscriber("/my_cartesian_impedance_example_controller/getCurrentError", PoseStamped, currentErrorCallback)
+	rospy.Subscriber("/my_cartesian_impedance_controller/setDesiredPose", PoseStamped, targetPoseCallback)
+	rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+	rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentError", PoseStamped, currentErrorCallback)
 
 	# record data from topics for duration of time
-	print("Starting recording")
+	print("Starting recording for {} seconds".format(duration))
 	t0 = rospy.Time.now()
 	isRecording = True
-	while(rospy.Time.now() - t0 < duration):
-		pass
+	rospy.sleep(duration)
 	isRecording = False
 	print("Finished recording")
 	print("Target pose length: {}\t\tCurrent pose length: {}\t\tError length: {}".format(len(targetPoseList),

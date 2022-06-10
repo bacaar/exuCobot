@@ -3,7 +3,7 @@
 
 // modified by Aaron Bacher
 
-#include <franka_example_controllers/my_cartesian_impedance_example_controller.h>
+#include <franka_example_controllers/my_cartesian_impedance_controller.h>
 
 #include <cmath>
 #include <memory>
@@ -19,23 +19,23 @@
 
 namespace franka_example_controllers {
 
-    bool MyCartesianImpedanceExampleController::init(hardware_interface::RobotHW *robot_hw,
+    bool MyCartesianImpedanceController::init(hardware_interface::RobotHW *robot_hw,
                                                    ros::NodeHandle &node_handle){
         std::vector<double> cartesian_stiffness_vector;
         std::vector<double> cartesian_damping_vector;
 
         sub_equilibrium_pose_ = node_handle.subscribe(
-                "equilibrium_pose", 20, &MyCartesianImpedanceExampleController::equilibriumPoseCallback, this,
+                "equilibrium_pose", 20, &MyCartesianImpedanceController::equilibriumPoseCallback, this,
                 ros::TransportHints().reliable().tcpNoDelay());
 
         // set callback method for updating desired pose
         sub_desired_pose_ = node_handle.subscribe("setDesiredPose", 20,
-                              &MyCartesianImpedanceExampleController::updatePoseCallback, this,
+                              &MyCartesianImpedanceController::updatePoseCallback, this,
                               ros::TransportHints().reliable().tcpNoDelay());
 
         // set callback method for updating desired position
         sub_desired_position_ = node_handle.subscribe("setDesiredPosition", 20,
-                                                  &MyCartesianImpedanceExampleController::updatePositionCallback, this,
+                                                  &MyCartesianImpedanceController::updatePositionCallback, this,
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
         // create publisher for current pose
@@ -46,13 +46,13 @@ namespace franka_example_controllers {
 
         std::string arm_id;
         if (!node_handle.getParam("arm_id", arm_id)) {
-            ROS_ERROR_STREAM("MyCartesianImpedanceExampleController: Could not read parameter arm_id");
+            ROS_ERROR_STREAM("MyCartesianImpedanceController: Could not read parameter arm_id");
             return false;
         }
         std::vector <std::string> joint_names;
         if (!node_handle.getParam("joint_names", joint_names) || joint_names.size() != 7) {
             ROS_ERROR(
-                    "MyCartesianImpedanceExampleController: Invalid or no joint_names parameters provided, "
+                    "MyCartesianImpedanceController: Invalid or no joint_names parameters provided, "
                     "aborting controller init!");
             return false;
         }
@@ -60,7 +60,7 @@ namespace franka_example_controllers {
         auto *model_interface = robot_hw->get<franka_hw::FrankaModelInterface>();
         if (model_interface == nullptr) {
             ROS_ERROR_STREAM(
-                    "MyCartesianImpedanceExampleController: Error getting model interface from hardware");
+                    "MyCartesianImpedanceController: Error getting model interface from hardware");
             return false;
         }
         try {
@@ -68,7 +68,7 @@ namespace franka_example_controllers {
                     model_interface->getHandle(arm_id + "_model"));
         } catch (hardware_interface::HardwareInterfaceException &ex) {
             ROS_ERROR_STREAM(
-                    "MyCartesianImpedanceExampleController: Exception getting model handle from interface: "
+                    "MyCartesianImpedanceController: Exception getting model handle from interface: "
                             << ex.what());
             return false;
         }
@@ -76,7 +76,7 @@ namespace franka_example_controllers {
         auto *state_interface = robot_hw->get<franka_hw::FrankaStateInterface>();
         if (state_interface == nullptr) {
             ROS_ERROR_STREAM(
-                    "MyCartesianImpedanceExampleController: Error getting state interface from hardware");
+                    "MyCartesianImpedanceController: Error getting state interface from hardware");
             return false;
         }
         try {
@@ -84,7 +84,7 @@ namespace franka_example_controllers {
                     state_interface->getHandle(arm_id + "_robot"));
         } catch (hardware_interface::HardwareInterfaceException &ex) {
             ROS_ERROR_STREAM(
-                    "MyCartesianImpedanceExampleController: Exception getting state handle from interface: "
+                    "MyCartesianImpedanceController: Exception getting state handle from interface: "
                             << ex.what());
             return false;
         }
@@ -92,7 +92,7 @@ namespace franka_example_controllers {
         auto *effort_joint_interface = robot_hw->get<hardware_interface::EffortJointInterface>();
         if (effort_joint_interface == nullptr) {
             ROS_ERROR_STREAM(
-                    "MyCartesianImpedanceExampleController: Error getting effort joint interface from hardware");
+                    "MyCartesianImpedanceController: Error getting effort joint interface from hardware");
             return false;
         }
         for (size_t i = 0; i < 7; ++i) {
@@ -100,7 +100,7 @@ namespace franka_example_controllers {
                 joint_handles_.push_back(effort_joint_interface->getHandle(joint_names[i]));
             } catch (const hardware_interface::HardwareInterfaceException &ex) {
                 ROS_ERROR_STREAM(
-                        "MyCartesianImpedanceExampleController: Exception getting joint handles: " << ex.what());
+                        "MyCartesianImpedanceController: Exception getting joint handles: " << ex.what());
                 return false;
             }
         }
@@ -114,7 +114,7 @@ namespace franka_example_controllers {
 
                                                    dynamic_reconfigure_compliance_param_node_);
         dynamic_server_compliance_param_->setCallback(
-                boost::bind(&MyCartesianImpedanceExampleController::complianceParamCallback, this, _1, _2));
+                boost::bind(&MyCartesianImpedanceController::complianceParamCallback, this, _1, _2));
 
         position_d_.setZero();
         orientation_d_.coeffs() << 0.0, 0.0, 0.0, 1.0;
@@ -127,7 +127,7 @@ namespace franka_example_controllers {
         return true;
     }
 
-    void MyCartesianImpedanceExampleController::starting(const ros::Time & /*time*/) {
+    void MyCartesianImpedanceController::starting(const ros::Time & /*time*/) {
         // compute initial velocity with jacobian and set x_attractor and q_d_nullspace
         // to initial configuration
         franka::RobotState initial_state = state_handle_->getRobotState();
@@ -148,7 +148,7 @@ namespace franka_example_controllers {
         q_d_nullspace_ = q_initial;
     }
 
-    void MyCartesianImpedanceExampleController::update(const ros::Time & /*time*/,
+    void MyCartesianImpedanceController::update(const ros::Time & /*time*/,
                                                      const ros::Duration & /*period*/) {
         // get state variables
         franka::RobotState robot_state = state_handle_->getRobotState();
@@ -247,7 +247,7 @@ namespace franka_example_controllers {
         orientation_d_ = orientation_d_.slerp(filter_params_, orientation_d_target_);
     }
 
-    void MyCartesianImpedanceExampleController::updatePoseCallback(const geometry_msgs::Pose &msg)
+    void MyCartesianImpedanceController::updatePoseCallback(const geometry_msgs::Pose &msg)
     {
         //convert geometry_msgs/Vector3 to Eigen::Vector3d
         //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
@@ -269,7 +269,7 @@ namespace franka_example_controllers {
         }
     }
 
-    void MyCartesianImpedanceExampleController::updatePositionCallback(const geometry_msgs::Vector3 &msg)
+    void MyCartesianImpedanceController::updatePositionCallback(const geometry_msgs::Vector3 &msg)
     {
         //convert geometry_msgs/Vector3 to Eigen::Vector3d
         //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
@@ -279,7 +279,7 @@ namespace franka_example_controllers {
         position_d_target_(2) = msg.z;
     }
 
-    Eigen::Matrix<double, 7, 1> MyCartesianImpedanceExampleController::saturateTorqueRate(
+    Eigen::Matrix<double, 7, 1> MyCartesianImpedanceController::saturateTorqueRate(
             const Eigen::Matrix<double, 7, 1> &tau_d_calculated,
             const Eigen::Matrix<double, 7, 1> &tau_J_d) {  // NOLINT (readability-identifier-naming)
         Eigen::Matrix<double, 7, 1> tau_d_saturated{};
@@ -291,7 +291,7 @@ namespace franka_example_controllers {
         return tau_d_saturated;
     }
 
-    void MyCartesianImpedanceExampleController::complianceParamCallback(
+    void MyCartesianImpedanceController::complianceParamCallback(
             franka_example_controllers::compliance_paramConfig &config,
             uint32_t /*level*/) {
         cartesian_stiffness_target_.setIdentity();
@@ -308,7 +308,7 @@ namespace franka_example_controllers {
         nullspace_stiffness_target_ = config.nullspace_stiffness;
     }
 
-    void MyCartesianImpedanceExampleController::equilibriumPoseCallback(
+    void MyCartesianImpedanceController::equilibriumPoseCallback(
             const geometry_msgs::PoseStampedConstPtr &msg) {
         //std::cout << "HALLO WELT---------------------------------------\n";
         /*
@@ -326,6 +326,6 @@ namespace franka_example_controllers {
 
 }  // namespace franka_example_controllers
 
-PLUGINLIB_EXPORT_CLASS(franka_example_controllers::MyCartesianImpedanceExampleController,
+PLUGINLIB_EXPORT_CLASS(franka_example_controllers::MyCartesianImpedanceController,
         controller_interface::ControllerBase
 )
