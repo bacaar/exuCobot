@@ -32,12 +32,16 @@ def targetPoseCallback(data):
 
 def currentPoseCallback(data):
 	if isRecording:
-		currentPoseList.append([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+		duration = data.header.stamp - scriptStartTime
+		t = duration.secs + duration.nsecs*1e-9
+		currentPoseList.append([t, data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
 
 def currentErrorCallback(data):
 	if isRecording:
-		errorList.append([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+		duration = data.header.stamp - scriptStartTime
+		t = duration.secs + duration.nsecs*1e-9
+		errorList.append([t, data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
 
 def main():
@@ -47,8 +51,8 @@ def main():
 	global isRecording
 	scriptStartTime = rospy.Time.now()
 	
-	# duration of recording; 12 secs are almost 4*pi, so almost 2 rotations
-	duration = 12	# duration of planned recording in seconds
+	# duration of recording; 2*pi is approx one rotation
+	duration = 3*2*np.pi	# duration of planned recording in seconds
 
 	# setup subscirbers
 	rospy.Subscriber("/my_cartesian_impedance_controller/setDesiredPose", PoseStamped, targetPoseCallback)
@@ -68,17 +72,18 @@ def main():
 	
 	# convert lists to np.arrays for better handling
 	targetPose = np.array(targetPoseList)
-	#currentPose = np.array(currentPoseList)
-	  
+	currentPose = np.array(currentPoseList)
+	error = np.array(errorList)
+
 	# plot trajectories
 	plt.figure()
 	x = targetPose[:,1]
 	y = targetPose[:,2]
 	plt.plot(x, y, label="desired")
 	
-	#x = currentPose[:,1]
-	#y = currentPose[:,2]
-	#plt.plot(x, y, label="measured")
+	x = currentPose[:,1]
+	y = currentPose[:,2]
+	plt.plot(x, y, label="measured")
 	
 	# "global" referes to the robot base coordinate system
 	plt.xlabel('global x in m')
@@ -86,24 +91,58 @@ def main():
 	plt.legend(loc="upper right")
 	plt.gca().set_aspect('equal', adjustable='box')
 	plt.show()
-	
-	
+
+
 	# plot time dependend
 	plt.figure()
+
 	t = targetPose[:,0]
 	x = targetPose[:,1]
 	y = targetPose[:,2]
 	z = targetPose[:,3]
-	
-	plt.plot(t, x, label="x desired")
-	plt.plot(t, y, label="y desired")
-	plt.plot(t, z, label="z desired")
-	
+	plt.plot(t, x, "b-", label="target x")
+	plt.plot(t, y, "r-", label="target y")
+	plt.plot(t, z, "g-", label="target z")
+
+	t = currentPose[:,0]
+	x = currentPose[:,1]
+	y = currentPose[:,2]
+	z = currentPose[:,3]
+	plt.plot(t, x, "b-.", label="measured x")
+	plt.plot(t, y, "r-.", label="measured y")
+	plt.plot(t, z, "g-.", label="measured z")
+
+	t = error[:,0]
+	x = error[:,1]
+	y = error[:,2]
+	z = error[:,3]
+	plt.plot(t, x, "b:", label="error x")
+	plt.plot(t, y, "r:", label="error y")
+	plt.plot(t, z, "g:", label="error z")
+
+	plt.grid()
 	plt.xlabel('t in s')
 	plt.ylabel('position in m')
 	plt.legend(loc="upper right")
-	plt.show()											   
+	plt.show()
 
+
+	# plot time dependend errors only
+	plt.figure()
+
+	t = error[:,0]
+	x = error[:,1]
+	y = error[:,2]
+	z = error[:,3]
+	plt.plot(t, x, "b", label="error x")
+	plt.plot(t, y, "r", label="error y")
+	plt.plot(t, z, "g", label="error z")
+
+	plt.grid()
+	plt.xlabel('t in s')
+	plt.ylabel('position in m')
+	plt.legend(loc="upper right")
+	plt.show()
 
 if __name__ == "__main__":
 	try:
