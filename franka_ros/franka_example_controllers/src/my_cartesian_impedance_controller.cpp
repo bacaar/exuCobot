@@ -249,6 +249,8 @@ namespace franka_example_controllers {
 
     void MyCartesianImpedanceController::updatePoseCallback(const geometry_msgs::Pose &msg)
     {
+        std::cout << "Got new pose!\n";
+
         //convert geometry_msgs/Vector3 to Eigen::Vector3d
         //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
 
@@ -271,6 +273,8 @@ namespace franka_example_controllers {
 
     void MyCartesianImpedanceController::updatePositionCallback(const geometry_msgs::Vector3 &msg)
     {
+        std::cout << "Got new position!\n";
+
         //convert geometry_msgs/Vector3 to Eigen::Vector3d
         //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
 
