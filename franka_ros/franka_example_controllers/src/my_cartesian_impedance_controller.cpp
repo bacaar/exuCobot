@@ -13,7 +13,7 @@
 #include <pluginlib/class_list_macros.h>
 #include <ros/ros.h>
 
-#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/PoseStamped.h>
 
 #include <franka_example_controllers/pseudo_inversion.h>
 
@@ -30,19 +30,14 @@ namespace franka_example_controllers {
 
         // set callback method for updating desired pose
         sub_desired_pose_ = node_handle.subscribe("setDesiredPose", 20,
-                              &MyCartesianImpedanceController::updatePoseCallback, this,
+                              &MyCartesianImpedanceController::updateDesiredPoseCallback, this,
                               ros::TransportHints().reliable().tcpNoDelay());
 
-        // set callback method for updating desired position
-        sub_desired_position_ = node_handle.subscribe("setDesiredPosition", 20,
-                                                  &MyCartesianImpedanceController::updatePositionCallback, this,
-                                                  ros::TransportHints().reliable().tcpNoDelay());
+        // create publisher for current pose
+        pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentPose", 20);
 
         // create publisher for current pose
-        pub_current_pose_ = node_handle.advertise<geometry_msgs::Pose>("getCurrentPose", 20);
-
-        // create publisher for current pose
-        pub_current_error_ = node_handle.advertise<geometry_msgs::Pose>("getCurrentError", 20);
+        pub_current_error_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentError", 20);
 
         std::string arm_id;
         if (!node_handle.getParam("arm_id", arm_id)) {
@@ -171,14 +166,15 @@ namespace franka_example_controllers {
         Eigen::Quaterniond orientation(transform.linear());
 
         // publish current cartesian position and orientation
-        geometry_msgs::Pose msg;
-        msg.position.x = position[0];        // TODO maybe prettier with tf function?
-        msg.position.y = position[1];
-        msg.position.z = position[2];
-        msg.orientation.x = orientation.x();
-        msg.orientation.y = orientation.y();
-        msg.orientation.z = orientation.z();
-        msg.orientation.w = orientation.w();
+        geometry_msgs::PoseStamped msg;
+        msg.header.stamp = ros::Time::now();
+        msg.pose.position.x = position[0];        // TODO maybe prettier with tf function?
+        msg.pose.position.y = position[1];
+        msg.pose.position.z = position[2];
+        msg.pose.orientation.x = orientation.x();
+        msg.pose.orientation.y = orientation.y();
+        msg.pose.orientation.z = orientation.z();
+        msg.pose.orientation.w = orientation.w();
         pub_current_pose_.publish(msg);
 
         // compute error to desired pose
@@ -199,13 +195,13 @@ namespace franka_example_controllers {
         error.tail(3) << -transform.linear() * error.tail(3);
 
         // publish current error of position and orientation
-        msg.position.x = error[0];        // TODO maybe prettier with tf function?
-        msg.position.y = error[1];
-        msg.position.z = error[2];
-        msg.orientation.x = error_quaternion.x();
-        msg.orientation.y = error_quaternion.y();
-        msg.orientation.z = error_quaternion.z();
-        msg.orientation.w = error_quaternion.w();
+        msg.pose.position.x = error[0];        // TODO maybe prettier with tf function?
+        msg.pose.position.y = error[1];
+        msg.pose.position.z = error[2];
+        msg.pose.orientation.x = error_quaternion.x();
+        msg.pose.orientation.y = error_quaternion.y();
+        msg.pose.orientation.z = error_quaternion.z();
+        msg.pose.orientation.w = error_quaternion.w();
         pub_current_error_.publish(msg);
 
         // compute control
@@ -247,40 +243,27 @@ namespace franka_example_controllers {
         orientation_d_ = orientation_d_.slerp(filter_params_, orientation_d_target_);
     }
 
-    void MyCartesianImpedanceController::updatePoseCallback(const geometry_msgs::Pose &msg)
+    void MyCartesianImpedanceController::updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg)
     {
-        std::cout << "Got new pose!\n";
 
         //convert geometry_msgs/Vector3 to Eigen::Vector3d
         //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
 
         /*
-        position_d_target_(0) = msg.position.x;
-        position_d_target_(1) = msg.position.y;
-        position_d_target_(2) = msg.position.z;
+        position_d_target_(0) = msg.pose.position.x;
+        position_d_target_(1) = msg.pose.position.y;
+        position_d_target_(2) = msg.pose.position.z;
 
-        orientation_d_.coeffs() << msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w;
+        orientation_d_.coeffs() << msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w;
          */
         std::lock_guard <std::mutex> position_d_target_mutex_lock(
                 position_and_orientation_d_target_mutex_);
-        position_d_target_ << msg.position.x, msg.position.y, msg.position.z;
+        position_d_target_ << msg.pose.position.x, msg.pose.position.y, msg.pose.position.z;
         Eigen::Quaterniond last_orientation_d_target(orientation_d_target_);
-        orientation_d_target_.coeffs() << msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w;
+        orientation_d_target_.coeffs() << msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w;
         if (last_orientation_d_target.coeffs().dot(orientation_d_target_.coeffs()) < 0.0) {
             orientation_d_target_.coeffs() << -orientation_d_target_.coeffs();
         }
-    }
-
-    void MyCartesianImpedanceController::updatePositionCallback(const geometry_msgs::Vector3 &msg)
-    {
-        std::cout << "Got new position!\n";
-
-        //convert geometry_msgs/Vector3 to Eigen::Vector3d
-        //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
-
-        position_d_target_(0) = msg.x;
-        position_d_target_(1) = msg.y;
-        position_d_target_(2) = msg.z;
     }
 
     Eigen::Matrix<double, 7, 1> MyCartesianImpedanceController::saturateTorqueRate(
