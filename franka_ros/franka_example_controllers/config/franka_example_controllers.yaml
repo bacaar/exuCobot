@@ -24,6 +24,10 @@ cartesian_pose_example_controller:
     type: franka_example_controllers/CartesianPoseExampleController
     arm_id: panda
 
+my_cartesian_pose_controller:
+    type: franka_example_controllers/MyCartesianPoseController
+    arm_id: panda
+
 elbow_example_controller:
     type: franka_example_controllers/ElbowExampleController
     arm_id: panda
