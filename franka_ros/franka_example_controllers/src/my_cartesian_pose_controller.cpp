@@ -70,12 +70,17 @@ namespace franka_example_controllers {
                                                   &MyCartesianPoseController::updateDesiredPoseCallback, this,
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
+        //maxVel_ = 0.005; // m/sec
+        maxVel_ = 0.00001; // m/step
+        maxStepSize_ = 0.00001;
+
         return true;
     }
 
     void MyCartesianPoseController::starting(const ros::Time & /* time */) {
-        initial_pose_ = cartesian_pose_handle_->getRobotState().O_T_EE_d;
-        desired_pose_ = initial_pose_;
+        stepSizeX_ = 0;
+        stepSizeY_ = 0;
+        stepSizeZ_ = 0;
         elapsed_time_ = ros::Duration(0.0);
     }
 
@@ -83,40 +88,61 @@ namespace franka_example_controllers {
                                            const ros::Duration &period) {
         elapsed_time_ += period;
 
-        // quarter circle creation
-        double radius = 0.3;
-        double angle = M_PI / 4 * (1 - std::cos(M_PI / 5.0 * elapsed_time_.toSec()));
-        double delta_x = radius * std::sin(angle);
-        double delta_y = radius * (1-std::cos(angle));
-        std::array<double, 16> new_pose = initial_pose_;
-        new_pose[12] -= delta_x;
-        new_pose[13] -= delta_y;
+        updateTargetPosition(0.7, 0.0, 0.3);
 
-        // rough collision check for robot base
-        if (new_pose[12] < 0.15 && std::abs(new_pose[13]) < 0.15){
+        std::array<double, 16> new_pose = cartesian_pose_handle_->getRobotState().O_T_EE_d;
+        //std::cout << "oldX " << new_pose[12] << "\toldY " << new_pose[13] << "\toldZ " << new_pose[14] << std::endl;
+        new_pose[12] += stepSizeX_;
+        new_pose[13] += stepSizeY_;
+        new_pose[14] += stepSizeZ_;
+        //std::cout << "newX " << new_pose[12] << "\tnewY " << new_pose[13] << "\tnewZ " << new_pose[14] << std::endl;
+
+        // rough collision check for robot base and table
+        if (new_pose[12] < 0.15 && std::abs(new_pose[13]) < 0.15 && new_pose[14] < 0.05){
             std::cerr << "rudimentary collision check failed!" << std::endl;
             exit(-1);
         }
 
         cartesian_pose_handle_->setCommand(new_pose);
-
-
-        /*
-        std::array<double, 16> pose_current = cartesian_pose_handle_->getRobotState().O_T_EE_d;
-        double delta_x = 0.00001;   //(scale down to slow the movement)
-        pose_current[12] += delta_x;
-        std::cout << pose_current[12] << std::endl;
-        cartesian_pose_handle_->setCommand(pose_current);
-         */
     }
 
     void MyCartesianPoseController::updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg) {
 
-        // for the moment: leave orientation as it is, move only positional
-        desired_pose_[12] = msg.pose.position.x;
-        desired_pose_[13] = msg.pose.position.y;
-        desired_pose_[14] = msg.pose.position.z;
+        //// For the moment modify position only, leave orientation unchanged
+        updateTargetPosition(msg.pose.position.x, msg.pose.position.y, msg.pose.position.z);
 
+    }
+
+    void MyCartesianPoseController::updateTargetPosition(double targetX, double targetY, double targetZ){
+
+        // get current pose
+        std::array<double, 16> current_pose = cartesian_pose_handle_->getRobotState().O_T_EE_d;
+
+        // total difference to desired position
+        double deltaX = targetX - current_pose[12];
+        double deltaY = targetY - current_pose[13];
+        double deltaZ = targetZ - current_pose[14];
+
+        std::cout << "dx=" << deltaX << "\tdy=" << deltaY << "\tdz=" << deltaZ << std::endl;
+
+        // robot moves with maxvel on axis, on which difference is biggest. The other two axes have to slow down
+        double maxDiff = std::abs(deltaX) > std::abs(deltaY) ? std::abs(deltaX) : std::abs(deltaY);
+        maxDiff = std::abs(deltaZ) > maxDiff ? std::abs(deltaZ) : maxDiff;
+
+        int neededSteps = (int)ceil(maxDiff/maxStepSize_);
+        std::cout << "maxDiff=" << maxDiff << "\tmaxStepSize=" << maxStepSize_ << "\tneededSteps=" << neededSteps << std::endl;
+
+        stepSizeX_ = 0;
+        stepSizeY_ = 0;
+        stepSizeZ_ = 0;
+
+        if (neededSteps > 0) {
+            stepSizeX_ = deltaX / neededSteps;
+            stepSizeY_ = deltaY / neededSteps;
+            stepSizeZ_ = deltaZ / neededSteps;
+        }
+
+        std::cout << "sx=" << stepSizeX_ << "\tsy=" << stepSizeY_ << "\tsz=" << stepSizeZ_ << std::endl;
     }
 
 }  // namespace franka_example_controllers

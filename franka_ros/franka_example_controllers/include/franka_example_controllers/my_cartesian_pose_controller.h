@@ -32,11 +32,16 @@ namespace franka_example_controllers {
 
         void updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg);
 
+        void updateTargetPosition(double x, double y, double z);
+
         franka_hw::FrankaPoseCartesianInterface *cartesian_pose_interface_;
         std::unique_ptr <franka_hw::FrankaCartesianPoseHandle> cartesian_pose_handle_;
         ros::Duration elapsed_time_;
-        std::array<double, 16> initial_pose_{};
-        std::array<double, 16> desired_pose_{};
+        //std::array<double, 16> initial_pose_{};
+        //std::array<double, 16> desired_pose_{};
+
+        double stepSizeX_, stepSizeY_, stepSizeZ_;
+        double maxVel_, maxStepSize_;
 
         ros::Subscriber sub_desired_pose_;   // Subscriber for new desired pose
     };
