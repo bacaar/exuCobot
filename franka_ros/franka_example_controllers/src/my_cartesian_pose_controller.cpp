@@ -83,43 +83,31 @@ namespace franka_example_controllers {
                                            const ros::Duration &period) {
         elapsed_time_ += period;
 
-        // for circle creation
-        /*
-        double xc = 0.5;
-        double yc = 0.0;
-        double zc = 0.3;
-        double radius = 0.2;
-
-        double angle = elapsed_time_.toSec() * 0.5;
-        double x = xc + radius * std::sin(angle);
-        double y = yc + radius * std::cos(angle);
-        double z = zc;
-        std::array<double, 16> new_pose = cartesian_pose_handle_->getRobotState().O_T_EE_d;
-        new_pose[12] += x;
-        new_pose[13] += y;
-        new_pose[14] += z;
-
-        cartesian_pose_handle_->setCommand(new_pose);
-         */
-
-
-        /*
+        // quarter circle creation
         double radius = 0.3;
         double angle = M_PI / 4 * (1 - std::cos(M_PI / 5.0 * elapsed_time_.toSec()));
         double delta_x = radius * std::sin(angle);
-        double delta_y = radius * std::cos(angle);
+        double delta_y = radius * (1-std::cos(angle));
         std::array<double, 16> new_pose = initial_pose_;
         new_pose[12] -= delta_x;
         new_pose[13] -= delta_y;
+
+        // rough collision check for robot base
+        if (new_pose[12] < 0.15 && std::abs(new_pose[13]) < 0.15){
+            std::cerr << "rudimentary collision check failed!" << std::endl;
+            exit(-1);
+        }
+
         cartesian_pose_handle_->setCommand(new_pose);
-         */
 
 
+        /*
         std::array<double, 16> pose_current = cartesian_pose_handle_->getRobotState().O_T_EE_d;
         double delta_x = 0.00001;   //(scale down to slow the movement)
         pose_current[12] += delta_x;
         std::cout << pose_current[12] << std::endl;
         cartesian_pose_handle_->setCommand(pose_current);
+         */
     }
 
     void MyCartesianPoseController::updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg) {
