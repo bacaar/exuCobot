@@ -283,16 +283,23 @@ namespace franka_example_controllers {
             uint32_t /*level*/) {
         cartesian_stiffness_target_.setIdentity();
         cartesian_stiffness_target_.topLeftCorner(3, 3)
-                << config.translational_stiffness * Eigen::Matrix3d::Identity();
+                << config.translational_stiffness * Eigen::Matrix3d::Identity() * 10;
         cartesian_stiffness_target_.bottomRightCorner(3, 3)
-                << config.rotational_stiffness * Eigen::Matrix3d::Identity();
+                << config.rotational_stiffness * Eigen::Matrix3d::Identity() * 8;
         cartesian_damping_target_.setIdentity();
         // Damping ratio = 1
         cartesian_damping_target_.topLeftCorner(3, 3)
-                << 2.0 * sqrt(config.translational_stiffness) * Eigen::Matrix3d::Identity();
+                << 2.0 * sqrt(config.translational_stiffness * 4) * Eigen::Matrix3d::Identity();
         cartesian_damping_target_.bottomRightCorner(3, 3)
                 << 2.0 * sqrt(config.rotational_stiffness) * Eigen::Matrix3d::Identity();
         nullspace_stiffness_target_ = config.nullspace_stiffness;
+
+        std::cout << "\nStiffness modified!\n";
+        std::cout << "Cartesian stiffness:\n" << cartesian_stiffness_target_ << std::endl;
+        std::cout << "Cartesian damping:\n" << cartesian_damping_target_ << std::endl;
+        std::cout << "Nullspace Stiffnes target: " << nullspace_stiffness_target_ << std::endl;
+
+        std::cout << std::endl;
     }
 
     void MyCartesianImpedanceController::equilibriumPoseCallback(
