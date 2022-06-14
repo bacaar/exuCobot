@@ -134,9 +134,12 @@ def main():
 	x = error[:,1]
 	y = error[:,2]
 	z = error[:,3]
+	abs = np.sqrt(x**2 + y**2 + z**2)
+
 	plt.plot(t, x, "b", label="error x")
 	plt.plot(t, y, "r", label="error y")
 	plt.plot(t, z, "g", label="error z")
+	plt.plot(t, abs, "k", label="error abs")
 
 	plt.grid()
 	plt.xlabel('t in s')

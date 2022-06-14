@@ -7,6 +7,7 @@ Date: 01.06.2022
 Script for passing new target points to impedance controller
 for testing purposes
 """
+import sys
 
 import rospy
 from geometry_msgs.msg import PoseStamped
@@ -16,15 +17,17 @@ import tf
 
 import time
 
-def main():
+def main(usePoseController, tPose=-1):
 
 	# create correct publisher
-	pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=10)
+	if usePoseController:
+		pub = rospy.Publisher('/my_cartesian_pose_controller/setDesiredPose', PoseStamped, queue_size=10)
+	else:
+		pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=10)
 
 	# init rospy, init some variables
 	rospy.init_node('newPoses', anonymous=True)
 	rate = rospy.Rate(1000)
-	#npose = 1
 
 	# for circle creation
 	t0 = time.time()
@@ -34,8 +37,11 @@ def main():
 
 	while not rospy.is_shutdown():
 		# get time since program start (used as trajectory-parameter)
-		t1 = time.time()
-		t = t1-t0
+		if tPose != -1:	# go to one position only
+			t = tPose
+		else:	# move in circle
+			t1 = time.time()
+			t = t1-t0
 
 		# calculate coordinates for circle
 		x = xc + r * np.cos(t)
@@ -78,6 +84,23 @@ def main():
 
 if __name__ == '__main__':
 	try:
-		main()
+		if len(sys.argv) < 2:
+			print("usage: newPoses.py arg1 [arg2]")
+		else:
+			usePoseController = False
+			if sys.argv[1] == "-i" or sys.argv[1] == "-I":
+				usePoseController = False
+			elif sys.argv[1] == "-p" or sys.argv[1] == "-P":
+				usePoseController = True
+			else:
+				print("Use arg1 = -i for impedance control, -p for pose control")
+				exit()
+
+			if len(sys.argv) == 3:
+				npose = float(sys.argv[2])	# amount of positions to traverse
+				main(usePoseController, npose)
+			else:
+				main(usePoseController)
+
 	except rospy.ROSInterruptException:
 		pass
