@@ -160,8 +160,13 @@ include_directories(
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-catkin_install_python(PROGRAMS   scripts/newPoses.py scripts/errorRecorder.py scripts/livePosViewer.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+catkin_install_python(
+        PROGRAMS
+        scripts/newPoses.py
+        scripts/errorRecorder.py
+        scripts/livePosViewer.py
+        scripts/timeAnalyzer.py
+        DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 ## Mark executables for installation

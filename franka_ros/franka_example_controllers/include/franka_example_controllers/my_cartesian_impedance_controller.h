@@ -73,6 +73,20 @@ namespace franka_example_controllers {
 
         void updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg);
 
+        // for measuring required time [us] of update-method
+        int tarray_[10000];
+        int tmin_;
+        int tmax_;
+        int tIndexMax_;
+        int tIndex_;
+
+        // for measuring required time [us] for receiving new pose via ros topic
+        int rarray_[10000];
+        int rmin_;
+        int rmax_;
+        int rIndexMax_;
+        int rIndex_;
+
         ros::Publisher pub_current_pose_; // publisher for current pose
         ros::Publisher pub_current_error_; // publisher for current pose
 
