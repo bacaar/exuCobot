@@ -375,7 +375,7 @@ namespace franka_example_controllers {
         cartesian_damping_target_.topLeftCorner(3, 3)
                 << 2.0 * sqrt(config.translational_stiffness * 8) * Eigen::Matrix3d::Identity();
         cartesian_damping_target_.bottomRightCorner(3, 3)
-                << 2.0 * sqrt(config.rotational_stiffness) * Eigen::Matrix3d::Identity();
+                << 2.0 * sqrt(config.rotational_stiffness * 1) * Eigen::Matrix3d::Identity();
         nullspace_stiffness_target_ = config.nullspace_stiffness;
 
         std::cout << "\nStiffness modified!\n";

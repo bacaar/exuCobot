@@ -9,15 +9,63 @@ for testing purposes
 """
 import sys
 
+from matplotlib import use
+
 import rospy
 from geometry_msgs.msg import PoseStamped
 
 import numpy as np
 import tf
+import math
 
-import time
 
-def main(usePoseController, tPose=-1):
+# circle and square are centered around same point and have same outer dimensions
+xc = 0.5
+yc = 0.0
+r = 0.2		# radius for circle, half side length of square
+
+# for square contour calculation:
+# we don't have access to current position of robot (else it would be easier to just change direction when certain position in x or y are reached) so we have to do it with time.
+# Same as with circles, on which one rotation requires t = 2*pi, here one "round" on the square trajectory should take exaktly 2*pi
+lTrajectory = 2*r*4		# length of full square-contour
+squareStepSize = lTrajectory / (2*np.pi)	# size of one step in trajectory, in order to complete square after t = 2*pi
+
+
+# calculate coordinates for circle
+def trajectoryCircle(t):
+	x = xc + r * np.cos(t)
+	y = yc + r * np.sin(t)
+	z = 0.3
+
+	return (x, y, z)
+
+
+# calculate coordinates for square
+def trajectorySquare(t_):
+	t = math.fmod(t_, 2*np.pi)	# time in current rotation
+
+	if t <= 2*np.pi/8:
+		x = xc + r
+		y = yc + squareStepSize * t
+	elif t <= 3*2*np.pi/8:
+		x = xc + r - squareStepSize * (t-2*np.pi/8)
+		y = yc + r
+	elif t <= 5*2*np.pi/8:
+		x = xc - r
+		y = yc + r - squareStepSize * (t-3*2*np.pi/8)
+	elif t <= 7*2*np.pi/8:
+		x = xc - r + squareStepSize * (t-5*2*np.pi/8)
+		y = yc - r
+	else:
+		x = xc + r
+		y = yc - r + squareStepSize * (t-7*2*np.pi/8)
+
+	z = 0.3
+
+	return (x, y, z)
+
+
+def main(usePoseController, useSquareTrajectory, tPose=-1):
 
 	# create correct publisher
 	if usePoseController:
@@ -28,32 +76,29 @@ def main(usePoseController, tPose=-1):
 	# init rospy, init some variables
 	rospy.init_node('newPoses', anonymous=True)
 	rate = rospy.Rate(1000)
-
-	# for circle creation
-	t0 = time.time()
-	xc = 0.5
-	yc = 0.0
-	r = 0.2
+	t0 = rospy.Time.now()
+	
 
 	while not rospy.is_shutdown():
 		# get time since program start (used as trajectory-parameter)
 		if tPose != -1:	# go to one position only
 			t = tPose
 		else:	# move in circle
-			t1 = time.time()
-			t = t1-t0
+			t1 = rospy.Time.now()
+			t = (t1-t0).to_sec()
 
-		# calculate coordinates for circle
-		x = xc + r * np.cos(t)
-		y = yc + r * np.sin(t)
+		if useSquareTrajectory:
+			coords = trajectorySquare(t)
+		else:
+			coords = trajectoryCircle(t)
 
 		# create message
 		msg = PoseStamped()
 		
 		# write position into message
-		msg.pose.position.x = x
-		msg.pose.position.y = y
-		msg.pose.position.z = 0.3
+		msg.pose.position.x = coords[0]
+		msg.pose.position.y = coords[1]
+		msg.pose.position.z = coords[2]
 
 		# endeffector should point straight down
 		pitch = np.radians(180)
@@ -72,35 +117,71 @@ def main(usePoseController, tPose=-1):
 		msg.pose.orientation.z = quaternion[2]
 		msg.pose.orientation.w = quaternion[3]
 
-		#print("publish Pose " + str(npose))
-		#npose = npose+1
-
 		# write current time into message
 		msg.header.stamp = rospy.Time.now()
-		print(msg)
+		#print(msg)
 		pub.publish(msg)
 
 		rate.sleep()
 
+
 if __name__ == '__main__':
 	try:
-		if len(sys.argv) < 2:
-			print("usage: newPoses.py arg1 [arg2]")
-		else:
-			usePoseController = False
-			if sys.argv[1] == "-i" or sys.argv[1] == "-I":
-				usePoseController = False
-			elif sys.argv[1] == "-p" or sys.argv[1] == "-P":
-				usePoseController = True
-			else:
-				print("Use arg1 = -i for impedance control, -p for pose control")
-				exit()
 
-			if len(sys.argv) == 3:
-				npose = float(sys.argv[2])	# amount of positions to traverse
-				main(usePoseController, npose)
+		# default values
+		usePoseController = False
+		useSquareTrajectory = False
+		tPose = -1
+
+		# parse arguments
+		i = 0
+		while i < len(sys.argv):
+			arg = sys.argv[i]
+			if i == 0:
+				pass	# program name is no for us relevant parameter
+			elif arg == "-i" or arg == "-I":
+				pass	# nothing to do, as usePoseController is alredy false and thus impedance control active
+			elif arg == "-p" or arg == "-P":
+				usePoseController = True
+			elif arg == "-c" or arg == "-C":
+				pass	# nothing to do, as useSquareTrajetory is alredy false and thus cicle active
+			elif arg == "-s" or arg == "-S":
+				useSquareTrajectory = True
+			elif arg == "-t":
+				if len(sys.argv) > i+1:
+					try:
+						tPose = float(sys.argv[i+1])
+						i += 1	# skip next iteration
+					except ValueError:
+						print("Argument -t requires float as parameter")
+						exit()
+				else:
+					print("Argument -t requires float as parameter")
+					exit()
 			else:
-				main(usePoseController)
+				print("Unknown argument: " + str(arg))
+				exit()
+			
+			i += 1
+
+		# inform user
+		print("Sending ", end="")
+		if tPose != -1:
+			print("t={} position of ".format(tPose), end="")
+		if useSquareTrajectory:
+			print("square", end="")
+		else:
+			print("circle", end="")
+		print("-trajectory to ", end="")
+		if usePoseController:
+			print("pose", end="")
+		else:
+			print("impedance", end="")
+		print("-control...")
+		print("Terminate movement with Ctrl+C")
+
+		# execute
+		main(usePoseController, useSquareTrajectory, tPose)
 
 	except rospy.ROSInterruptException:
 		pass
