@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>util</name>
+  <name>exudyn_interface</name>
   <version>0.1.0</version>
-  <description>The util package</description>
+  <description>The exudyn_interface package</description>
 
   <maintainer email="aaron.bacher@student.uibk.ac.at">Aaron Bacher</maintainer>
   <author email="aaron.bacher@student.uibk.ac.at">Aaron Bacher</author>
@@ -10,6 +10,7 @@
   <license>BSD3</license>
 
   <url type="website">https://git.uibk.ac.at/csav4339/exucobot</url>
+
 
   <!-- The *depend tags are used to specify dependencies -->
   <!-- Dependencies can be catkin packages or system dependencies -->
@@ -47,6 +48,7 @@
   <exec_depend>rospy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
+
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
