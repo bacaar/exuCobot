@@ -10,11 +10,13 @@ Implements single pendulum moving in yz-plane
 
 import exudyn as exu
 print("Using Exudyn version ", exu.__version__)
+from exudyn.itemInterface import *
+from exudyn.utilities import *
 
 import numpy as np
 print("Using Numpy version ", np.__version__)
-from exudyn.itemInterface import *
-from exudyn.utilities import *
+
+from spatialmath import SE3
 
 
 def main():
@@ -22,8 +24,18 @@ def main():
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
 
-    tRes = 0.001 # Schrittweite
-    tEnd = 0.03
+    tRes = 0.01 # step size
+    tEnd = 3
+
+    g = 9.81    # gravity
+
+    # start position of robot in robot frame in meters
+    globalStartPos = np.array([0.3, 0, 0.2])
+
+    # align mbs with robot axis
+    rotMat = np.array([[0, 0, 1],
+                       [0, 1, 0],
+                       [1, 0, 0]])
 
     #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # parameter und ground mit Rechteck Visualisierung
@@ -35,7 +47,6 @@ def main():
     b = 0.05    #y-dim of pendulum
     massRigid = 12
     inertiaRigid = massRigid/12*(2*a)**2
-    g = 9.81    # gravity
 
     # Körper bestehend aus Rigid2D Node (Koordinaten) und Objekt RigidBody2D (physikal. Eigenschaften und Visualisierung)
     graphics2 = {'type':'Line', 'color':[0.1,0.1,0.8,1], 'data':[-a,-b,0, a,-b,0, a,b,0, -a,b,0, -a,-b,0]} #background
@@ -59,15 +70,39 @@ def main():
 
     # Positionssensor für Pendel-Endpunkt
     sensorPos = mbs.AddSensor(SensorMarker(markerNumber=mR3,
-                                           outputVariableType=exu.OutputVariableType.Position,
-                                           storeInternal=True))
-    AddSensorRecorder(mbs, sensorPos, tEnd, tRes, sensorOutputSize=3)
+                                           outputVariableType=exu.OutputVariableType.Position))
+    mbs.variables['pos'] = sensorPos
 
+    posOffset = np.array([0, 0, 0])
     i = 0
+    T = np.eye(4)    # full coordinate transformation
+
     def PreStepUserFunction(mbs, t):
         nonlocal i
-        pos = mbs.variables['sensorRecord'+str(sensorPos)]
-        print(i, pos[i][0], "\t", t)
+        nonlocal posOffset
+        nonlocal T
+
+        pos_ = mbs.GetSensorValues(mbs.variables['pos'])
+        pos = np.array(pos_)
+
+        if i == 0:
+            posOffset = globalStartPos - pos
+            # full coordinate transformation
+            posOffset = np.expand_dims(posOffset, axis=1)
+            #T = np.concatenate((rotMat, posOffset), axis=1)
+            #T = np.concatenate((T, np.array([[0, 0, 0, 1]])), axis=0)
+
+
+        posFinal = [0, 0, 0]
+
+        #pos = np.array([pos[0], pos[1], pos[2], 1])
+        #posFinal = T @ pos
+        
+        posFinal[0] = pos[2] + posOffset[2][0]
+        posFinal[1] = pos[1] + posOffset[1][0]
+        posFinal[2] = pos[0] + posOffset[0][0]
+
+        print(i, posFinal, t)
         i += 1
 
         return True
@@ -89,6 +124,7 @@ def main():
     simulationSettings.timeIntegration.generalizedAlpha.spectralRadius = 0.5 # Spektralradius des Lösers --> Siehe L
     simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
     simulationSettings.displayStatistics = True
+    exu.showHints = True
 
 
     simulationSettings.solutionSettings.solutionInformation = "2D Pendel"
@@ -106,7 +142,7 @@ def main():
     #SC.WaitForRenderEngineStopFlag()
     exu.StopRenderer() #safely close rendering window!
 
-    print(mbs.variables['sensorRecord'+str(sensorPos)])
+    #print(mbs.variables['sensorRecord'+str(sensorPos)])
     import os
     os.remove("coordinatesSolution.txt")
 
