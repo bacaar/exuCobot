@@ -16,15 +16,66 @@ from exudyn.utilities import *
 import numpy as np
 print("Using Numpy version ", np.__version__)
 
-from spatialmath import SE3
+import rospy
+from geometry_msgs.msg import PoseStamped
+import tf
+
+# function to create and return a PoseStamped-ROS-msg
+# coords: container with x, y and z coordinates
+# :param euler: 
+def createPoseStampedMsg(coords, euler):
+    """
+    function to create and return a PoseStamped-ros-msg
+
+    :param coords: arbitrary container (tuple, list, np.array, ...) with x, y and z coordinates
+    :param euler: arbitrary container (tuple, list, np.array, ...) with euler angles (pitch, roll and yaw)
+
+    :return: the message object
+    :rtype: geometry_msgs.msg.PoseStamped
+    """
+
+    # create message
+    msg = PoseStamped()
+    
+    # write position into message
+    msg.pose.position.x = coords[0]
+    msg.pose.position.y = coords[1]
+    msg.pose.position.z = coords[2]
+
+    # endeffector should point straight down
+    pitch = np.radians(euler[0])
+    roll = np.radians(euler[1])
+    yaw = np.radians(euler[2])
+
+    # create Quaternion out of Euler angles
+    quaternion = tf.transformations.quaternion_from_euler(pitch, yaw, roll)
+
+    # only to be sure quaternion is correct
+    assert np.linalg.norm(quaternion) == 1.0, "ERROR"
+
+    # write orientation into message
+    msg.pose.orientation.x = quaternion[0]
+    msg.pose.orientation.y = quaternion[1]
+    msg.pose.orientation.z = quaternion[2]
+    msg.pose.orientation.w = quaternion[3]
+
+    # write current time into message
+    msg.header.stamp = rospy.Time.now()
+
+    return msg
 
 
 def main():
+
+    # init ros
+    rospy.init_node('ExudynExample1', anonymous=True)
+    pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=1000)
+
     # erstelle Systemcontainer und
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
 
-    tRes = 0.01 # step size
+    tRes = 0.001 # step size
     tEnd = 3
 
     g = 9.81    # gravity
@@ -86,24 +137,25 @@ def main():
         pos = np.array(pos_)
 
         if i == 0:
-            posOffset = globalStartPos - pos
+            buf = [pos[2], pos[0], pos[1]]
+            posOffset = globalStartPos - buf
             # full coordinate transformation
             posOffset = np.expand_dims(posOffset, axis=1)
             #T = np.concatenate((rotMat, posOffset), axis=1)
             #T = np.concatenate((T, np.array([[0, 0, 0, 1]])), axis=0)
 
 
-        posFinal = [0, 0, 0]
-
-        #pos = np.array([pos[0], pos[1], pos[2], 1])
-        #posFinal = T @ pos
+        posGlobal = [0, 0, 0]
         
-        posFinal[0] = pos[2] + posOffset[2][0]
-        posFinal[1] = pos[1] + posOffset[1][0]
-        posFinal[2] = pos[0] + posOffset[0][0]
+        posGlobal[0] = pos[2] + posOffset[0][0]
+        posGlobal[1] = pos[0] + posOffset[1][0]
+        posGlobal[2] = pos[1] + posOffset[2][0]
 
-        print(i, posFinal, t)
+        #print(i, posGlobal, t)
         i += 1
+
+        msg = createPoseStampedMsg(posGlobal, (180, 0, 0))
+        pub.publish(msg)
 
         return True
 
