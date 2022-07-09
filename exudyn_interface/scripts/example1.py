@@ -8,6 +8,8 @@ Example-script for testing interface between exudyn and robot-controller
 Implements single pendulum moving in yz-plane (of robot base coordinate system)
 """
 
+from curses import nonl
+from glob import glob
 import exudyn as exu
 print("Using Exudyn version ", exu.__version__)
 from exudyn.itemInterface import *
@@ -17,8 +19,13 @@ import numpy as np
 print("Using Numpy version ", np.__version__)
 
 import rospy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, WrenchStamped
 import tf
+
+
+# global variable for external forces and moments (combined => efforts)
+extEfforts = np.zeros(shape=(6,1))
+
 
 # function to create and return a PoseStamped-ROS-msg
 # coords: container with x, y and z coordinates
@@ -65,18 +72,59 @@ def createPoseStampedMsg(coords, euler):
     return msg
 
 
+def externalForceCallback(data):
+    """
+	callback function for external forces and moments, applied by the user on the robot
+
+    every time new external efforts are registered by the robot(which happens continuously), 
+    they are published and received by this callback function. Here they are written into 
+    another variable, in order to be processed by exudyn
+
+	:param geometry_msgs.msg.WrenchStamped data: received message
+	"""
+
+    print("Got efforts " + str(data.header.seq))
+
+    # get forces
+    fx = data.wrench.force.x
+    fy = data.wrench.force.y
+    fz = data.wrench.force.z
+
+    # get moments
+    mx = data.wrench.torque.x
+    my = data.wrench.torque.y
+    mz = data.wrench.torque.z
+
+    # TODO: maybe apply low pass filter?
+
+    # save for later use
+    global extEfforts
+
+    extEfforts[0] = fy  # TODO check for correct mapping
+    extEfforts[1] = fz
+    extEfforts[2] = fx
+    extEfforts[3] = my
+    extEfforts[4] = mz
+    extEfforts[5] = mx
+
+
 def main():
 
     # init ros
     rospy.init_node('ExudynExample1', anonymous=True)
+
+    # publisher for pendulum poses (=endeffector positions)
     pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=1000)
+
+    # subscriber for external forces
+    rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)
 
     # init exudyn
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
 
     tRes = 0.001 # step size in s
-    tEnd = 3     # simulation time in s
+    tEnd = 1000     # simulation time in s
 
     g = 9.81    # gravity in m/s^2
 
@@ -84,9 +132,9 @@ def main():
     globalStartPos = np.array([0.3, 0, 0.2])
 
     # matrix to transform simulation coordinates to robot world coordinates
-    trafoMat = np.array([[0, 0, 1],
-                         [0, 1, 0],
-                         [1, 0, 0]])
+    #trafoMat = np.array([[0, 0, 1],
+    #                     [1, 0, 0],
+    #                     [0, 1, 0]])
 
     #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # parameter and ground with rectangle visualisation
@@ -122,6 +170,12 @@ def main():
 
     # gravitational force for pendulum
     mbs.AddLoad(Force(markerNumber=mR2, loadVector=[0, -massRigid*g, 0]))
+
+    # external applied forces
+    mbs.AddLoad(Force(markerNumber=mR3, loadVector=extEfforts[0:3]))    # TODO does this update when changing extEfforts?
+
+    # external applied moments
+    #mbs.AddLoad(Torque(markerNumber=mR3, loadVector=extEfforts[3:6]))   # TODO not sure if correct
 
     # sensor for position of endpoint of pendulum
     sensorPos = mbs.AddSensor(SensorMarker(markerNumber=mR3,
