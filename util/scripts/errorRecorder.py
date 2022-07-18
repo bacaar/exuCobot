@@ -112,13 +112,13 @@ def main():
 	plt.plot(t, y, "r-.", label="measured y")
 	plt.plot(t, z, "g-.", label="measured z")
 
-	t = error[:,0]
-	x = error[:,1]
-	y = error[:,2]
-	z = error[:,3]
-	plt.plot(t, x, "b:", label="error x")
-	plt.plot(t, y, "r:", label="error y")
-	plt.plot(t, z, "g:", label="error z")
+	#t = error[:,0]
+	#x = error[:,1]
+	#y = error[:,2]
+	#z = error[:,3]
+	#plt.plot(t, x, "b:", label="error x")
+	#plt.plot(t, y, "r:", label="error y")
+	#plt.plot(t, z, "g:", label="error z")
 
 	plt.grid()
 	plt.xlabel('t in s')
