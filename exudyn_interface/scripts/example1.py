@@ -24,7 +24,7 @@ import tf
 
 
 # global variable for external forces and moments (combined => efforts)
-extEfforts = np.zeros(shape=(6,1))
+extEfforts = np.zeros(shape=(6, 1))
 
 
 # function to create and return a PoseStamped-ROS-msg
@@ -83,7 +83,7 @@ def externalForceCallback(data):
 	:param geometry_msgs.msg.WrenchStamped data: received message
 	"""
 
-    print("Got efforts " + str(data.header.seq))
+    #print("Got efforts " + str(data.header.seq))
 
     # get forces
     fx = data.wrench.force.x
@@ -129,7 +129,7 @@ def main():
     g = 9.81    # gravity in m/s^2
 
     # start position of robot in robot base frame in meters
-    globalStartPos = np.array([0.3, 0, 0.2])
+    globalStartPos = np.array([0.4, 0, 0.2])
 
     # matrix to transform simulation coordinates to robot world coordinates
     #trafoMat = np.array([[0, 0, 1],
@@ -153,17 +153,17 @@ def main():
     oRigid = mbs.AddObject(RigidBody2D(physicsMass=massRigid, physicsInertia=inertiaRigid,nodeNumber=nRigid,visualization=VObjectRigidBody2D(graphicsData= [graphics2])))
 
     # create markers:
-    # mG0 lays on the ground where the pendulum is connected
-    mG0 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oGround, localPosition=[-1,1.,0.]))
+    # mG0 lies on the ground where the pendulum is connected
+    mG0 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oGround, localPosition=[-1, 1., 0.]))
 
-    # mR1 lays on the upper end of the pendulum where it is connected with ground
-    mR1 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[-0.5,0.,0.]))
+    # mR1 lies on the upper end of the pendulum where it is connected with ground
+    mR1 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[-0.5, 0., 0.]))
 
-    # mR2 lays in the middle of the pendulum where the gravitational force applies
-    mR2 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[ 0.,0.,0.]))
+    # mR2 lies in the middle of the pendulum where the gravitational force applies
+    mR2 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[0., 0., 0.]))
 
-    # mR3 lays on the lower end of the pendulum where the user can interact
-    mR3 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[ 0.5,0.,0.]))
+    # mR3 lies on the lower end of the pendulum where the user can interact
+    mR3 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[0.5, 0., 0.]))
 
     # a RevoluteJoint2D allows only rotation between markers mG0 and mR1
     mbs.AddObject(RevoluteJoint2D(markerNumbers=[mG0,mR1]))
@@ -172,7 +172,7 @@ def main():
     mbs.AddLoad(Force(markerNumber=mR2, loadVector=[0, -massRigid*g, 0]))
 
     # external applied forces
-    mbs.AddLoad(Force(markerNumber=mR3, loadVector=extEfforts[0:3]))    # TODO does this update when changing extEfforts?
+    #mbs.AddLoad(Force(markerNumber=mR3, loadVector=extEfforts[0:3]))    # TODO does this update when changing extEfforts?
 
     # external applied moments
     #mbs.AddLoad(Torque(markerNumber=mR3, loadVector=extEfforts[3:6]))   # TODO not sure if correct
@@ -188,41 +188,53 @@ def main():
     firstPose = True                # flag to determine first step; needed to to calculate posOffset
     T = np.eye(4)                   # for full coordinate transformation
 
+    # publishing each and every step is too much, this slows the connection down
+    # thus publish every xth pose, only
+    xPublish = 10
+    xPublishCounter = 0
+
     def PreStepUserFunction(mbs, t):
         nonlocal firstPose
         nonlocal posOffset
         nonlocal T
+        nonlocal xPublishCounter
 
-        # read current position
-        pos_ = mbs.GetSensorValues(mbs.variables['pos'])
-        pos = np.array(pos_)
+        if xPublishCounter == 0:
+            # read current position
+            pos_ = mbs.GetSensorValues(mbs.variables['pos'])
+            pos = np.array(pos_)
 
-        # in first iteration, calculate posOffset and T
-        if firstPose:
-            buf = [pos[2], pos[0], pos[1]]
-            posOffset = globalStartPos - buf
-            # full coordinate transformation
-            posOffset = np.expand_dims(posOffset, axis=1)
-            #T = np.concatenate((trafoMat, posOffset), axis=1)
-            #T = np.concatenate((T, np.array([[0, 0, 0, 1]])), axis=0)
-            firstPose = False
+            # in first iteration, calculate posOffset and T
+            if firstPose:
+                buf = [pos[2], pos[0], pos[1]]
+                posOffset = globalStartPos - buf
+                # full coordinate transformation
+                posOffset = np.expand_dims(posOffset, axis=1)
+                #T = np.concatenate((trafoMat, posOffset), axis=1)
+                #T = np.concatenate((T, np.array([[0, 0, 0, 1]])), axis=0)
+                firstPose = False
 
-        # initilaize container
-        posGlobal = [0, 0, 0]
+            # initilaize container
+            posGlobal = [0, 0, 0]
 
-        # transform simulation coordinates to robot world coordinates
-        #pos = np.array([pos[0], pos[1], pos[2], 1])
-        #posGlobal = T @ pos
-        #posGlobal = posGlobal[:3]
-        
-        # as for now no rotation is required, it is faster to compute coordinates without matrix multiplication
-        posGlobal[0] = pos[2] + posOffset[0][0]
-        posGlobal[1] = pos[0] + posOffset[1][0]
-        posGlobal[2] = pos[1] + posOffset[2][0]
+            # transform simulation coordinates to robot world coordinates
+            #pos = np.array([pos[0], pos[1], pos[2], 1])
+            #posGlobal = T @ pos
+            #posGlobal = posGlobal[:3]
 
-        # compose message and publish
-        msg = createPoseStampedMsg(posGlobal, (180, 0, 0))
-        pub.publish(msg)
+            # as for now no rotation is required, it is faster to compute coordinates without matrix multiplication
+            posGlobal[0] = pos[2] + posOffset[0][0]
+            posGlobal[1] = pos[0] + posOffset[1][0]
+            posGlobal[2] = pos[1] + posOffset[2][0]
+
+            # compose message and publish
+            msg = createPoseStampedMsg(posGlobal, (180, 0, 0))
+            pub.publish(msg)
+
+        xPublishCounter += 1
+
+        if xPublishCounter >= xPublish:
+            xPublishCounter = 0
 
         # prestep-userfunction has to return true, else simulation stops
         return True

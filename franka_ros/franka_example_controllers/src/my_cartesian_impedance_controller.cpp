@@ -257,38 +257,40 @@ namespace franka_example_controllers {
         position_d_ = filter_params_ * position_d_target_ + (1.0 - filter_params_) * position_d_;
         orientation_d_ = orientation_d_.slerp(filter_params_, orientation_d_target_);
 
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+        if(false) { // toggle for analytics
+            auto stop = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
-        if(tIndex_ < tIndexMax_){
-            tarray_[tIndex_++] = (double)duration.count();
-        }
-        else if (tIndex_ == tIndexMax_){
+            if (tIndex_ < tIndexMax_) {
+                tarray_[tIndex_++] = (double) duration.count();
+            } else if (tIndex_ == tIndexMax_) {
 
-            // calculate mean value
-            int sum = 0;
-            for(int i = 0; i < tIndexMax_; ++i){
-                int buf = tarray_[i];
-                sum += buf;
-                if(buf < tmin_) tmin_ = buf;
-                if(buf > tmax_) tmax_ = buf;
+                // calculate mean value
+                int sum = 0;
+                for (int i = 0; i < tIndexMax_; ++i) {
+                    int buf = tarray_[i];
+                    sum += buf;
+                    if (buf < tmin_) tmin_ = buf;
+                    if (buf > tmax_) tmax_ = buf;
+                }
+
+                double mean = (double) sum / tIndexMax_;
+
+                // calculate std deviation
+                double stddev = 0;
+                for (int i = 0; i < tIndexMax_; ++i) {
+                    stddev += pow(tarray_[i] - mean, 2);
+                }
+                stddev /= (tIndexMax_ - 1);
+                stddev = sqrt(stddev);
+
+                std::cout << "UPDATE\t\tMin: " << tmin_ << "\tmean: " << mean << "\tMax: " << tmax_ << "\tStd Dev: "
+                          << stddev << std::endl;
+
+                tmin_ = 1000;
+                tmax_ = 0;
+                tIndex_ = 0;
             }
-
-            double mean = (double)sum/tIndexMax_;
-
-            // calculate std deviation
-            double stddev = 0;
-            for(int i = 0; i < tIndexMax_; ++i){
-                stddev += pow(tarray_[i] - mean, 2);
-            }
-            stddev /= (tIndexMax_-1);
-            stddev = sqrt(stddev);
-
-            std::cout << "UPDATE\t\tMin: " << tmin_ << "\tmean: " << mean << "\tMax: " << tmax_ << "\tStd Dev: " << stddev << std::endl;
-
-            tmin_ = 1000;
-            tmax_ = 0;
-            tIndex_ = 0;
         }
     }
 
@@ -306,38 +308,40 @@ namespace franka_example_controllers {
         orientation_d_.coeffs() << msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w;
          */
 
-        ros::Duration duration = ros::Time::now() - msg.header.stamp;
-        int t = duration.nsec/1000;
+        if(false) { // toggle for analytics
+            ros::Duration duration = ros::Time::now() - msg.header.stamp;
+            int t = duration.nsec / 1000;
 
-        if(rIndex_ < rIndexMax_){
-            rarray_[rIndex_++] = t;
-        }
-        else if (rIndex_ == rIndexMax_){
+            if (rIndex_ < rIndexMax_) {
+                rarray_[rIndex_++] = t;
+            } else if (rIndex_ == rIndexMax_) {
 
-            // calculate mean value
-            int sum = 0;
-            for(int i = 0; i < rIndexMax_; ++i){
-                int buf = rarray_[i];
-                sum += buf;
-                if(buf < rmin_) rmin_ = buf;
-                if(buf > rmax_) rmax_ = buf;
+                // calculate mean value
+                int sum = 0;
+                for (int i = 0; i < rIndexMax_; ++i) {
+                    int buf = rarray_[i];
+                    sum += buf;
+                    if (buf < rmin_) rmin_ = buf;
+                    if (buf > rmax_) rmax_ = buf;
+                }
+
+                double mean = (double) sum / rIndexMax_;
+
+                // calculate std deviation
+                double stddev = 0;
+                for (int i = 0; i < rIndexMax_; ++i) {
+                    stddev += pow(rarray_[i] - mean, 2);
+                }
+                stddev /= (rIndexMax_ - 1);
+                stddev = sqrt(stddev);
+
+                std::cout << "ROS\t\tMin: " << rmin_ << "\tmean: " << mean << "\tMax: " << rmax_ << "\tStd Dev: "
+                          << stddev << std::endl;
+
+                rmin_ = 1000;
+                rmax_ = 0;
+                rIndex_ = 0;
             }
-
-            double mean = (double)sum/rIndexMax_;
-
-            // calculate std deviation
-            double stddev = 0;
-            for(int i = 0; i < rIndexMax_; ++i){
-                stddev += pow(rarray_[i] - mean, 2);
-            }
-            stddev /= (rIndexMax_-1);
-            stddev = sqrt(stddev);
-
-            std::cout << "ROS\t\tMin: " << rmin_ << "\tmean: " << mean << "\tMax: " << rmax_ << "\tStd Dev: " << stddev << std::endl;
-
-            rmin_ = 1000;
-            rmax_ = 0;
-            rIndex_ = 0;
         }
 
         std::lock_guard <std::mutex> position_d_target_mutex_lock(
