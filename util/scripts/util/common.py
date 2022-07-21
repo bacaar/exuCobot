@@ -42,7 +42,8 @@ def createPoseStampedMsg(coords, euler, time):
     quaternion = tf.transformations.quaternion_from_euler(pitch, yaw, roll)
 
     # only to be sure quaternion is correct
-    assert np.linalg.norm(quaternion) == 1.0, "ERROR"
+    norm = np.linalg.norm(quaternion)
+    assert abs(1-norm) <= 0.01, "ERROR calculating Quaternion, norm is " + str(norm)
 
     # write orientation into message
     msg.pose.orientation.x = quaternion[0]

@@ -55,7 +55,8 @@ def createPoseStampedMsg(coords, euler):
     quaternion = tf.transformations.quaternion_from_euler(pitch, yaw, roll)
 
     # only to be sure quaternion is correct
-    assert np.linalg.norm(quaternion) == 1.0, "ERROR"
+    norm = np.linalg.norm(quaternion)
+    assert abs(1-norm) <= 0.01, "ERROR calculating Quaternion, norm is " + str(norm)
 
     # write orientation into message
     msg.pose.orientation.x = quaternion[0]
@@ -180,6 +181,12 @@ def main():
     # store sensor value of each step in mbs variable, so that is accessible from user function
     mbs.variables['pos'] = sensorPos
 
+    # sensor for rotation (orientation) of endpoint of pendulum
+    sensorRot = mbs.AddSensor(SensorBody(bodyNumber=oRigid,
+                                         outputVariableType=exu.OutputVariableType.Rotation))
+    # store sensor value of each step in mbs variable, so that is accessible from user function
+    mbs.variables['rotation'] = sensorRot
+
     # initialisation of some variables
     posOffset = np.array([0, 0, 0]) # offset between user-interact position in simulation and robot world space 
     firstPose = True                # flag to determine first step; needed to to calculate posOffset
@@ -197,9 +204,11 @@ def main():
         nonlocal xPublishCounter
 
         if xPublishCounter == 0:
-            # read current position
+            # read current position and orientation
             pos_ = mbs.GetSensorValues(mbs.variables['pos'])
+            rot_ = mbs.GetSensorValues(mbs.variables['rotation'])
             pos = np.array(pos_)
+            rot = np.array(rot_)
 
             # in first iteration, calculate posOffset and T
             if firstPose:
@@ -207,6 +216,7 @@ def main():
                 posOffset = globalStartPos - buf
                 # full coordinate transformation
                 posOffset = np.expand_dims(posOffset, axis=1)
+                # TODO: don't forget rotation
                 #T = np.concatenate((trafoMat, posOffset), axis=1)
                 #T = np.concatenate((T, np.array([[0, 0, 0, 1]])), axis=0)
                 firstPose = False
@@ -215,6 +225,7 @@ def main():
             posGlobal = [0, 0, 0]
 
             # transform simulation coordinates to robot world coordinates
+            # TODO: rotation
             #pos = np.array([pos[0], pos[1], pos[2], 1])
             #posGlobal = T @ pos
             #posGlobal = posGlobal[:3]
@@ -224,8 +235,12 @@ def main():
             posGlobal[1] = pos[0] + posOffset[1][0]
             posGlobal[2] = pos[1] + posOffset[2][0]
 
+            # calculate angle
+            angleX = float(round(180+np.rad2deg(rot), 4))
+            print(angleX, type(angleX))
+
             # compose message and publish
-            msg = createPoseStampedMsg(posGlobal, (180, 0, 0))
+            msg = createPoseStampedMsg(posGlobal, (angleX, 0, 0))
             pub.publish(msg)
 
         xPublishCounter += 1
