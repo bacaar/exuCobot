@@ -8,11 +8,8 @@ Example-script for testing interface between exudyn and robot-controller
 Implements single pendulum moving in yz-plane (of robot base coordinate system)
 """
 
-from curses import nonl
-from glob import glob
 import exudyn as exu
 print("Using Exudyn version ", exu.__version__)
-from exudyn.itemInterface import *
 from exudyn.utilities import *
 
 import numpy as np
@@ -22,14 +19,14 @@ import rospy
 from geometry_msgs.msg import PoseStamped, WrenchStamped
 import tf
 
+import sys
+import os
+
 
 # global variable for external forces and moments (combined => efforts)
 extEfforts = np.zeros(shape=(6, 1))
 
 
-# function to create and return a PoseStamped-ROS-msg
-# coords: container with x, y and z coordinates
-# :param euler: 
 def createPoseStampedMsg(coords, euler):
     """
     function to create and return a PoseStamped-ros-msg
@@ -244,6 +241,30 @@ def main():
     # assemble multi body system with all previous specified properties and components
     mbs.Assemble()
 
+    # go to start position
+    try:
+        # TODO: why are following two lines not working?
+        # from util.goToPose import goToPose
+        # goToPose(globalStartPos[0], globalStartPos[1], globalStartPos[2], 180, 0, 0)
+
+        f = os.path.dirname(os.path.abspath(__file__))
+        # go to directories up
+        for _ in range(2):
+            f = f[0:f.rfind("/")]
+        print(f)
+        sys.path.append(f)  # append [...]/exuCobot directory to system path
+        from util.scripts.util.goToPose import goToPose
+
+    except ModuleNotFoundError:
+        print("Could not go to starting position", globalStartPos)
+        userInput = input("Is robot already there? (y/n): ")
+        if userInput != "y":
+            exit(-1)
+
+    # go to global starting postion
+    print("Moving to starting pose...")
+    goToPose(globalStartPos[0], globalStartPos[1], globalStartPos[2], 180, 0, 0, True)
+
     # set simulation settings
     simulationSettings = exu.SimulationSettings() #takes currently set values or default values
     simulationSettings.timeIntegration.endTime = tEnd
@@ -266,7 +287,6 @@ def main():
     exu.StopRenderer() #safely close rendering window!
 
     # remove "coordinatesSolution.txt" as it isn't needed
-    import os
     os.remove("coordinatesSolution.txt")
 
 
