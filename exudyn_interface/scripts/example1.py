@@ -93,14 +93,21 @@ def externalForceCallback(data):
     my = data.wrench.torque.y
     mz = data.wrench.torque.z
 
-    # TODO: maybe apply low pass filter?
-
     # save for later use
     global extEfforts
 
-    extEfforts[0] = fy  # TODO check for correct mapping
-    extEfforts[1] = fz
-    extEfforts[2] = fx
+    # sensor is not that precise, so everything below 5N has to be neglected because of sensornoise
+    # this threshold has been set empirically. For other configurations it might be different. TODO
+    threshold = 5
+    if abs(fy) >= threshold:
+        extEfforts[0] = fy
+        print("fy = " + str(fy))
+    if abs(fz) >= threshold:
+        extEfforts[1] = fz
+        print("fz = " + str(fz))
+    if abs(fx) >= threshold:
+        extEfforts[2] = fx
+        print("fx = " + str(fx))
     extEfforts[3] = my
     extEfforts[4] = mz
     extEfforts[5] = mx
@@ -147,7 +154,7 @@ def main():
 
     # body consists out of Rigid2D Node (coordinates) and objekt RigidBody2D (physical properties and visualisation)
     graphics2 = {'type':'Line', 'color':[0.1,0.1,0.8,1], 'data':[-a,-b,0, a,-b,0, a,b,0, -a,b,0, -a,-b,0]} #background
-    nRigid = mbs.AddNode(Rigid2D(referenceCoordinates=[-1,0.5,-np.pi/2], initialVelocities=[0,0,5]));
+    nRigid = mbs.AddNode(Rigid2D(referenceCoordinates=[-1,0.5,-np.pi/2], initialVelocities=[0,0,0]));
     oRigid = mbs.AddObject(RigidBody2D(physicsMass=massRigid, physicsInertia=inertiaRigid,nodeNumber=nRigid,visualization=VObjectRigidBody2D(graphicsData= [graphics2])))
 
     # create markers:
@@ -170,6 +177,16 @@ def main():
     mbs.AddLoad(Force(markerNumber=mR2, loadVector=[0, -massRigid*g, 0]))
 
     # external applied forces
+    def UFloadX(mbs, t, load):
+        return extEfforts[0]
+
+    mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nRigid, coordinate=0))
+    mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nRigid, coordinate=1))
+    mFz = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nRigid, coordinate=2))
+    mbs.AddLoad(LoadCoordinate(markerNumber=mFx,
+                               loadUserFunction=UFloadX))
+
+    #extEfforts[0:3] = np.array([[3,0,0]]).T # testing
     #mbs.AddLoad(Force(markerNumber=mR3, loadVector=extEfforts[0:3]))    # TODO does this update when changing extEfforts?
 
     # external applied moments
@@ -237,7 +254,6 @@ def main():
 
             # calculate angle
             angleX = float(round(180+np.rad2deg(rot), 4))
-            print(angleX, type(angleX))
 
             # compose message and publish
             msg = createPoseStampedMsg(posGlobal, (angleX, 0, 0))
