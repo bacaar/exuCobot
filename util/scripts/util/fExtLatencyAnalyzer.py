@@ -13,9 +13,11 @@ from geometry_msgs.msg import PoseStamped, WrenchStamped
 import numpy as np
 
 import matplotlib.pyplot as plt
+from mpl_axes_aligner import align
 
 # provide storage space
 forceInputList = []
+forceInputList2 = []
 targetPoseList = []
 currentPoseList = []
 
@@ -34,7 +36,19 @@ def externalForceCallback(data):
         fy = data.wrench.force.y
         fz = data.wrench.force.z
 
-        forceInputList.append([t, fy, fz, fx])
+        forceInputList.append([t, fx, fy, fz])
+
+def externalForceCallback2(data):
+    if isRecording:
+        duration = data.header.stamp - scriptStartTime
+        t = duration.secs + duration.nsecs*1e-9
+
+        # get forces
+        fx = data.wrench.force.x
+        fy = data.wrench.force.y
+        fz = data.wrench.force.z
+
+        forceInputList2.append([t, fz, fx, fy])
 
 
 def targetPoseCallback(data):
@@ -57,11 +71,14 @@ def main():
     global isRecording
     scriptStartTime = rospy.Time.now()
 
-    # duration of recording
-    duration = 2
+    plotYOnly = True
 
-	# setup subscirbers
-    rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)   
+    # duration of recording
+    duration = 20
+
+    # setup subscribers
+    rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)    # force published by franka controller
+    rospy.Subscriber("/my_cartesian_impedance_controller/analysis/getExternalForce", WrenchStamped, externalForceCallback2)       # force received by exudyn
     rospy.Subscriber("/my_cartesian_impedance_controller/setDesiredPose", PoseStamped, targetPoseCallback)
     rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
     # record data from topics for duration of time
@@ -71,26 +88,77 @@ def main():
     isRecording = False
     print("Finished recording")
 
-    # plot trajectories
-    plt.figure()
+    # as only forces are registered by simulation, which abs is higher than 5N,
+    # set all values of force array to 0 if smaller
+    #threshold = 3
+    #for i in range(len(forceInputList)):
+    #    for j in range(1, 4):
+    #        if np.abs(forceInputList[i][j]) < threshold:
+    #            forceInputList[i][j] = 0.0
 
     forceInput = np.array(forceInputList)
+    forceInput2 = np.array(forceInputList2)
     targetPose = np.array(targetPoseList)
     currentPose = np.array(currentPoseList)
 
-    # plot x, y and z axes in different subplots
-    for i_, ax in enumerate(["x", "y", "z"]):
-        i = i_ + 1
-        plt.subplot(1, 3, i)
-        plt.plot(forceInput[:, 0], forceInput[:, i])
-        plt.plot(targetPose[:, 0], targetPose[:, i])
-        plt.plot(currentPose[:, 0], currentPose[:, i])
+    # plot trajectories
+    if plotYOnly:
+        fig, ax = plt.subplots()
+    else:
+        fig, ax = plt.subplots(1, 3)
 
-        plt.xlabel("t in s")
-        plt.ylabel(ax + "-axis in m")
-        plt.grid()
-    
-    plt.tight_layout()
+    if plotYOnly:
+        ax.plot(targetPose[:, 0], targetPose[:, 2])
+        ax.plot(currentPose[:, 0], currentPose[:, 2])
+
+        #ax.legend(["target pos", "current pos"])
+
+        ax.set_title("y-axis")
+        ax.set_xlabel("t in s")
+        ax.set_ylabel("pos in m")
+
+        ax.grid()
+
+        # plot force input on secondary axis
+        ax2 = ax.twinx()
+        ax2.plot(forceInput[:, 0], forceInput[:, 2], "k", linewidth=0.5)
+
+        #ax2.plot(forceInput2[:, 0], forceInput2[:, 2], "r")
+        ax2.set_ylabel("force input in N")
+
+        #ax2.legend(["published", "received"])
+
+        fig.legend(["target pos", "current pos", "published force", "received force"])
+
+        # Adjust the plotting range of two y axes
+        org1 = 0.0  # Origin of first axis
+        org2 = 0.0  # Origin of second axis
+        pos = 0.5  # Position the two origins are aligned
+        align.yaxes(ax, org1, ax2, org2, pos)
+
+    else:
+        # plot x, y and z axes in different subplots
+        for i_, axis in enumerate(["x", "y", "z"]):
+            i = i_ + 1
+
+            ax[i_].plot(targetPose[:, 0], targetPose[:, i])
+            ax[i_].plot(currentPose[:, 0], currentPose[:, i])
+
+            ax[i_].legend(["target pos", "current pos"])
+
+            ax[i_].set_title(axis + "-axis")
+            ax[i_].set_xlabel("t in s")
+            ax[i_].set_ylabel("pos in m")
+
+            ax[i_].grid()
+
+            # plot force input on secondary axis
+            ax2 = ax[i_].twinx()
+            ax2.plot(forceInput[:, 0], forceInput[:, 2], "k")
+            ax2.plot(forceInput2[:, 0], forceInput2[:, 2], "r")
+            ax2.set_ylabel("force input in N")
+
+    #plt.tight_layout()
     plt.show()
 
 

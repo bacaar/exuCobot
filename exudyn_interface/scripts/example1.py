@@ -23,63 +23,30 @@ import sys
 import os
 
 
+f = os.path.dirname(os.path.abspath(__file__))
+# go to directories up
+for _ in range(2):
+    f = f[0:f.rfind("/")]
+print(f)
+sys.path.append(f)  # append [...]/exuCobot directory to system path
+
+from util.scripts.util.common import createPoseStampedMsg
+
+
 # global variable for external forces and moments (combined => efforts)
 extEfforts = np.zeros(shape=(6, 1))
 
 
-def createPoseStampedMsg(coords, euler):
-    """
-    function to create and return a PoseStamped-ros-msg
-
-    :param coords: arbitrary container (tuple, list, np.array, ...) with x, y and z coordinates
-    :param euler: arbitrary container (tuple, list, np.array, ...) with euler angles (pitch, roll and yaw)
-
-    :return: the message object
-    :rtype: geometry_msgs.msg.PoseStamped
-    """
-
-    # create message
-    msg = PoseStamped()
-    
-    # write position into message
-    msg.pose.position.x = coords[0]
-    msg.pose.position.y = coords[1]
-    msg.pose.position.z = coords[2]
-
-    # endeffector should point straight down
-    pitch = np.radians(euler[0])
-    roll = np.radians(euler[1])
-    yaw = np.radians(euler[2])
-
-    # create Quaternion out of Euler angles
-    quaternion = tf.transformations.quaternion_from_euler(pitch, yaw, roll)
-
-    # only to be sure quaternion is correct
-    norm = np.linalg.norm(quaternion)
-    assert abs(1-norm) <= 0.01, "ERROR calculating Quaternion, norm is " + str(norm)
-
-    # write orientation into message
-    msg.pose.orientation.x = quaternion[0]
-    msg.pose.orientation.y = quaternion[1]
-    msg.pose.orientation.z = quaternion[2]
-    msg.pose.orientation.w = quaternion[3]
-
-    # write current time into message
-    msg.header.stamp = rospy.Time.now()
-
-    return msg
-
-
 def externalForceCallback(data):
     """
-	callback function for external forces and moments, applied by the user on the robot
+    callback function for external forces and moments, applied by the user on the robot
 
     every time new external efforts are registered by the robot(which happens continuously), 
     they are published and received by this callback function. Here they are written into 
     another variable, in order to be processed by exudyn
 
-	:param geometry_msgs.msg.WrenchStamped data: received message
-	"""
+    :param geometry_msgs.msg.WrenchStamped data: received message
+    """
 
     #print("Got efforts " + str(data.header.seq))
 
@@ -98,16 +65,22 @@ def externalForceCallback(data):
 
     # sensor is not that precise, so everything below 5N has to be neglected because of sensornoise
     # this threshold has been set empirically. For other configurations it might be different. TODO
-    threshold = 5
+    threshold = 4
     if abs(fy) >= threshold:
         extEfforts[0] = fy
         print("fy = " + str(fy))
+    else:
+        extEfforts[0] = 0
     if abs(fz) >= threshold:
         extEfforts[1] = fz
         print("fz = " + str(fz))
+    else:
+        extEfforts[1] = 0
     if abs(fx) >= threshold:
         extEfforts[2] = fx
         print("fx = " + str(fx))
+    else:
+        extEfforts[2] = 0
     extEfforts[3] = my
     extEfforts[4] = mz
     extEfforts[5] = mx
@@ -120,6 +93,7 @@ def main():
 
     # publisher for pendulum poses (=endeffector positions)
     pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=1000)
+    pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
 
     # subscriber for external forces
     rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)
@@ -128,7 +102,7 @@ def main():
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
 
-    tRes = 0.001 # step size in s
+    tRes = 0.001    # step size in s
     tEnd = 1000     # simulation time in s
 
     g = 9.81    # gravity in m/s^2
@@ -158,12 +132,13 @@ def main():
     inertiaRigid = massRigid/12*(2*a)**2
 
     # body consists out of Rigid2D Node (coordinates) and objekt RigidBody2D (physical properties and visualisation)
-    graphics2 = {'type':'Line', 'color':[0.1, 0.1, 0.8, 1], 'data':[-a, -b, 0,
-                                                                     a, -b, 0,
-                                                                     a,  b, 0,
-                                                                    -a,  b, 0,
-                                                                    -a, -b, 0]}     # background
-    nRigid = mbs.AddNode(Rigid2D(referenceCoordinates=[-1, 0.5, -np.pi/2], initialVelocities=[0, 0, 0]))
+    graphics2 = {'type': 'Line', 'color': [0.1, 0.1, 0.8, 1], 'data': [-a, -b, 0,
+                                                                        a, -b, 0,
+                                                                        a,  b, 0,
+                                                                       -a,  b, 0,
+                                                                       -a, -b, 0]}     # background
+    nRigid = mbs.AddNode(Rigid2D(referenceCoordinates=[-1, 0.5, -np.pi/2],
+                                 initialVelocities=[0, 0, 0]))
     oRigid = mbs.AddObject(RigidBody2D(physicsMass=massRigid,
                                        physicsInertia=inertiaRigid,
                                        nodeNumber=nRigid,
@@ -225,7 +200,7 @@ def main():
         nonlocal posOffset
         nonlocal T
         nonlocal xPublishCounter
-
+        
         if xPublishCounter == 0:
             # read current position and orientation
             pos_ = mbs.GetSensorValues(mbs.variables['pos'])
@@ -261,13 +236,20 @@ def main():
             # calculate angle
             angleX = float(round(180+np.rad2deg(rot), 4))
 
-
             #print(angleX, type(angleX))
 
-
             # compose message and publish
-            msg = createPoseStampedMsg(posGlobal, (angleX, 0, 0))
+            tsend = rospy.Time.now()
+            msg = createPoseStampedMsg(posGlobal, (angleX, 0, 0), tsend)
             pub.publish(msg)
+
+            # publish current external force
+            msgF = WrenchStamped()
+            msgF.header.stamp = tsend
+            msgF.wrench.force.x = extEfforts[0]
+            msgF.wrench.force.y = extEfforts[1]
+            msgF.wrench.force.z = extEfforts[2]
+            pubF.publish(msgF)
 
         xPublishCounter += 1
 
@@ -287,13 +269,6 @@ def main():
         # TODO: why are following two lines not working?
         # from util.goToPose import goToPose
         # goToPose(globalStartPos[0], globalStartPos[1], globalStartPos[2], 180, 0, 0)
-
-        f = os.path.dirname(os.path.abspath(__file__))
-        # go to directories up
-        for _ in range(2):
-            f = f[0:f.rfind("/")]
-        print(f)
-        sys.path.append(f)  # append [...]/exuCobot directory to system path
         from util.scripts.util.goToPose import goToPose
 
     except ModuleNotFoundError:
