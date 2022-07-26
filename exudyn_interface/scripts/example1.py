@@ -255,6 +255,10 @@ def main():
             # calculate angle
             angleX = float(round(180+np.rad2deg(rot), 4))
 
+
+            #print(angleX, type(angleX))
+
+
             # compose message and publish
             msg = createPoseStampedMsg(posGlobal, (angleX, 0, 0))
             pub.publish(msg)
