@@ -41,6 +41,9 @@ namespace franka_example_controllers {
         // create publisher for current pose
         pub_current_error_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentError", 20);
 
+        // create publisher for current target pose
+        pub_current_target_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentTarget", 20);
+
         std::string arm_id;
         if (!node_handle.getParam("arm_id", arm_id)) {
             ROS_ERROR_STREAM("MyCartesianImpedanceController: Could not read parameter arm_id");
@@ -191,6 +194,16 @@ namespace franka_example_controllers {
         msg.pose.orientation.z = orientation.z();
         msg.pose.orientation.w = orientation.w();
         pub_current_pose_.publish(msg);
+
+        // publish current target pose
+        msg.pose.position.x = position_d_target_[0];
+        msg.pose.position.y = position_d_target_[1];
+        msg.pose.position.z = position_d_target_[2];
+        msg.pose.orientation.x = orientation_d_target_.x();
+        msg.pose.orientation.y = orientation_d_target_.y();
+        msg.pose.orientation.z = orientation_d_target_.z();
+        msg.pose.orientation.w = orientation_d_target_.w();
+        pub_current_target_.publish(msg);
 
         // compute error to desired pose
         // position error

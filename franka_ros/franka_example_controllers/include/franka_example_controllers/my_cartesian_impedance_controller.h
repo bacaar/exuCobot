@@ -89,6 +89,9 @@ namespace franka_example_controllers {
 
         ros::Publisher pub_current_pose_; // publisher for current pose
         ros::Publisher pub_current_error_; // publisher for current pose
+        ros::Publisher pub_current_target_; // publisher for current registered target position
+
+        // TODO: variable name management: there is no difference between desired and target pose... different names make it difficult to read/understand
 
         ros::Subscriber sub_equilibrium_pose_; // Equilibrium pose subscriber
         ros::Subscriber sub_desired_pose_;   // Subscriber for new desired pose

@@ -65,7 +65,22 @@ def trajectorySquare(t_):
 	return (x, y, z)
 
 
-def main(usePoseController, useSquareTrajectory, tPose=-1):
+def trajectoryStepResponse(t_):
+	t = math.fmod(t_, 10)
+
+	if t <=5:
+		x = 0.4
+		y = 0.1
+		z = 0.2
+	else:
+		x = 0.5
+		y = 0.3
+		z = 0.35
+
+	return (x, y, z)
+
+
+def main(usePoseController, trajectory, tPose=-1):
 
 	# create correct publisher
 	if usePoseController:
@@ -87,10 +102,12 @@ def main(usePoseController, useSquareTrajectory, tPose=-1):
 			t1 = rospy.Time.now()
 			t = (t1-t0).to_sec()
 
-		if useSquareTrajectory:
+		if trajectory == "square":
 			coords = trajectorySquare(t)
-		else:
+		if trajectory == "circle":
 			coords = trajectoryCircle(t)
+		if trajectory == "stepResponse":
+			coords = trajectoryStepResponse(t)
 
 		# create message
 		msg = PoseStamped()
@@ -130,7 +147,7 @@ if __name__ == '__main__':
 
 		# default values
 		usePoseController = False
-		useSquareTrajectory = False
+		trajectory = "circle"
 		tPose = -1
 
 		# parse arguments
@@ -139,14 +156,19 @@ if __name__ == '__main__':
 			arg = sys.argv[i]
 			if i == 0:
 				pass	# program name is no for us relevant parameter
+
 			elif arg == "-i" or arg == "-I":
 				pass	# nothing to do, as usePoseController is alredy false and thus impedance control active
 			elif arg == "-p" or arg == "-P":
 				usePoseController = True
+
 			elif arg == "-c" or arg == "-C":
-				pass	# nothing to do, as useSquareTrajetory is alredy false and thus cicle active
+				pass	# nothing to do, as trajetory is alredy set to circle
 			elif arg == "-s" or arg == "-S":
-				useSquareTrajectory = True
+				trajectory = "square"
+			elif arg == "-sR" or arg == "-sr" or arg == "-SR" or arg == "-Sr":
+				trajectory = "stepResponse"
+
 			elif arg == "-t":
 				if len(sys.argv) > i+1:
 					try:
@@ -168,10 +190,7 @@ if __name__ == '__main__':
 		print("Sending ", end="")
 		if tPose != -1:
 			print("t={} position of ".format(tPose), end="")
-		if useSquareTrajectory:
-			print("square", end="")
-		else:
-			print("circle", end="")
+		print(trajectory, end="")
 		print("-trajectory to ", end="")
 		if usePoseController:
 			print("pose", end="")
@@ -181,7 +200,7 @@ if __name__ == '__main__':
 		print("Terminate movement with Ctrl+C")
 
 		# execute
-		main(usePoseController, useSquareTrajectory, tPose)
+		main(usePoseController, trajectory, tPose)
 
 	except rospy.ROSInterruptException:
 		pass

@@ -7,6 +7,8 @@ Date: 02.06.2022
 Script for recording errors of robot following trajectory
 """
 
+import sys
+
 import rospy
 from geometry_msgs.msg import PoseStamped
 
@@ -44,15 +46,13 @@ def currentErrorCallback(data):
 		errorList.append([t, data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
 
-def main():
+def main(t):
 
 	rospy.init_node('errorRecorder', anonymous=True)
 	global scriptStartTime
 	global isRecording
 	scriptStartTime = rospy.Time.now()
-	
-	# duration of recording; 2*pi is approx one rotation
-	duration = 3*2*np.pi	# duration of planned recording in seconds
+
 
 	# setup subscirbers
 	rospy.Subscriber("/my_cartesian_impedance_controller/setDesiredPose", PoseStamped, targetPoseCallback)
@@ -60,10 +60,10 @@ def main():
 	rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentError", PoseStamped, currentErrorCallback)
 
 	# record data from topics for duration of time
-	print("Starting recording for {} seconds".format(duration))
+	print("Starting recording for {} seconds".format(t))
 	t0 = rospy.Time.now()
 	isRecording = True
-	rospy.sleep(duration)
+	rospy.sleep(t)
 	isRecording = False
 	print("Finished recording")
 	print("Target pose length: {}\t\tCurrent pose length: {}\t\tError length: {}".format(len(targetPoseList),
@@ -149,6 +149,23 @@ def main():
 
 if __name__ == "__main__":
 	try:
-		main()
+
+		# default duration of recording; 2*pi is approx one rotation
+		t = 3*2*np.pi	# duration of planned recording in seconds
+
+		# parse arguments
+		i = 0
+		while i < len(sys.argv):
+			arg = sys.argv[i]
+			if i == 0:
+				pass	# program name is no for us relevant parameter
+
+			else:
+				t = float(arg)
+
+			i += 1
+
+		main(t)
+
 	except rospy.ROSInterruptException:
 		pass

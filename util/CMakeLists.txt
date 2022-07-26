@@ -166,6 +166,7 @@ catkin_install_python(
   scripts/util/errorRecorder.py
   scripts/util/livePosViewer.py
   scripts/util/timeAnalyzer.py
+  scripts/util/stepResponse.py
         DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
