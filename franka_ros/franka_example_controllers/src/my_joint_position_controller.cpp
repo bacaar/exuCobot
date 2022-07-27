@@ -62,62 +62,37 @@ namespace franka_example_controllers {
         elapsed_time_ = ros::Duration(0.0);
     }
 
-    template<typename T>
-    void printArray7(std::array<T, 7> array) {
-        for (size_t i = 0; i < 7; ++i) {
-            std::cout << array[i] << "\t";
-        }
-        std::cout << std::endl;
-    }
-
     void MyJointPositionController::update(const ros::Time & /*time*/,
                                            const ros::Duration &period) {
         elapsed_time_ += period;
 
-        //double target_pose[] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-        //double target_pose[] = {0.0, -0.22449781786768058, 0.0, -2.6762069058915854, 0.0, 2.4217752625883384, 0.7664495172173067};
+        // current objective of this controller is to reach same position everytime it is called
         double target_pose[] = {-1.93489204e-03, -2.28897689e-01, 2.02668799e-03, -2.69957050e+00, 7.39679528e-04, 2.47067313e+00, 7.84857743e-01};
 
-        std::array<double, 7> current_pose{};
-        std::array<double, 7> error{};
-        std::array<int, 7> direction{};
-
+        // iterate over joints
         for (size_t i = 0; i < 7; ++i) {
-            current_pose[i] = position_joint_handles_[i].getPosition();
-            error[i] = target_pose[i] - current_pose[i];
+            // get current joint angle and error (in respect to desired angle)
+            double current_angle = position_joint_handles_[i].getPosition();
+            double error = target_pose[i] - current_angle;
 
-            if (error[i] > 0) direction[i] = 1;
-            else if (error[i] < 0) direction[i] = -1;
-            else direction[i] = 0;
-        }
+            // determine if angle has to increase or decrease
+            double direction = 0;
+            if (error > 0) direction = 1;
+            else if (error < 0) direction = -1;
 
-        for (size_t i = 0; i < 7; ++i) {
-            double newPos;
-            double stepSize = 0.0015;
-            if(abs(error[i]) > stepSize * 2) {
-                newPos = current_pose[i] + stepSize * direction[i];
+            double new_angle;
+            double step_size = 0.001;
+
+            // if error is bigger than threshold, increase / decrease current angle with stepSize
+            if(abs(error) > step_size * 2) {
+                new_angle = current_angle + step_size * direction;
             }
-            else{
-                newPos = current_pose[i];
+            else{   // if error is smaller than threshold, let it stay there
+                new_angle = current_angle;
             }
-            position_joint_handles_[i].setCommand(newPos);
+            // send new angle
+            position_joint_handles_[i].setCommand(new_angle);
         }
-
-        /*
-        double delta_angle = M_PI / 16 * (1 - std::cos(M_PI / 5.0 * elapsed_time_.toSec())) * 0.2;
-        std::cout << delta_angle << "\t\t" << delta_angle - last_angle_ << std::endl;
-        last_angle_ = delta_angle;
-        for (size_t i = 0; i < 7; ++i) {
-            double newPos;
-            if (i == 4) {
-                newPos = initial_pose_[i] - delta_angle;
-            } else {
-                newPos = initial_pose_[i] + delta_angle;
-            }
-            position_joint_handles_[i].setCommand(newPos);
-        }
-        */
-
     }
 
 }  // namespace franka_example_controllers
