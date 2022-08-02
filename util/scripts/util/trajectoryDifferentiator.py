@@ -35,13 +35,13 @@ def main(t):
     rospy.init_node('errorRecorder', anonymous=True)
     global scriptStartTime
     global isRecording
-    scriptStartTime = rospy.Time.now()
 
     # setup subscirbers
     rospy.Subscriber("/my_cartesian_impedance_controller/setDesiredPose", PoseStamped, targetPoseCallback)
 
     # record data from topics for duration of time
     print("Starting recording for {} seconds".format(t))
+    scriptStartTime = rospy.Time.now()
     isRecording = True
     rospy.sleep(t)
     isRecording = False
@@ -52,25 +52,25 @@ def main(t):
     pos = np.array(targetPoseList)
 
     # provide some storage space
-    vel = np.empty(shape=(dataSize, 4))
-    acc = np.empty(shape=(dataSize, 4))
+    vel = np.zeros(shape=(dataSize, 4))
+    acc = np.zeros(shape=(dataSize, 4))
 
     for i in range(1, dataSize):
         dt = pos[i][0] - pos[i-1][0]
 
-        # numerical differentiation to calulate velocity
+        # numerical differentiation (backward difference quotient) to calulate velocity
         vel[i, 0] = pos[i, 0]
         vel[i, 1:4] = (pos[i][1:4] - pos[i-1][1:4])/dt
 
         if i > 1:
-            # numerical differentiation to calulate acceleration
+            # numerical differentiation (bdq) to calulate acceleration
             acc[i, 0] = pos[i, 0]
             acc[i] = (vel[i] - vel[i-1])/dt
 
     # create plots
     fig, axs = plt.subplots(3,1,sharex=True)
 
-    fig.suptitle("Pose example controller trajectory analysis")
+    fig.suptitle("Target trajectory analysis")
 
     # plot absolute position
     axs[0].plot(pos[:,0], pos[:,1], label="x")
