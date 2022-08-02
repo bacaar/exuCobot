@@ -48,8 +48,6 @@ def externalForceCallback(data):
     :param geometry_msgs.msg.WrenchStamped data: received message
     """
 
-    #print("Got efforts " + str(data.header.seq))
-
     # get forces
     fx = data.wrench.force.x
     fy = data.wrench.force.y
@@ -147,9 +145,13 @@ def main():
     # create markers:
     # mG0 lies on the ground where the pendulum is connected
     mG0 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oGround, localPosition=[-1, 1., 0.]))
+    # different marker (type) at same position for friction
+    mGF = mbs.AddMarker(MarkerBodyRigid(bodyNumber=oGround, localPosition=[-1, 1., 0.]))
 
     # mR1 lies on the upper end of the pendulum where it is connected with ground
     mR1 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[-0.5, 0., 0.]))
+    # same as above: different type at same position for friction
+    mR1F = mbs.AddMarker(MarkerBodyRigid(bodyNumber=oRigid, localPosition=[-0.5, 0., 0.]))
 
     # mR2 lies in the middle of the pendulum where the gravitational force applies
     mR2 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[0., 0., 0.]))
@@ -162,6 +164,11 @@ def main():
 
     # gravitational force for pendulum
     mbs.AddLoad(Force(markerNumber=mR2, loadVector=[0, -massRigid*g, 0]))
+
+    # friction
+    mbs.AddObject(TorsionalSpringDamper(markerNumbers=[mGF, mR1F],
+                                        stiffness=0,
+                                        damping=5))
 
     # external applied forces
     def UFloadX(mbs, t, load):
