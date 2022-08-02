@@ -2,10 +2,10 @@
 
 """
 Author: Aaron Bacher
-Date: 20.06.2022
+Date: 28.07.2022
 
 Example-script for testing interface between exudyn and robot-controller
-Implements single pendulum moving in yz-plane (of robot base coordinate system)
+Implements 3D pendulum
 """
 
 import exudyn as exu
@@ -48,6 +48,8 @@ def externalForceCallback(data):
     :param geometry_msgs.msg.WrenchStamped data: received message
     """
 
+    #print("Got efforts " + str(data.header.seq))
+
     # get forces
     fx = data.wrench.force.x
     fy = data.wrench.force.y
@@ -85,9 +87,9 @@ def externalForceCallback(data):
 
 
 def main():
-
+    
     # init ros
-    rospy.init_node('ExudynExample1', anonymous=True)
+    rospy.init_node('ExudynExample2', anonymous=True)
 
     # publisher for pendulum poses (=endeffector positions)
     pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=1000)
@@ -95,99 +97,106 @@ def main():
 
     # subscriber for external forces
     rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)
-
+    
     # init exudyn
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
 
+    # simulation parameters
     tRes = 0.001    # step size in s
     tEnd = 1000     # simulation time in s
 
     g = 9.81    # gravity in m/s^2
 
+    # pendulum parameters
+    a = 0.5     # length of pendulum in m
+    b = 0.05    # width of pendulum in m
+    rho = 2700  # density of pendulum in kg/m^3
+
     # start position of robot in robot base frame in meters
     globalStartPos = np.array([0.4, 0, 0.2])
 
-    # matrix to transform simulation coordinates to robot world coordinates
-    #trafoMat = np.array([[0, 0, 1],
-    #                     [1, 0, 0],
-    #                     [0, 1, 0]])
+    # create ground
+    oGround = mbs.AddObject(ObjectGround(referencePosition=[0, 0, 0]))
 
-    #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # parameter and ground with rectangle visualisation
-    # rigid pendulum:
-    rect = [-2, -2, 2, 2]   # xmin, ymin, xmax, ymax
-    background = {'type': 'Line', 'color': [0.1, 0.1, 0.8, 1], 'data': [rect[0], rect[1], 0,
-                                                                        rect[2], rect[1], 0,
-                                                                        rect[2], rect[3], 0,
-                                                                        rect[0], rect[3], 0,
-                                                                        rect[0], rect[1], 0]}   # background
-    oGround = mbs.AddObject(ObjectGround(referencePosition=[0, 0, 0],
-                                         visualization=VObjectGround(graphicsData=[background])))
-    a = 0.5     # x-dim of pendulum
-    b = 0.05    # y-dim of pendulum
-    massRigid = 12
-    inertiaRigid = massRigid/12*(2*a)**2
+    inertiaPendulum = InertiaCuboid(density=rho,
+                                    sideLengths=(a, b, b))
 
-    # body consists out of Rigid2D Node (coordinates) and objekt RigidBody2D (physical properties and visualisation)
-    graphics2 = {'type': 'Line', 'color': [0.1, 0.1, 0.8, 1], 'data': [-a, -b, 0,
-                                                                        a, -b, 0,
-                                                                        a,  b, 0,
-                                                                       -a,  b, 0,
-                                                                       -a, -b, 0]}     # background
-    nRigid = mbs.AddNode(Rigid2D(referenceCoordinates=[-1, 0.5, -np.pi/2],
-                                 initialVelocities=[0, 0, 0]))
-    oRigid = mbs.AddObject(RigidBody2D(physicsMass=massRigid,
-                                       physicsInertia=inertiaRigid,
-                                       nodeNumber=nRigid,
-                                       visualization=VObjectRigidBody2D(graphicsData=[graphics2])))
+    graphicsBodyPendulum = GraphicsDataOrthoCube(xMin=-b/2, xMax=b/2,
+                                                 yMin=-b/2, yMax=b/2,
+                                                 zMin=0, zMax=a,
+                                                 color=[1, 0, 0, 0.5])
 
-    # create markers:
-    # mG0 lies on the ground where the pendulum is connected
-    mG0 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oGround, localPosition=[-1, 1., 0.]))
-    # different marker (type) at same position for friction
-    mGF = mbs.AddMarker(MarkerBodyRigid(bodyNumber=oGround, localPosition=[-1, 1., 0.]))
+    [nPendulum, bPendulum]=AddRigidBody(mainSys = mbs, 
+                                        inertia = inertiaPendulum, 
+                                        nodeType = str(exu.NodeType.RotationEulerParameters), 
+                                        position = [0, 0, -a], 
+                                        rotationMatrix = np.eye(3), 
+                                        angularVelocity = np.zeros(3),
+                                        velocity=np.zeros(3),
+                                        gravity = [0, 0, 0], 
+                                        graphicsDataList = [graphicsBodyPendulum])
 
-    # mR1 lies on the upper end of the pendulum where it is connected with ground
-    mR1 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[-0.5, 0., 0.]))
-    # same as above: different type at same position for friction
-    mR1F = mbs.AddMarker(MarkerBodyRigid(bodyNumber=oRigid, localPosition=[-0.5, 0., 0.]))
+    # connect pendulum with ground
+    mGround = mbs.AddMarker(MarkerBodyRigid(bodyNumber = oGround,
+                                            localPosition = [0, 0, 0]))
+    mP0 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bPendulum,
+                                        localPosition = [0, 0, a]))
+    mbs.AddObject(GenericJoint(markerNumbers=[mGround, mP0],
+                               constrainedAxes=[1,1,1,0,0,1],
+                               visualization=VObjectJointGeneric(axesRadius=0.004, axesLength=0.1)))
 
-    # mR2 lies in the middle of the pendulum where the gravitational force applies
-    mR2 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[0., 0., 0.]))
-
-    # mR3 lies on the lower end of the pendulum where the user can interact
-    mR3 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid, localPosition=[0.5, 0., 0.]))
-
-    # a RevoluteJoint2D allows only rotation between markers mG0 and mR1
-    mbs.AddObject(RevoluteJoint2D(markerNumbers=[mG0, mR1]))
-
-    # gravitational force for pendulum
-    mbs.AddLoad(Force(markerNumber=mR2, loadVector=[0, -massRigid*g, 0]))
-
-    # friction
-    mbs.AddObject(TorsionalSpringDamper(markerNumbers=[mGF, mR1F],
-                                        stiffness=0,
-                                        damping=5))
+    # add gravity
+    mP1 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bPendulum,
+                                        localPosition = [0, 0, a/2]))
+    mbs.AddLoad(Force(markerNumber=mP1, loadVector=[0, 0, -inertiaPendulum.mass*g]))
 
     # external applied forces
     def UFloadX(mbs, t, load):
-        return extEfforts[0]
+        #return extEfforts[0]
+        #return 2
+        return 0
 
-    mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nRigid, coordinate=0))
-    mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nRigid, coordinate=1))
-    mFz = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nRigid, coordinate=2))
+    def UFloadY(mbs, t, load):
+        #return extEfforts[1]
+        if t < 1:
+            return 2
+        else: 
+            return 0
+
+    def UFloadZ(mbs, t, load):
+        #return extEfforts[2]
+        #return 2
+        return 0
+
+    mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nPendulum, coordinate=0))   # TODO: wo am Körper???
+    mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nPendulum, coordinate=1))
+    mFz = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nPendulum, coordinate=2))
+    
     mbs.AddLoad(LoadCoordinate(markerNumber=mFx,
                                loadUserFunction=UFloadX))
+    mbs.AddLoad(LoadCoordinate(markerNumber=mFy,
+                               loadUserFunction=UFloadY))
+    mbs.AddLoad(LoadCoordinate(markerNumber=mFz,
+                               loadUserFunction=UFloadZ))
+
+    # add friction
+    mbs.AddObject(TorsionalSpringDamper(markerNumbers=[mGround, mP0],
+                                        stiffness=10000,
+                                        damping=10000))
+
+    # add marker at bottom of pendulum for sensor
+    mPEnd = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bPendulum,
+                                          localPosition = [0, 0, 0]))
 
     # sensor for position of endpoint of pendulum
-    sensorPos = mbs.AddSensor(SensorMarker(markerNumber=mR3,
+    sensorPos = mbs.AddSensor(SensorMarker(markerNumber=mPEnd,
                                            outputVariableType=exu.OutputVariableType.Position))
     # store sensor value of each step in mbs variable, so that is accessible from user function
     mbs.variables['pos'] = sensorPos
 
     # sensor for rotation (orientation) of endpoint of pendulum
-    sensorRot = mbs.AddSensor(SensorBody(bodyNumber=oRigid,
+    sensorRot = mbs.AddSensor(SensorBody(bodyNumber=bPendulum,
                                          outputVariableType=exu.OutputVariableType.Rotation))
     # store sensor value of each step in mbs variable, so that is accessible from user function
     mbs.variables['rotation'] = sensorRot
@@ -217,7 +226,7 @@ def main():
 
             # in first iteration, calculate posOffset and T
             if firstPose:
-                buf = [pos[2], pos[0], pos[1]]
+                buf = [pos[0], pos[1], pos[2]]
                 posOffset = globalStartPos - buf
                 # full coordinate transformation
                 posOffset = np.expand_dims(posOffset, axis=1)
@@ -236,18 +245,19 @@ def main():
             #posGlobal = posGlobal[:3]
 
             # as for now no rotation is required, it is faster to compute coordinates without matrix multiplication
-            posGlobal[0] = pos[2] + posOffset[0][0]
-            posGlobal[1] = pos[0] + posOffset[1][0]
-            posGlobal[2] = pos[1] + posOffset[2][0]
+            posGlobal[0] = pos[0] + posOffset[0][0]
+            posGlobal[1] = pos[1] + posOffset[1][0]
+            posGlobal[2] = pos[2] + posOffset[2][0]
 
             # calculate angle
-            angleX = float(round(180+np.rad2deg(rot), 4))
+            angle = np.array([180.0, 180.0, 180.0])
+            angle += np.round(np.rad2deg(rot), 4)
 
             #print(angleX, type(angleX))
 
             # compose message and publish
             tsend = rospy.Time.now()
-            msg = createPoseStampedMsg(posGlobal, (angleX, 0, 0), tsend)
+            msg = createPoseStampedMsg(posGlobal, angle, tsend)
             pub.publish(msg)
 
             # publish current external force
@@ -266,7 +276,7 @@ def main():
         # prestep-userfunction has to return true, else simulation stops
         return True
 
-    mbs.SetPreStepUserFunction(PreStepUserFunction)
+    mbs.SetPreStepUserFunction(PreStepUserFunction)                           
 
     # assemble multi body system with all previous specified properties and components
     mbs.Assemble()
@@ -286,7 +296,7 @@ def main():
 
     # go to global starting postion
     print("Moving to starting pose...")
-    goToPose(globalStartPos[0], globalStartPos[1], globalStartPos[2], 180, 0, 0, True)
+    #goToPose(globalStartPos[0], globalStartPos[1], globalStartPos[2], 180, 0, 0, True)
 
     # set simulation settings
     simulationSettings = exu.SimulationSettings() #takes currently set values or default values
