@@ -121,15 +121,84 @@ def evaluatePolynom(coef, t):
 def main():
     rospy.init_node('PolynomialTrajectoryTest', anonymous=True)
 
-    targetPos = np.array([0.15,
-                      0.15,
-                      0.16,
-                      0.17,
-                      0.16,
-                      0.18,
-                      0.19,
-                      0.19,
-                      0.18])
+    simple = False
+
+    if simple:
+        targetPos = np.array([0.15,
+                        0.15,
+                        0.16,
+                        0.17,
+                        0.16,
+                        0.18,
+                        0.19,
+                        0.19,
+                        0.18])
+
+    else:
+        targetPos = np.array([3.103186422778971831e-01 ,
+                            3.069528835455630489e-01 ,
+                            3.031529369879830682e-01 ,
+                            2.989225506480025496e-01 ,
+                            2.942659709824386738e-01 ,
+                            2.891879607586396173e-01 ,
+                            2.836938175808958462e-01 ,
+                            2.777893927103276539e-01 ,
+                            2.714811098252267740e-01 ,
+                            2.647759833561847964e-01 ,
+                            2.576816360220383073e-01 ,
+                            2.502063151889174497e-01 ,
+                            2.423589076757228788e-01 ,
+                            2.341489526353390804e-01 ,
+                            2.255866521519502843e-01 ,
+                            2.166828792109615209e-01 ,
+                            2.074491827192652682e-01 ,
+                            1.978977892798104987e-01 ,
+                            1.880416014554331383e-01 ,
+                            1.778941922924680563e-01 ,
+                            1.674697959143922610e-01 ,
+                            1.567832940392318575e-01 ,
+                            1.458501983211817343e-01 ,
+                            1.346866284662335822e-01 ,
+                            1.233092861229128090e-01 ,
+                            1.117354246017716601e-01 ,
+                            9.998281453028290411e-02 ,
+                            8.806970560240912071e-02 ,
+                            7.601478463356214910e-02 ,
+                            6.383713018105641179e-02 ,
+                            5.155616403669016634e-02 ,
+                            3.919159994094389976e-02 ,
+                            2.676338990673743368e-02 ,
+                            1.429166857403529889e-02 ,
+                            1.796696044255141622e-03 ,
+                            -1.070120033510124635e-02,
+                            -2.318168475029436237e-02,
+                            -3.562447177234751017e-02,
+                            -4.800938478487482008e-02,
+                            -6.031641350041105909e-02,
+                            -7.252577008986405005e-02,
+                            -8.461794346930706645e-02,
+                            -9.657375131426171322e-02,
+                            -1.083743894033946109e-01,
+                            -1.200014779306022294e-01,
+                            -1.314371044661173382e-01,
+                            -1.426638632928318717e-01,
+                            -1.536648908926760981e-01,
+                            -1.644238974088296779e-01,
+                            -1.749251939619214102e-01,
+                            -1.851537157513418741e-01,
+                            -1.950950409255596263e-01,
+                            -2.047354052570615757e-01,
+                            -2.140617127075308268e-01,
+                            -2.230615420163986062e-01,
+                            -2.317231494903906341e-01,
+                            -2.400354682125307448e-01,
+                            -2.479881039258757802e-01,
+                            -2.555713278795914700e-01,
+                            -2.627760669525980308e-01,
+                            -2.695938913926929636e-01,
+                            -2.760170005266717741e-01,
+                            -2.820382068094793304e-01,
+                            -2.876509185878604047e-01])
 
     nextTwoPositions = np.zeros(shape=(2, ))
 
@@ -147,7 +216,7 @@ def main():
 
     sectionLength = rospy.Duration(0.01)
     tSection = rospy.Duration(0.0)
-    dt = rospy.Duration(0.00001)  # controller time steps
+    dt = rospy.Duration(0.001)  # controller time steps
     stepsPerSection = int(round(sectionLength.to_sec() / dt.to_sec()))
 
     steps = int((len(targetPos) - 1) * sectionLength.to_sec() / dt.to_sec())
@@ -205,7 +274,7 @@ def main():
             coefs1 = calcCoefs(currentPos1, currentVel1, currentAcc1, 0, nextTwoPositions[0], nextVelocity1, 0, 0, sectionLength.to_sec())
             coefs2 = calcCoefs(currentPos2, currentVel2, currentAcc2, 0, nextTwoPositions[0], nextVelocity2, 0, 0, sectionLength.to_sec())
             coefs3 = calcCoefs(currentPos3, currentVel3, currentAcc3, 0, nextTwoPositions[0], nextVelocity3, 0, 0, sectionLength.to_sec())
-            print(coefs3)
+            #print(coefs3)
             
             if j == 0:
                 tSection = rospy.Duration(0.0)
@@ -213,7 +282,7 @@ def main():
                 tSection = dt
 
             t1 = time.time()
-            print("New trajectories took {}s".format(t1-t0))
+            #print("New trajectories took {}s".format(t1-t0))
         
         currentPos1, currentVel1, currentAcc1 = evaluatePolynom(coef=coefs1, t=tSection.to_sec())
         currentPos2, currentVel2, currentAcc2 = evaluatePolynom(coef=coefs2, t=tSection.to_sec())
