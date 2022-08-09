@@ -190,7 +190,7 @@ def main():
 
     fig, axs = plt.subplots(3, 1, sharex=True, sharey='row')
     labels = ["s in m", "v in m/s", "a in m/s2"]
-    axs[0].plot(tVec, pos)
+    axs[0].plot(tVec[1:j], pos[1:j])
     #axs[0].plot(recordedTargets[:,0], recordedTargets[0:,1], 'kx')
     axs[0].plot(recordedTargets[:nRecordedTargets,0], recordedTargets[:nRecordedTargets,1], 'kx')
     #axs[0].plot(recordedTargets[:,0], recordedTargets[:,3], 'kx')
@@ -203,7 +203,8 @@ def main():
     axs[2].plot(tVec, acc)
     axs[2].set_ylabel(labels[2])
     axs[2].grid()
-    axs[0].set_title("end velocity 1")
+    axs[2].set_xlabel("t in s")
+    #axs[0].set_title("end velocity 1")
         
     fig.set_tight_layout(True)
     plt.show()

@@ -32,18 +32,27 @@ namespace franka_example_controllers {
 
         void updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg);
 
-        void updateTargetPosition(double x, double y, double z);
+        void updateTrajectory(double x, double y, double z);
 
         franka_hw::FrankaPoseCartesianInterface *cartesian_pose_interface_;
         std::unique_ptr <franka_hw::FrankaCartesianPoseHandle> cartesian_pose_handle_;
         ros::Duration elapsed_time_;
-        //std::array<double, 16> initial_pose_{};
+        std::array<double, 16> initial_pose_{};
         //std::array<double, 16> desired_pose_{};
 
-        double stepSizeX_, stepSizeY_, stepSizeZ_;
-        double maxVel_, maxStepSize_;
+        std::vector<std::vector<double>> current_state_;
+        std::vector<double> current_target_;    // only for analytics
+        std::vector<double> next_position_;
+        std::vector<double> second_next_position_;
+        std::vector<std::vector<double>> coefs_;
 
-        ros::Subscriber sub_desired_pose_;   // Subscriber for new desired pose
+        const double segment_duration_ = 0.01;  // planned duration of one segment in s
+        double segment_time_;                   // time in current segment in s  
+
+        ros::Publisher pub_current_pose_;   // publisher for current pose
+        ros::Publisher pub_current_target_; // publisher for current registered target position
+
+        ros::Subscriber sub_desired_pose_;  // Subscriber for new desired pose
     };
 
 }  // namespace franka_example_controllers

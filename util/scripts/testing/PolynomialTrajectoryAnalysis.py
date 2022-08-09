@@ -202,24 +202,24 @@ def main():
 
     nextTwoPositions = np.zeros(shape=(2, ))
 
-    currentPos1 = targetPos[0]
-    currentVel1 =  0
-    currentAcc1 =  0
-
-    currentPos2 = targetPos[0]
-    currentVel2 =  0
-    currentAcc2 =  0
-
-    currentPos3 = targetPos[0]
-    currentVel3 =  0
-    currentAcc3 =  0
-
     sectionLength = rospy.Duration(0.01)
     tSection = rospy.Duration(0.0)
     dt = rospy.Duration(0.001)  # controller time steps
     stepsPerSection = int(round(sectionLength.to_sec() / dt.to_sec()))
 
     steps = int((len(targetPos) - 1) * sectionLength.to_sec() / dt.to_sec())
+
+    currentPos1 = targetPos[0]
+    currentVel1 = (targetPos[1]-targetPos[0])/sectionLength.to_sec()
+    currentAcc1 = 0
+
+    currentPos2 = targetPos[0]
+    currentVel2 = (targetPos[1]-targetPos[0])/sectionLength.to_sec()
+    currentAcc2 = 0
+
+    currentPos3 = targetPos[0]
+    currentVel3 = (targetPos[1]-targetPos[0])/sectionLength.to_sec()
+    currentAcc3 = 0
 
     # provide some space for coordinates (needed for plotting)
     pos1 = np.zeros(shape=(steps, ))
@@ -314,37 +314,59 @@ def main():
     for i in range(targetT.shape[0]):
         targetT[i] = i * sectionLength.to_sec()
 
+    cropStart = 10
+    cropEnd = 10
+
     fig, axs = plt.subplots(3, 3, sharex=True, sharey='row')
     labels = ["s in m", "v in m/s", "a in m/s2"]
-    axs[0][0].plot(tVec, pos1)
+    
     axs[0][0].plot(targetT, targetPos, 'kx')
     axs[0][0].set_ylabel(labels[0])
     axs[0][0].grid()
-    axs[1][0].plot(tVec, vel1)
     axs[1][0].set_ylabel(labels[1])
     axs[1][0].grid()
-    axs[2][0].plot(tVec, acc1)
     axs[2][0].set_ylabel(labels[2])
     axs[2][0].grid()
-    axs[0][0].set_title("end velocity 1")
+    axs[2][0].set_xlabel("t in s")
+    axs[0][0].set_title("v_T = v_avg1")
 
-    axs[0][1].plot(tVec, pos2)
     axs[0][1].plot(targetT, targetPos, 'kx')
     axs[0][1].grid()
-    axs[1][1].plot(tVec, vel2)
     axs[1][1].grid()
-    axs[2][1].plot(tVec, acc2)
     axs[2][1].grid()
-    axs[0][1].set_title("end velocity 2")
+    axs[2][1].set_xlabel("t in s")
+    axs[0][1].set_title("v_T = v_avg2")
 
-    axs[0][2].plot(tVec, pos3)
+    
     axs[0][2].plot(targetT, targetPos, 'kx')
     axs[0][2].grid()
-    axs[1][2].plot(tVec, vel3)
     axs[1][2].grid()
-    axs[2][2].plot(tVec, acc3)
     axs[2][2].grid()
-    axs[0][2].set_title("end velocity 3")
+    axs[2][2].set_xlabel("t in s")
+    axs[0][2].set_title("v_T = v_avg12")
+
+    if simple:
+        axs[0][0].plot(tVec, pos1)
+        axs[1][0].plot(tVec, vel1)
+        axs[2][0].plot(tVec, acc1)
+        axs[0][1].plot(tVec, pos2)
+        axs[1][1].plot(tVec, vel2)
+        axs[2][1].plot(tVec, acc2)
+        axs[0][2].plot(tVec, pos3)
+        axs[1][2].plot(tVec, vel3)
+        axs[2][2].plot(tVec, acc3)
+    else:
+        axs[0][0].plot(tVec[cropStart:-cropEnd], pos1[cropStart:-cropEnd])
+        axs[1][0].plot(tVec[cropStart:-cropEnd], vel1[cropStart:-cropEnd])
+        axs[2][0].plot(tVec[cropStart:-cropEnd], acc1[cropStart:-cropEnd])
+
+        axs[0][1].plot(tVec[cropStart:-cropEnd], pos2[cropStart:-cropEnd])
+        axs[1][1].plot(tVec[cropStart:-cropEnd], vel2[cropStart:-cropEnd])
+        axs[2][1].plot(tVec[cropStart:-cropEnd], acc2[cropStart:-cropEnd])
+
+        axs[0][2].plot(tVec[cropStart:-cropEnd], pos3[cropStart:-cropEnd])
+        axs[1][2].plot(tVec[cropStart:-cropEnd], vel3[cropStart:-cropEnd])
+        axs[2][2].plot(tVec[cropStart:-cropEnd], acc3[cropStart:-cropEnd])
 
     if polyOrder == 7: # in this case we have to limit axes as polynom returns too high values for graph
         axs[0][0].set_ylim(bottom=0.14, top=0.22)
