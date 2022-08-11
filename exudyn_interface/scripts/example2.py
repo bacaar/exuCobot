@@ -11,6 +11,7 @@ Implements 3D pendulum
 import exudyn as exu
 print("Using Exudyn version ", exu.__version__)
 from exudyn.utilities import *
+from exudyn.rigidBodyUtilities import RotationMatrixX, RotationMatrixZ
 
 import numpy as np
 print("Using Numpy version ", np.__version__)
@@ -153,21 +154,21 @@ def main():
 
     # external applied forces
     def UFloadX(mbs, t, load):
-        #return extEfforts[0]
+        return extEfforts[0]
         #return 2
-        return 0
+        #return 0
 
     def UFloadY(mbs, t, load):
-        #return extEfforts[1]
-        if t < 1:
-            return 2
-        else: 
-            return 0
+        return extEfforts[1]
+        #if t < 1:
+        #    return 10
+        #else: 
+        #    return 0
 
     def UFloadZ(mbs, t, load):
-        #return extEfforts[2]
+        return extEfforts[2]
         #return 2
-        return 0
+        #return 0
 
     mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nPendulum, coordinate=0))   # TODO: wo am Körper???
     mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nPendulum, coordinate=1))
@@ -181,9 +182,14 @@ def main():
                                loadUserFunction=UFloadZ))
 
     # add friction
-    mbs.AddObject(TorsionalSpringDamper(markerNumbers=[mGround, mP0],
-                                        stiffness=10000,
-                                        damping=10000))
+    k = np.zeros(shape=(6,6))
+    d = np.zeros(shape=(6,6))
+    d[3,3] = 10
+    d[4,4] = 10
+
+    mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mGround, mP0],
+                                        stiffness=k,
+                                        damping=d))
 
     # add marker at bottom of pendulum for sensor
     mPEnd = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bPendulum,
@@ -311,6 +317,10 @@ def main():
     simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
     simulationSettings.displayStatistics = True
     simulationSettings.solutionSettings.solutionInformation = "2D Pendulum"
+
+    viewMatrix = np.eye(3)  @ RotationMatrixZ(np.pi/2)@ RotationMatrixX(np.pi/2)
+    SC.visualizationSettings.general.autoFitScene = False
+    SC.visualizationSettings.openGL.initialModelRotation = viewMatrix
 
     # exudyn magic
     exu.StartRenderer()

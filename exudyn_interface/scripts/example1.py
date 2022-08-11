@@ -301,6 +301,7 @@ def main():
     simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
     simulationSettings.displayStatistics = True
     simulationSettings.solutionSettings.solutionInformation = "2D Pendulum"
+    simulationSettings.solutionSettings.writeSolutionToFile = False
 
     # exudyn magic
     exu.StartRenderer()

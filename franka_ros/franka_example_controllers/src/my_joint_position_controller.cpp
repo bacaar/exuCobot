@@ -69,27 +69,30 @@ namespace franka_example_controllers {
         // current objective of this controller is to reach same position everytime it is called
         double target_pose[] = {-1.93489204e-03, -2.28897689e-01, 2.02668799e-03, -2.69957050e+00, 7.39679528e-04, 2.47067313e+00, 7.84857743e-01};
 
+        // provide some variables
+        double current_angle, error, new_angle;
+        double step_size = 0.0005;
+        int direction;
+
         // iterate over joints
         for (size_t i = 0; i < 7; ++i) {
             // get current joint angle and error (in respect to desired angle)
-            double current_angle = position_joint_handles_[i].getPosition();
-            double error = target_pose[i] - current_angle;
+            current_angle = position_joint_handles_[i].getPosition();
+            error = target_pose[i] - current_angle;
 
             // determine if angle has to increase or decrease
-            double direction = 0;
             if (error > 0) direction = 1;
             else if (error < 0) direction = -1;
+            else direction = 0;
 
-            double new_angle;
-            double step_size = 0.001;
-
-            // if error is bigger than threshold, increase / decrease current angle with stepSize
-            if(abs(error) > step_size * 2) {
+            // if target_pose is within step_size_, set new_angle to target_pose
+            if((direction == 1 && error < step_size) || (direction == -1 && -error < step_size) || (error == 0)){
+                new_angle = target_pose[i];
+            }
+            else{   // else increase/decrease current_angle
                 new_angle = current_angle + step_size * direction;
             }
-            else{   // if error is smaller than threshold, let it stay there
-                new_angle = current_angle;
-            }
+
             // send new angle
             position_joint_handles_[i].setCommand(new_angle);
         }
