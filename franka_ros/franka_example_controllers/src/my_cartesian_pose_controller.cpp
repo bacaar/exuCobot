@@ -65,17 +65,19 @@ namespace franka_example_controllers {
             return false;
         }
 
-        // set callback method for updating desired pose
-        sub_desired_pose_ = node_handle.subscribe("setDesiredPose", 20,
-                                                  &MyCartesianPoseController::updateDesiredPoseCallback, this,
+        // set callback method for updating target pose
+        sub_desired_pose_ = node_handle.subscribe("setTargetPose", 20,
+                                                  &MyCartesianPoseController::updateTargetPoseCallback, this,
                                                   ros::TransportHints().reliable().tcpNoDelay());
-
-
-        // create publisher for current pose
-        pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentPose", 20);
 
         // create publisher for current target pose
         pub_current_target_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentTarget", 20);
+
+        // create publisher for current pose
+        pub_current_trajectory_ = node_handle.advertise<geometry_msgs::PoseStamped>("getEvaluatedTrajectory", 20);
+
+        // create publisher for current pose
+        pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentPose", 20);
 
         // initialize variables
         current_state_ = std::vector<std::vector<double>>(3, std::vector<double>(3, 0));
@@ -152,10 +154,11 @@ namespace franka_example_controllers {
         current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
 
         // compose new pose
-        std::array<double, 16> new_pose = cartesian_pose_handle_->getRobotState().O_T_EE_d;
-        new_pose[12] = current_state_[0][0];
-        new_pose[13] = current_state_[1][0];
-        new_pose[14] = current_state_[2][0];
+        std::array<double, 16> current_pose = cartesian_pose_handle_->getRobotState().O_T_EE_d;
+        std::array<double, 16> new_pose = current_pose;
+        //new_pose[12] = current_state_[0][0];
+        //new_pose[13] = current_state_[1][0];
+        //new_pose[14] = current_state_[2][0];
 
         // pass new pose to robot control
         cartesian_pose_handle_->setCommand(new_pose);
@@ -164,22 +167,33 @@ namespace franka_example_controllers {
         geometry_msgs::PoseStamped msg;
         msg.header.stamp = ros::Time::now();
 
-        // current pos
+        // current target pos
+        //msg.pose.position.x = current_target_[0];
+        //msg.pose.position.y = current_target_[1];
+        //msg.pose.position.z = current_target_[2];
+        //pub_current_target_.publish(msg);
+
+        // current trajectory val
         msg.pose.position.x = current_state_[0][0];
         msg.pose.position.y = current_state_[1][0];
         msg.pose.position.z = current_state_[2][0];
-        pub_current_pose_.publish(msg);
+        pub_current_trajectory_.publish(msg);
 
-        // current target pos
-        msg.pose.position.x = current_target_[0];
-        msg.pose.position.y = current_target_[1];
-        msg.pose.position.z = current_target_[2];
-        pub_current_target_.publish(msg);
+        // current pos
+        msg.pose.position.x = current_pose[12];
+        msg.pose.position.y = current_pose[13];
+        msg.pose.position.z = current_pose[14];
+        pub_current_pose_.publish(msg);
     }
 
-    void MyCartesianPoseController::updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg) {
+    void MyCartesianPoseController::updateTargetPoseCallback(const geometry_msgs::PoseStamped &msg) {
 
-        //// For the moment modify position only, leave orientation unchanged
+        // send it back immediately
+        geometry_msgs::PoseStamped msgnew = msg;
+        msgnew.header.stamp = ros::Time::now();
+        pub_current_target_.publish(msgnew);
+
+        // For the moment modify position only, leave orientation unchanged
         updateTrajectory(msg.pose.position.x, msg.pose.position.y, msg.pose.position.z);
         
         // for analytics

@@ -134,6 +134,7 @@ def main():
                         0.19,
                         0.18])
 
+    """
     else:
         targetPos = np.array([3.103186422778971831e-01 ,
                             3.069528835455630489e-01 ,
@@ -199,6 +200,11 @@ def main():
                             -2.760170005266717741e-01,
                             -2.820382068094793304e-01,
                             -2.876509185878604047e-01])
+    """
+
+    controllerData = np.load("controllerTarget.npy",allow_pickle=True)
+    targetPos = controllerData[:,2]
+    print(targetPos.shape)
 
     nextTwoPositions = np.zeros(shape=(2, ))
 
@@ -374,6 +380,12 @@ def main():
         axs[2][0].set_ylim(bottom=-1250, top=1250)
         
     fig.set_tight_layout(True)
+    plt.show()
+
+    plt.figure()
+    plt.plot(targetT, targetPos, 'bx')
+    plt.plot(targetT, exuTarget, 'r.')
+    plt.plot(tVec[cropStart:-cropEnd], pos3[cropStart:-cropEnd])
     plt.show()
 
 

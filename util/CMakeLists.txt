@@ -168,6 +168,7 @@ catkin_install_python(
   scripts/util/timeAnalyzer.py
   scripts/util/stepResponse.py
   scripts/util/trajectoryDifferentiator.py
+  scripts/util/poseObserver.py
         DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

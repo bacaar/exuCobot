@@ -30,7 +30,7 @@ namespace franka_example_controllers {
 
     private:
 
-        void updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg);
+        void updateTargetPoseCallback(const geometry_msgs::PoseStamped &msg);
 
         void updateTrajectory(double x, double y, double z);
 
@@ -40,17 +40,18 @@ namespace franka_example_controllers {
         std::array<double, 16> initial_pose_{};
         //std::array<double, 16> desired_pose_{};
 
-        std::vector<std::vector<double>> current_state_;
+        std::vector<std::vector<double>> current_state_;    // pos, vel and acc for x, y, and z; describing current state of trajectory
         std::vector<double> current_target_;    // only for analytics
-        std::vector<double> next_position_;
-        std::vector<double> second_next_position_;
-        std::vector<std::vector<double>> coefs_;
+        std::vector<double> next_position_;     // x, y and z value of next positions to travers
+        std::vector<double> second_next_position_;  // x, y and z value of second next position to travers
+        std::vector<std::vector<double>> coefs_;    // trajectory / polynom coefficients
 
         const double segment_duration_ = 0.01;  // planned duration of one segment in s
         double segment_time_;                   // time in current segment in s  
 
-        ros::Publisher pub_current_pose_;   // publisher for current pose
         ros::Publisher pub_current_target_; // publisher for current registered target position
+        ros::Publisher pub_current_trajectory_; // publisher for current trajectory value
+        ros::Publisher pub_current_pose_;   // publisher for current pose
 
         ros::Subscriber sub_desired_pose_;  // Subscriber for new desired pose
     };
