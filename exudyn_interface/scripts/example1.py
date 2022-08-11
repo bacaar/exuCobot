@@ -8,6 +8,7 @@ Example-script for testing interface between exudyn and robot-controller
 Implements single pendulum moving in yz-plane (of robot base coordinate system)
 """
 
+from anyio import typed_attribute
 import exudyn as exu
 print("Using Exudyn version ", exu.__version__)
 from exudyn.utilities import *
@@ -86,12 +87,22 @@ def externalForceCallback(data):
 
 def main():
 
+    # flag for activating testing mode
+    # if True, friction is disabled, robot doesn't go to starting pose and simulation starts with initial velocity
+    # CAUTION: target positions are still sent
+    theoreticalTest = True
+
     # init ros
     rospy.init_node('ExudynExample1', anonymous=True)
 
     # publisher for pendulum poses (=endeffector positions)
-    pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=1000)
-    pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
+    usePoseController = True
+    if usePoseController:
+        pub = rospy.Publisher('/my_cartesian_pose_controller/setTargetPose', PoseStamped, queue_size=1000)
+        pubF = rospy.Publisher('/my_cartesian_pose_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
+    else:
+        pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=1000)
+        pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
 
     # subscriber for external forces
     rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)
@@ -101,7 +112,7 @@ def main():
     mbs = SC.AddSystem()
 
     tRes = 0.001    # step size in s
-    tEnd = 1000     # simulation time in s
+    tEnd = 10000     # simulation time in s
 
     g = 9.81    # gravity in m/s^2
 
@@ -135,8 +146,14 @@ def main():
                                                                         a,  b, 0,
                                                                        -a,  b, 0,
                                                                        -a, -b, 0]}     # background
-    nRigid = mbs.AddNode(Rigid2D(referenceCoordinates=[-1, 0.5, -np.pi/2],
-                                 initialVelocities=[0, 0, 0]))
+    nRigid = None
+    if not theoreticalTest:
+        nRigid = mbs.AddNode(Rigid2D(referenceCoordinates=[-1, 0.5, -np.pi/2],
+                                    initialVelocities=[0, 0, 0]))
+    else:
+        nRigid = mbs.AddNode(Rigid2D(referenceCoordinates=[-1, 0.5, -np.pi/2],
+                                    initialVelocities=[0, 0, 2]))
+    
     oRigid = mbs.AddObject(RigidBody2D(physicsMass=massRigid,
                                        physicsInertia=inertiaRigid,
                                        nodeNumber=nRigid,
@@ -166,9 +183,10 @@ def main():
     mbs.AddLoad(Force(markerNumber=mR2, loadVector=[0, -massRigid*g, 0]))
 
     # friction
-    mbs.AddObject(TorsionalSpringDamper(markerNumbers=[mGF, mR1F],
-                                        stiffness=0,
-                                        damping=5))
+    if not theoreticalTest:
+        mbs.AddObject(TorsionalSpringDamper(markerNumbers=[mGF, mR1F],
+                                            stiffness=0,
+                                            damping=5))
 
     # external applied forces
     def UFloadX(mbs, t, load):
@@ -285,8 +303,9 @@ def main():
             exit(-1)
 
     # go to global starting postion
-    print("Moving to starting pose...")
-    goToPose(globalStartPos[0], globalStartPos[1], globalStartPos[2], 180, 0, 0, True)
+    if not theoreticalTest:
+        print("Moving to starting pose...")
+        goToPose(globalStartPos[0], globalStartPos[1], globalStartPos[2], 180, 0, 0, True)
 
     # set simulation settings
     simulationSettings = exu.SimulationSettings() #takes currently set values or default values
@@ -309,9 +328,6 @@ def main():
     exu.SolveDynamic(mbs, simulationSettings)
     #SC.WaitForRenderEngineStopFlag()
     exu.StopRenderer() #safely close rendering window!
-
-    # remove "coordinatesSolution.txt" as it isn't needed
-    os.remove("coordinatesSolution.txt")
 
 
 if __name__ == "__main__":
