@@ -151,7 +151,7 @@ def main(t):
 if __name__ == "__main__":
 	try:
 
-		t = 200	# duration of planned recording in seconds
+		t = 2	# duration of planned recording in seconds
 
 		# parse arguments
 		i = 0

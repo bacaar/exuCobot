@@ -32,7 +32,7 @@ namespace franka_example_controllers {
 
         void updateTargetPoseCallback(const geometry_msgs::PoseStamped &msg);
 
-        void updateTrajectory(double x, double y, double z);
+        void updateTrajectory();
 
         franka_hw::FrankaPoseCartesianInterface *cartesian_pose_interface_;
         std::unique_ptr <franka_hw::FrankaCartesianPoseHandle> cartesian_pose_handle_;
@@ -41,10 +41,16 @@ namespace franka_example_controllers {
         //std::array<double, 16> desired_pose_{};
 
         std::vector<std::vector<double>> current_state_;    // pos, vel and acc for x, y, and z; describing current state of trajectory
-        std::vector<double> current_target_;    // only for analytics
-        std::vector<double> next_position_;     // x, y and z value of next positions to travers
-        std::vector<double> second_next_position_;  // x, y and z value of second next position to travers
         std::vector<std::vector<double>> coefs_;    // trajectory / polynom coefficients
+
+        std::vector<std::vector<double>> position_buffer_;  // x, y and z value of next positions to travers
+        const int position_buffer_length_ = 50;             // length of position buffer. Also if buffer is vector, it's length is static
+        // as position_buffer will be a ring buffer, current indices for reading and writing have to be stored
+        int position_buffer_index_writing_;                 // holds index in which to write next (write then increase)
+        int position_buffer_index_reading_;                 // holds index from which to read next (read then increase)
+        const int getPositionBufferReserve();               // returns amount of stored next positions
+
+        std::vector<double> current_target_;    // only for analytics
 
         const double segment_duration_ = 0.01;  // planned duration of one segment in s
         double segment_time_;                   // time in current segment in s  
