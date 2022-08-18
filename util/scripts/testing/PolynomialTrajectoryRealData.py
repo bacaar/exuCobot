@@ -22,8 +22,9 @@ from PolynomialTrajectoryAnalysis import evaluatePolynom, calcCoefs
 def main():
 
     path = "util/measurementData/latencyBetweenExudynAndController/"
-    exuData = np.load(path + "exudynTarget20ms.npy")
-    controllerData = np.load(path + "controllerTarget20ms.npy")
+    path = ""
+    exuData = np.load(path + "exudynTarget.npy")
+    controllerData = np.load(path + "controllerTarget.npy")
 
     # plot for first overview
     fix, ax = plt.subplots(1,1)

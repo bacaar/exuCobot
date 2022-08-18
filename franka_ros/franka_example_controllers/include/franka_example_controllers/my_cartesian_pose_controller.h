@@ -55,6 +55,8 @@ namespace franka_example_controllers {
         const double segment_duration_ = 0.01;  // planned duration of one segment in s
         double segment_time_;                   // time in current segment in s  
 
+        const bool testing_ = false;        // flag to use current_state_ instead of current_pose_
+
         ros::Publisher pub_current_target_; // publisher for current registered target position
         ros::Publisher pub_current_trajectory_; // publisher for current trajectory value
         ros::Publisher pub_current_pose_;   // publisher for current pose

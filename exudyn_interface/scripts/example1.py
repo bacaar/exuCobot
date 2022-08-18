@@ -37,6 +37,22 @@ from util.scripts.util.common import createPoseStampedMsg
 # global variable for external forces and moments (combined => efforts)
 extEfforts = np.zeros(shape=(6, 1))
 
+# start position of robot in robot base frame in meters
+globalStartPos = np.array([0.4, 0, 0.2])    # default, but not precise enough
+globalStartPosSet = False
+def currentPoseCallback(data):
+    """
+    callback function to set global robot position at beginning of program
+    -> globalStartPos
+    """
+
+    global globalStartPosSet
+    global globalStartPos
+    if not globalStartPosSet:
+        globalStartPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+        globalStartPosSet = True
+        
+
 
 def externalForceCallback(data):
     """
@@ -90,7 +106,7 @@ def main():
     # flag for activating testing mode
     # if True, friction is disabled, robot doesn't go to starting pose and simulation starts with initial velocity
     # CAUTION: target positions are still sent
-    theoreticalTest = True
+    theoreticalTest = False
 
     # init ros
     rospy.init_node('ExudynExample1', anonymous=True)
@@ -107,6 +123,12 @@ def main():
     # subscriber for external forces
     rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)
 
+    # subscriber for current pose
+    if usePoseController:
+        globalStartPosSub = rospy.Subscriber("/my_cartesian_pose_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+    else:
+        globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+
     # init exudyn
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
@@ -115,9 +137,6 @@ def main():
     tEnd = 10000     # simulation time in s
 
     g = 9.81    # gravity in m/s^2
-
-    # start position of robot in robot base frame in meters
-    globalStartPos = np.array([0.4, 0, 0.2])
 
     # matrix to transform simulation coordinates to robot world coordinates
     #trafoMat = np.array([[0, 0, 1],
@@ -152,7 +171,7 @@ def main():
                                     initialVelocities=[0, 0, 0]))
     else:
         nRigid = mbs.AddNode(Rigid2D(referenceCoordinates=[-1, 0.5, -np.pi/2],
-                                    initialVelocities=[0, 0, 2]))
+                                    initialVelocities=[0, 0, 1]))
     
     oRigid = mbs.AddObject(RigidBody2D(physicsMass=massRigid,
                                        physicsInertia=inertiaRigid,
@@ -286,26 +305,15 @@ def main():
 
     mbs.SetPreStepUserFunction(PreStepUserFunction)
 
+    # wait for global start position
+    print("Waiting for global start position")
+    while not globalStartPosSet:
+        pass
+
+    globalStartPosSub.unregister()  # we don't need current pose anymore
+
     # assemble multi body system with all previous specified properties and components
     mbs.Assemble()
-
-    # go to start position
-    try:
-        # TODO: why are following two lines not working?
-        # from util.goToPose import goToPose
-        # goToPose(globalStartPos[0], globalStartPos[1], globalStartPos[2], 180, 0, 0)
-        from util.scripts.util.goToPose import goToPose
-
-    except ModuleNotFoundError:
-        print("Could not go to starting position", globalStartPos)
-        userInput = input("Is robot already there? (y/n): ")
-        if userInput != "y":
-            exit(-1)
-
-    # go to global starting postion
-    if not theoreticalTest:
-        print("Moving to starting pose...")
-        goToPose(globalStartPos[0], globalStartPos[1], globalStartPos[2], 180, 0, 0, True)
 
     # set simulation settings
     simulationSettings = exu.SimulationSettings() #takes currently set values or default values

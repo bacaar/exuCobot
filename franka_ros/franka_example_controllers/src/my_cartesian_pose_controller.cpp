@@ -104,6 +104,10 @@ namespace franka_example_controllers {
         segment_time_ = 0;
 
         elapsed_time_ = ros::Duration(0.0);
+
+        if(testing_){
+            std::cerr << "WARNING: Testing mode active!\n";
+        }
     }
 
     const int MyCartesianPoseController::getPositionBufferReserve(){
@@ -163,6 +167,7 @@ namespace franka_example_controllers {
         //std::cerr << "Update\t pos buffer write : " << position_buffer_index_writing_ << "\t read: " << position_buffer_index_reading_ << "\treserve: " << getPositionBufferReserve() << std::endl;
 
         static bool started = false;
+        static int counter = 0;
 
         // get current pose
         std::array<double, 16> current_pose = cartesian_pose_handle_->getRobotState().O_T_EE_d;
@@ -171,11 +176,12 @@ namespace franka_example_controllers {
         if(!started){
             if(getPositionBufferReserve() >= 8){
                 started = true;
-                std::cerr << "Puffer partly filled, Starting permission granted.\n";
+                std::cerr << "Buffer partly filled with " << getPositionBufferReserve() << " entries. Starting-permission granted.\n";
             }
         }
 
         bool newStatePublished = false;
+        int max_segments = 0;
 
         if(started){
 
@@ -183,7 +189,19 @@ namespace franka_example_controllers {
             if(segment_time_ >= segment_duration_){
                 if(getPositionBufferReserve() >= 2){
                     //std::cerr << period.toSec() << "\t" << segment_time_ << std::endl;
+
+                    // at last iteration segment_time was at e.g. 0.009 (if segment_duration_ is 0.01)
+                    // last calculation for previous segment has still to be done in order to let new segment start from correct position
+                    current_state_[0] = evaluatePolynom(coefs_[0], segment_time_);
+                    current_state_[1] = evaluatePolynom(coefs_[1], segment_time_);
+                    current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
+
                     updateTrajectory();
+                    
+                    if(max_segments != 0 && ++counter > max_segments){
+                        std::cerr << "DEBUG BREAK: " << max_segments << " segments completed!\n";
+                        exit(-1);
+                    }
 
                     // reset segment_time_ as new one starts now
                     // normally subtracting duration once should be enough
@@ -204,17 +222,24 @@ namespace franka_example_controllers {
                 current_state_[1] = evaluatePolynom(coefs_[1], segment_time_);
                 current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
 
-                //std::cerr << "current state y: " << current_state_[1][0] << "\t" << current_state_[1][1] << "\t" << current_state_[1][2] << "\tsegment time: " << segment_time_ << "s\n";
+                // when debugging
+                if (max_segments != 0){
+                    std::cerr << "[" << current_state_[1][0] << ", " << current_state_[1][1] << ", " << current_state_[1][2] << ", " << elapsed_time_.toSec() << "],\n";
+                }
 
                 // compose new pose
                 std::array<double, 16> new_pose = current_pose;
-                //new_pose[12] = current_state_[0][0];
-                //new_pose[13] = current_state_[1][0];
-                //new_pose[14] = current_state_[2][0];
+                new_pose[12] = current_state_[0][0];
+                new_pose[13] = current_state_[1][0];
+                new_pose[14] = current_state_[2][0];
 
                 // pass new pose to robot control
                 cartesian_pose_handle_->setCommand(new_pose);
                 newStatePublished = true;
+            }
+            else{
+                std::cerr << "ERROR: semgment_time > segment_duration\n";
+                exit(-1);
             }            
         }
 
@@ -278,44 +303,32 @@ namespace franka_example_controllers {
 
         // calculate desired velocity for end of (first) segment as mean velocity of next two segments
         std::array<double, 3> next_velocity{};
-        /*
-        next_velocity[0] = (position_buffer_[i2][0] - current_pose[12])/segment_duration_;
-        next_velocity[1] = (position_buffer_[i2][1] - current_pose[13])/segment_duration_;
-        next_velocity[2] = (position_buffer_[i2][2] - current_pose[14])/segment_duration_;
-        */
-        next_velocity[0] = (position_buffer_[i2][0] - current_state_[0][0])/segment_duration_;
-        next_velocity[1] = (position_buffer_[i2][1] - current_state_[1][0])/segment_duration_;
-        next_velocity[2] = (position_buffer_[i2][2] - current_state_[2][0])/segment_duration_;
+        
+        if(testing_){
+            next_velocity[0] = (position_buffer_[i2][0] - current_state_[0][0])/(segment_duration_*2);
+            next_velocity[1] = (position_buffer_[i2][1] - current_state_[1][0])/(segment_duration_*2);
+            next_velocity[2] = (position_buffer_[i2][2] - current_state_[2][0])/(segment_duration_*2);
+        }
+        else{
+            next_velocity[0] = (position_buffer_[i2][0] - current_pose[12])/(segment_duration_*2);
+            next_velocity[1] = (position_buffer_[i2][1] - current_pose[13])/(segment_duration_*2);
+            next_velocity[2] = (position_buffer_[i2][2] - current_pose[14])/(segment_duration_*2);
+        }
 
+        
         // calculate polynom coefficients
         // TODO: using current velocity and acceleration from current_state_ vector is not 100% correct, as they are the vel and acc from last step
-        /*coefs_[0] = calcCoefs(current_pose[12], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
-        coefs_[1] = calcCoefs(current_pose[13], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
-        coefs_[2] = calcCoefs(current_pose[14], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
-        */
-
-        //current_state_[1][2] = 0;
-        coefs_[0] = calcCoefs(current_state_[0][0], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
-        coefs_[1] = calcCoefs(current_state_[1][0], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
-        coefs_[2] = calcCoefs(current_state_[2][0], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
         
-
-        // s0, double ds0, double dds0, double sT, double dsT, double ddsT, double T
-        std::cerr << "Param\t"
-                  << "  s0  " << current_state_[1][0]
-                  << "  ds0  " << current_state_[1][1]
-                  << "  dds0  " << current_state_[1][2]
-                  << "  sT  " << position_buffer_[i1][1]
-                  << "  dsT  " << next_velocity[1]
-                  << "  ddsT  " << 0 << std::endl;
-
-        std::cerr << "Coef \t"
-                  << coefs_[1][0] << "   " 
-                  << coefs_[1][1] << "   "
-                  << coefs_[1][2] << "   "
-                  << coefs_[1][3] << "   "
-                  << coefs_[1][4] << "   "
-                  << coefs_[1][5] << std::endl;
+        if(testing_){
+            coefs_[0] = calcCoefs(current_state_[0][0], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
+            coefs_[1] = calcCoefs(current_state_[1][0], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
+            coefs_[2] = calcCoefs(current_state_[2][0], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
+        }
+        else{
+            coefs_[0] = calcCoefs(current_pose[12], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
+            coefs_[1] = calcCoefs(current_pose[13], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
+            coefs_[2] = calcCoefs(current_pose[14], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
+        }
 
         // for next segment
         int old = position_buffer_index_reading_;

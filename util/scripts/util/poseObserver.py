@@ -29,28 +29,23 @@ currentPoseList = []
 def exudynTargetCallback(data):
 	if isRecording:
 		duration = data.header.stamp - scriptStartTime
-		t = duration.secs + duration.nsecs*1e-9
-		exudynTargetList.append([t, data.pose.position.x, data.pose.position.y, data.pose.position.z])
-
+		exudynTargetList.append([duration.to_sec(), data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
 def controllerTargetCallback(data):
 	if isRecording:
 		duration = data.header.stamp - scriptStartTime
-		t = duration.secs + duration.nsecs*1e-9
-		controllerTargetList.append([t, data.pose.position.x, data.pose.position.y, data.pose.position.z])
+		controllerTargetList.append([duration.to_sec(), data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
 def controllerTrajectoryCallback(data):
 	if isRecording:
 		duration = data.header.stamp - scriptStartTime
-		t = duration.secs + duration.nsecs*1e-9
-		controllerTrajectoryList.append([t, data.pose.position.x, data.pose.position.y, data.pose.position.z])
+		controllerTrajectoryList.append([duration.to_sec(), data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
 
 def currentPoseCallback(data):
 	if isRecording:
 		duration = data.header.stamp - scriptStartTime
-		t = duration.secs + duration.nsecs*1e-9
-		currentPoseList.append([t, data.pose.position.x, data.pose.position.y, data.pose.position.z])
+		currentPoseList.append([duration.to_sec(), data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
 	
 # analyze time steps inbetween data points
@@ -98,6 +93,8 @@ def main(t):
 
 	np.save("exudynTarget", exudynTarget)
 	np.save("controllerTarget", controllerTarget)
+	np.savetxt("controllerTarget_pos", controllerTarget[:,2], delimiter=", ")
+	np.savetxt("controllerTarget_t", controllerTarget[:,0], delimiter=", ")
 
 	# plot trajectories
 	fig, ax = plt.subplots(1, 1)
@@ -111,12 +108,12 @@ def main(t):
 	ax.plot(t, y, "bx", label="sent by exudyn")
 	#ax.plot(t, z, "gx", label="exu target z")
 
-	t = controllerTarget[:,0]
+	tTarget = controllerTarget[:,0]
 	x = controllerTarget[:,1]
-	y = controllerTarget[:,2]
+	yTarget = controllerTarget[:,2]
 	z = controllerTarget[:,3]
 	#ax.plot(t, x, "b--", label="controller target x")
-	ax.plot(t, y, "r.", label="received by controller")
+	ax.plot(tTarget, yTarget, "r.", label="received by controller")
 	#ax.plot(t, z, "g--", label="controller target z")
 
 	axsecondary = ax.twinx()
@@ -126,6 +123,7 @@ def main(t):
 	z = plannedTrajectory[:,3]
 	#ax.plot(t, x, "b-", label="planned trajectory x")
 	axsecondary.plot(t, y, "r-", label="interpolated trajectory")
+	#axsecondary.plot(tTarget+0.25, yTarget, "k.", label="target")
 	#ax.plot(t, z, "g-", label="planned trajectory z")
 
 	t = currentPose[:,0]
