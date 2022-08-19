@@ -122,7 +122,7 @@ def main(t):
 	y = plannedTrajectory[:,2]
 	z = plannedTrajectory[:,3]
 	#ax.plot(t, x, "b-", label="planned trajectory x")
-	axsecondary.plot(t, y, "r-", label="interpolated trajectory")
+	axsecondary.plot(t, y, "r*", label="interpolated trajectory")
 	#axsecondary.plot(tTarget+0.25, yTarget, "k.", label="target")
 	#ax.plot(t, z, "g-", label="planned trajectory z")
 

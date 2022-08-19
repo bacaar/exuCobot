@@ -336,8 +336,8 @@ def main():
         -2.838774702058310950e-02,
         -3.061564494531099356e-02,
         -3.279836963417115392e-02])
+    
     """
-
     controllerData = np.load("controllerTarget.npy",allow_pickle=True)
     targetPos = controllerData[:,2]
     print(targetPos.shape)
@@ -408,15 +408,19 @@ def main():
             else: # break down for last point -> create an imaginary point on same position
                 nextTwoPositions[1] = targetPos[-1]
 
-            nextVelocity1 = (nextTwoPositions[0]-targetPos[index - 1])/sectionLength.to_sec()
-            nextVelocity2 = (nextTwoPositions[1]-nextTwoPositions[0])/sectionLength.to_sec()
-            nextVelocity3 = (nextTwoPositions[1]-targetPos[index - 1])/(sectionLength.to_sec() * 2)
+            nextVelocity1 = (nextTwoPositions[0] - targetPos[index - 1]) / sectionLength.to_sec()
+            nextVelocity2 = (nextTwoPositions[1] - nextTwoPositions[0]) / sectionLength.to_sec()
+            nextVelocity3 = (nextTwoPositions[1] - targetPos[index - 1]) / (sectionLength.to_sec() * 2)
+
+            nextAcceleration1 = (nextVelocity1 - currentVel1)/sectionLength.to_sec()
+            nextAcceleration2 = (nextVelocity2 - currentVel2)/sectionLength.to_sec()
+            nextAcceleration3 = (nextVelocity3 - currentVel3)/sectionLength.to_sec()
 
             index += 1
 
-            coefs1 = calcCoefs(currentPos1, currentVel1, currentAcc1, 0, nextTwoPositions[0], nextVelocity1, 0, 0, sectionLength.to_sec())
-            coefs2 = calcCoefs(currentPos2, currentVel2, currentAcc2, 0, nextTwoPositions[0], nextVelocity2, 0, 0, sectionLength.to_sec())
-            coefs3 = calcCoefs(currentPos3, currentVel3, currentAcc3, 0, nextTwoPositions[0], nextVelocity3, 0, 0, sectionLength.to_sec())
+            coefs1 = calcCoefs(currentPos1, currentVel1, currentAcc1, 0, nextTwoPositions[0], nextVelocity1, nextAcceleration1, 0, sectionLength.to_sec())
+            coefs2 = calcCoefs(currentPos2, currentVel2, currentAcc2, 0, nextTwoPositions[0], nextVelocity2, nextAcceleration2, 0, sectionLength.to_sec())
+            coefs3 = calcCoefs(currentPos3, currentVel3, currentAcc3, 0, nextTwoPositions[0], nextVelocity3, nextAcceleration3, 0, sectionLength.to_sec())
             #print(coefs3)
             
             if j == 0:

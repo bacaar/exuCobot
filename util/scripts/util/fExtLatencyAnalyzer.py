@@ -81,6 +81,10 @@ def main():
     rospy.Subscriber("/my_cartesian_impedance_controller/analysis/getExternalForce", WrenchStamped, externalForceCallback2)       # force received by exudyn
     rospy.Subscriber("/my_cartesian_impedance_controller/setDesiredPose", PoseStamped, targetPoseCallback)
     rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+    rospy.Subscriber("/my_cartesian_pose_controller/analysis/getExternalForce", WrenchStamped, externalForceCallback2)       # force received by exudyn
+    rospy.Subscriber("/my_cartesian_pose_controller/setDesiredPose", PoseStamped, targetPoseCallback)
+    rospy.Subscriber("/my_cartesian_pose_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+
     # record data from topics for duration of time
     print("Starting recording for {} seconds".format(duration))
     isRecording = True

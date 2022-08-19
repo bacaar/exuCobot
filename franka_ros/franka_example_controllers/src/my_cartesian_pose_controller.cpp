@@ -319,16 +319,28 @@ namespace franka_example_controllers {
         // calculate polynom coefficients
         // TODO: using current velocity and acceleration from current_state_ vector is not 100% correct, as they are the vel and acc from last step
         
+        // std::cerr are for evaluating trajectory in pyhton, to control if calculation is correct
         if(testing_){
             coefs_[0] = calcCoefs(current_state_[0][0], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
             coefs_[1] = calcCoefs(current_state_[1][0], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
             coefs_[2] = calcCoefs(current_state_[2][0], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
+            std::cerr << "[[" << current_state_[1][0];
         }
         else{
             coefs_[0] = calcCoefs(current_pose[12], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
             coefs_[1] = calcCoefs(current_pose[13], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
             coefs_[2] = calcCoefs(current_pose[14], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
+            std::cerr << "[[" << current_pose[13];
         }
+        
+        std::cerr<< ", " << current_state_[1][1] << ", " << current_state_[1][2];
+        std::cerr << ", " << position_buffer_[i1][1] << ", " << next_velocity[1] << ", " << 0 << ", " << segment_duration_ << "],\t\t\t";
+        std::cerr << "[";
+        for(int i = 0; i < 6; ++i){
+            std::cerr << coefs_[1][i];
+            if (i != 5) std::cerr << ", ";
+        }
+        std::cerr << "]]," << std::endl;
 
         // for next segment
         int old = position_buffer_index_reading_;
