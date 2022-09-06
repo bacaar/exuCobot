@@ -114,8 +114,8 @@ def main():
     # publisher for pendulum poses (=endeffector positions)
     usePoseController = True
     if usePoseController:
-        pub = rospy.Publisher('/my_cartesian_pose_controller/setTargetPose', PoseStamped, queue_size=1000)
-        pubF = rospy.Publisher('/my_cartesian_pose_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
+        pub = rospy.Publisher('/my_cartesian_velocity_controller/setTargetPose', PoseStamped, queue_size=1000)
+        pubF = rospy.Publisher('/my_cartesian_velocity_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
     else:
         pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=1000)
         pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
@@ -125,7 +125,7 @@ def main():
 
     # subscriber for current pose
     if usePoseController:
-        globalStartPosSub = rospy.Subscriber("/my_cartesian_pose_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+        globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, currentPoseCallback)
     else:
         globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
 
