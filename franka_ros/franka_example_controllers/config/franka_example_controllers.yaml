@@ -47,6 +47,10 @@ cartesian_velocity_example_controller:
     type: franka_example_controllers/CartesianVelocityExampleController
     arm_id: panda
 
+my_cartesian_velocity_controller:
+    type: franka_example_controllers/MyCartesianVelocityController
+    arm_id: panda
+
 model_example_controller:
     type: franka_example_controllers/ModelExampleController
     arm_id: panda
