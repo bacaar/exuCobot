@@ -59,11 +59,14 @@ namespace franka_example_controllers {
                                                   &MyCartesianVelocityController::updateTargetPoseCallback, this,
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
-        // create publisher for current target pose
-        pub_current_target_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentTarget", 20);
+        // create publisher for returning target pose
+        pub_current_target_confirmation_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentTarget", 20);
+
+        // create publisher for current command
+        pub_commanded_velocity_ = node_handle.advertise<geometry_msgs::Vector3Stamped>("getCommandedVelocity", 20);
 
         // create publisher for current pose
-        pub_current_trajectory_ = node_handle.advertise<geometry_msgs::PoseStamped>("getEvaluatedTrajectory", 20);
+        pub_current_trajectory_pos_ = node_handle.advertise<geometry_msgs::Vector3Stamped>("getEvaluatedTrajectory", 20);
 
         // create publisher for current pose
         pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentPose", 20);
@@ -91,6 +94,7 @@ namespace franka_example_controllers {
         current_state_[2][0] = initial_pose[14];
 
         segment_time_ = 0;
+        lastSendingTime_ = ros::Time::now();
 
         elapsed_time_ = ros::Duration(0.0);
 
@@ -113,7 +117,7 @@ namespace franka_example_controllers {
         }
     }
 
-    std::vector<double> MyCartesianVelocityController::calcCoefs(double s0, double ds0, double dds0, double sT, double dsT, double ddsT, double T){
+    std::vector<double> MyCartesianVelocityController::calcCoefs(double s0, double v0, double a0, double sT, double vT, double aT, double T){
         double T2 = T*T;
         double T3 = T2 * T;
         double T4 = T3 * T;
@@ -121,11 +125,11 @@ namespace franka_example_controllers {
 
         std::vector<double> solution(6, 0);
 
-        solution[0] = -dds0/(2*T3) + ddsT/(2*T3) - 3*ds0/T4 - 3*dsT/T4 - 6*s0/T5 + 6*sT/T5;
-        solution[1] = 3*dds0/(2*T2) - ddsT/T2 + 8*ds0/T3 + 7*dsT/T3 + 15*s0/T4 - 15*sT/T4;
-        solution[2] = -3*dds0/(2*T) + ddsT/(2*T) - 6*ds0/T2 - 4*dsT/T2 - 10*s0/T3 + 10*sT/T3;
-        solution[3] = dds0/2;
-        solution[4] = ds0;
+        solution[0] = -a0/(2*T3) + aT/(2*T3) - 3*v0/T4 - 3*vT/T4 - 6*s0/T5 + 6*sT/T5;
+        solution[1] = 3*a0/(2*T2) - aT/T2 + 8*v0/T3 + 7*vT/T3 + 15*s0/T4 - 15*sT/T4;
+        solution[2] = -3*a0/(2*T) + aT/(2*T) - 6*v0/T2 - 4*vT/T2 - 10*s0/T3 + 10*sT/T3;
+        solution[3] = a0/2;
+        solution[4] = v0;
         solution[5] = s0;
 
         return solution;
@@ -169,7 +173,6 @@ namespace franka_example_controllers {
             }
         }
 
-        bool newStatePublished = false;
         int max_segments = 0;
 
         if(started){
@@ -198,21 +201,20 @@ namespace franka_example_controllers {
                         segment_time_ -= segment_duration_;
                     }
                 }
-                else { // if there are not enough values to update trajectory (2 needed), stay at position
-                    std::cerr << "ERROR: Not enough positions to calculate new trajectory segment!\n";
-                    exit(-1);
+                else { // if there are not enough values to update trajectory (2 needed), keep last velocity
+                    //std::cerr << "WARNING: Not enough positions to calculate new segment, keep last velocity\n";
                 }
             }
 
             // if within semgent_duration, calc new state
-            if(segment_time_ <= segment_duration_){
+            if(segment_time_ <= segment_duration_) {
                 // calculat new positions, velocities and accelerations
                 current_state_[0] = evaluatePolynom(coefs_[0], segment_time_);
                 current_state_[1] = evaluatePolynom(coefs_[1], segment_time_);
                 current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
 
                 // when debugging
-                if (max_segments != 0){
+                if (max_segments != 0) {
                     //std::cerr << "[" << current_state_[1][0] << ", " << current_state_[1][1] << ", " << current_state_[1][2] << ", " << elapsed_time_.toSec() << "],\n";
                 }
 
@@ -224,44 +226,90 @@ namespace franka_example_controllers {
                 double wx, wy, wz;
                 wx = wy = wz = 0;
 
+                // print differences to previous step
+                //double Dvx = vx - current_command_[0];
+                //std::cerr << "Dvx=" << vx - current_command_[0];
+                //std::cerr << "\tDvy=" << vy - current_command_[1];
+                //std::cerr << "\tDvz=" << vz - current_command_[2] << std::endl;
+
+                /*if(segment_time_
+                {   // check threshold for translational acceleration
+                    double ax = current_state_[0][2];
+                    double ay = current_state_[0][2];
+                    double az = current_state_[0][2];
+                    double aAbs = sqrt(ax * ax + ay * ay + az * az);
+
+                    const double max_a_trans = 13.0; // m/s²
+
+                    if (aAbs > max_a_trans) {
+                        //std::cerr << "ERROR: Acceleration too high: " << aAbs << std::endl;
+
+                        // scale translational velocity vector down to max velocity
+                        double factor = max_a_trans / aAbs; // actually vice versa, but when doing it in this order I can use multiplication instead of division afterwards
+                        vx *= factor;
+                        vy *= factor;
+                        vz *= factor;
+                        std::cerr << "vel scaled according to acc\n";
+                    }
+                }
+
+                {   // check threshold for translational velocity is according to https://frankaemika.github.io/docs/control_parameters.html#limit-table
+                    double vAbs = sqrt(vx * vx + vy * vy + vz * vz);
+                    const double max_v_trans = 1.7; // m/s
+                    if (vAbs > max_v_trans) {
+                        //std::cerr << "ERROR: Velocity too high: " << absV << std::endl;
+
+                        // scale translational velocity vector down to max velocity
+                        double factor = max_v_trans / vAbs; // actually vice versa, but when doing it in this order I can use multiplication instead of division afterwards
+                        vx *= factor;
+                        vy *= factor;
+                        vz *= factor;
+                        //std::cerr << "vel scaled according to vel\n";
+                    }
+                }*/
+
                 // update command
                 current_command_ = {vx, vy, vz, wx, wy, wz};
-
-                // pass new pose to robot control
-                velocity_cartesian_handle_->setCommand(current_command_);
-                newStatePublished = true;
             }
-            else{
-                std::cerr << "ERROR: semgment_time > segment_duration\n";
-                exit(-1);
-            }
-        }
 
-        if(!newStatePublished) { // if no new position has been calulated, stay at position
+            /*ros::Time now = ros::Time::now();
+            double dif = (now - lastSendingTime_).toSec();
+            if(dif > 0.0011){
+                std::cerr << "dt: " << dif << std::endl;
+            }*/
+
+            // pass velocity to robot control
             velocity_cartesian_handle_->setCommand(current_command_);
+            //lastSendingTime_ = now;
         }
+
+        //rostopic pub -1 /franka_control/error_recovery/goal franka_msgs/ErrorRecoveryActionGoal "{}"
+        //pub_error_recovery = node_handle.advertise<franka_msgs::ErrorRecoveryActionGoal>("{}", 20);
 
         // publish positions for python analytics
-        geometry_msgs::PoseStamped msg;
-        msg.header.stamp = ros::Time::now();
+        geometry_msgs::PoseStamped msgPose;
+        geometry_msgs::Vector3Stamped msgVec;
 
-        // current target pos
-        //msg.pose.position.x = current_target_[0];
-        //msg.pose.position.y = current_target_[1];
-        //msg.pose.position.z = current_target_[2];
-        //pub_current_target_.publish(msg);
+        msgPose.header.stamp = ros::Time::now();
+        msgVec.header.stamp = msgPose.header.stamp;
 
-        // current trajectory val
-        msg.pose.position.x = current_state_[0][0];
-        msg.pose.position.y = current_state_[1][0];
-        msg.pose.position.z = current_state_[2][0];
-        pub_current_trajectory_.publish(msg);
+        // current commanded velocity
+        msgVec.vector.x = current_command_[0];
+        msgVec.vector.y = current_command_[1];
+        msgVec.vector.z = current_command_[2];
+        pub_commanded_velocity_.publish(msgVec);
+
+        // current position according to planned trajectory in cartesian space
+        msgVec.vector.x = current_state_[0][0];
+        msgVec.vector.y = current_state_[1][0];
+        msgVec.vector.z = current_state_[2][0];
+        pub_current_trajectory_pos_.publish(msgVec);
 
         // current pos
-        msg.pose.position.x = current_pose[12];
-        msg.pose.position.y = current_pose[13];
-        msg.pose.position.z = current_pose[14];
-        pub_current_pose_.publish(msg);
+        msgPose.pose.position.x = current_pose[12];
+        msgPose.pose.position.y = current_pose[13];
+        msgPose.pose.position.z = current_pose[14];
+        pub_current_pose_.publish(msgPose);
     }
 
     void MyCartesianVelocityController::updateTargetPoseCallback(const geometry_msgs::PoseStamped &msg) {
@@ -269,7 +317,7 @@ namespace franka_example_controllers {
         // send it back immediately
         geometry_msgs::PoseStamped msgnew = msg;
         msgnew.header.stamp = ros::Time::now();
-        pub_current_target_.publish(msgnew);
+        pub_current_target_confirmation_.publish(msgnew);
 
         if(position_buffer_index_writing_ == position_buffer_index_reading_){
             std::cerr << "Position buffer full!\n";
@@ -297,6 +345,7 @@ namespace franka_example_controllers {
 
         // calculate desired velocity for end of (first) segment as mean velocity of next two segments
         std::array<double, 3> next_velocity{};
+        std::array<double, 3> next_acceleration{};
 
         if(testing_){
             next_velocity[0] = (position_buffer_[i2][0] - current_state_[0][0])/(segment_duration_*2);
@@ -309,21 +358,24 @@ namespace franka_example_controllers {
             next_velocity[2] = (position_buffer_[i2][2] - current_pose[14])/(segment_duration_*2);
         }
 
+        next_acceleration[0] = (next_velocity[0] - current_state_[0][1])/segment_duration_;
+        next_acceleration[1] = (next_velocity[1] - current_state_[1][1])/segment_duration_;
+        next_acceleration[2] = (next_velocity[2] - current_state_[2][1])/segment_duration_;
 
         // calculate polynom coefficients
         // TODO: using current velocity and acceleration from current_state_ vector is not 100% correct, as they are the vel and acc from last step
 
         // std::cerr are for evaluating trajectory in pyhton, to control if calculation is correct
         if(testing_){
-            coefs_[0] = calcCoefs(current_state_[0][0], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
-            coefs_[1] = calcCoefs(current_state_[1][0], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
-            coefs_[2] = calcCoefs(current_state_[2][0], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
+            coefs_[0] = calcCoefs(current_state_[0][0], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], next_acceleration[0], segment_duration_);
+            coefs_[1] = calcCoefs(current_state_[1][0], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], next_acceleration[1], segment_duration_);
+            coefs_[2] = calcCoefs(current_state_[2][0], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], next_acceleration[2], segment_duration_);
             //std::cerr << "[[" << current_state_[1][0];
         }
         else{
-            coefs_[0] = calcCoefs(current_pose[12], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
-            coefs_[1] = calcCoefs(current_pose[13], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
-            coefs_[2] = calcCoefs(current_pose[14], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
+            coefs_[0] = calcCoefs(current_pose[12], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], next_acceleration[0], segment_duration_);
+            coefs_[1] = calcCoefs(current_pose[13], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], next_acceleration[1], segment_duration_);
+            coefs_[2] = calcCoefs(current_pose[14], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], next_acceleration[2], segment_duration_);
             //std::cerr << "[[" << current_pose[13];
         }
 

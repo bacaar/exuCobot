@@ -14,6 +14,7 @@
 #include <ros/time.h>
 
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Vector3Stamped.h>
 
 namespace franka_example_controllers {
 
@@ -42,6 +43,7 @@ namespace franka_example_controllers {
         std::unique_ptr <franka_hw::FrankaCartesianVelocityHandle> velocity_cartesian_handle_;
 
         ros::Duration elapsed_time_;
+        ros::Time lastSendingTime_;
 
         std::vector<std::vector<double>> current_state_;    // pos, vel and acc for x, y, and z; describing current state of trajectory
         std::vector<std::vector<double>> coefs_;    // trajectory / polynom coefficients
@@ -62,8 +64,9 @@ namespace franka_example_controllers {
 
         const bool testing_ = false;        // flag to use current_state_ instead of current_pose_
 
-        ros::Publisher pub_current_target_; // publisher for current registered target position
-        ros::Publisher pub_current_trajectory_; // publisher for current trajectory value
+        ros::Publisher pub_current_target_confirmation_;    // publisher for sending received target back
+        ros::Publisher pub_commanded_velocity_;     // publisher for current commanded velocity
+        ros::Publisher pub_current_trajectory_pos_; // publisher for current trajectory position
         ros::Publisher pub_current_pose_;   // publisher for current pose
 
         ros::Subscriber sub_desired_pose_;  // Subscriber for new desired pose
