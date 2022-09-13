@@ -12,34 +12,38 @@ import sympy as sp
 
 import matplotlib.pyplot as plt
 
+polynomialDegree = 3
 
 def symbolicInverse():
     A, B, C, D, E, F, T = sp.symbols("A B C D E F T")
 
-    """
-    # order 3
+    if polynomialDegree == 3:
+        # order 3
 
-    matrix = sp.Matrix([[0, 0, 0, 1],
-                        [T**3, T**2, T, 1],
-                        [0, 2, 0, 0],
-                        [6*T, 2, 0, 0]])
+        matrix = sp.Matrix([[0, 0, 0, 1],
+                            [sp.Pow(T, 3), sp.Pow(T, 2), T, 1],
+                            [0, 0, 1, 0],
+                            [3*sp.Pow(T, 2), 2*T, 1, 0]])
 
-    sp.init_printing()
-    sp.pprint(matrix)
+        #sp.init_printing()
+        #sp.pprint(matrix)
 
-    print("\n")
-    sp.pprint(matrix.inv())
-    """
+        #print("\n")
+        #sp.pprint(matrix.inv())
 
-    # order 5
-    matrix = sp.Matrix([[0, 0, 0, 0, 0, 1],
-                       [sp.Pow(T, 5), sp.Pow(T, 4), sp.Pow(T, 3), sp.Pow(T, 2), T, 1],
-                       [0, 0, 0, 0, 1, 0],
-                       [5*sp.Pow(T, 4), 4*sp.Pow(T, 3), 3*sp.Pow(T, 2), 2*T, 1, 0],
-                       [0, 0, 0, 2, 0, 0],
-                       [20*sp.Pow(T, 3), 12*sp.Pow(T, 2), 6*T, 2, 0, 0]])
+    elif polynomialDegree == 5:
+        # order 5
+        matrix = sp.Matrix([[0, 0, 0, 0, 0, 1],
+                        [sp.Pow(T, 5), sp.Pow(T, 4), sp.Pow(T, 3), sp.Pow(T, 2), T, 1],
+                        [0, 0, 0, 0, 1, 0],
+                        [5*sp.Pow(T, 4), 4*sp.Pow(T, 3), 3*sp.Pow(T, 2), 2*T, 1, 0],
+                        [0, 0, 0, 2, 0, 0],
+                        [20*sp.Pow(T, 3), 12*sp.Pow(T, 2), 6*T, 2, 0, 0]])
 
-    #sp.pprint(matrix)
+        #sp.pprint(matrix)
+    else:
+        print("polynomial degree " + str(polynomialDegree) + " not implemented!")
+        exit(-1)
 
     print("\n")
     inv = matrix.inv()
@@ -48,7 +52,10 @@ def symbolicInverse():
 
     s0, sT, ds0, dsT, dds0, ddsT = sp.symbols("s0 sT ds0 dsT dds0 ddsT")
 
-    vec = sp.Matrix([s0, sT, ds0, dsT, dds0, ddsT])
+    if polynomialDegree == 3:
+        vec = sp.Matrix([s0, sT, ds0, dsT])
+    elif polynomialDegree == 5:
+        vec = sp.Matrix([s0, sT, ds0, dsT, dds0, ddsT])
     sp.pprint(vec)
     print()
     sol = inv * vec
