@@ -8,39 +8,49 @@ Script for testing creation of polynomial trajectories
 """
 
 import numpy as np
-import sympy as sp
-
 import rospy
-
 import matplotlib.pyplot as plt
-
 import time
 
 
 polyOrder = 5
+useRealData = False
 
-def calcCoefs(s0, ds0, dds0, ddds0, sT, dsT, ddsT, dddsT, T):
+# polynoms only implemented for 3rd and 5th order
+assert polyOrder == 3 or polyOrder == 5
+
+def calcCoefs(s0, ds0, dds0, sT, dsT, ddsT, T):
 
     T2 = T*T
     T3 = T2 * T
     T4 = T3 * T
     T5 = T4 * T
-    T6 = T5 * T
-    T7 = T6 * T
 
     if polyOrder == 3:
+        """
+        # boundary conditions: pos and acc
         m = np.array([[0, 0, 0, 1],
                       [T3, T2, T, 1],
                       [0, 2, 0, 0],
                       [6*T, 2, 0, 0]])
                     
         vec = np.array([s0, sT, dds0, ddsT])
+        """
+        
+        # boundary conditions: pos x2, vel x2
+        m = np.array([[0, 0, 0, 1],
+                      [T3, T2, T, 1],
+                      [0, 0, 1, 0],
+                      [3*T2, 2*T, 1, 0]])
+        
+        vec = np.array([s0, sT, ds0, dsT])                    
 
         solution = np.linalg.inv(m) @ vec
         return solution
 
     if polyOrder == 5:
 
+        # boundary conditions: pos x2, vel x2, acc x2
         mInv = np.array([[-6/T5, 6/T5, -3/T4, -3/T4, -1/(2*T3), 1/(2*T3)],
                          [15/T4, -15/T4, 8/T3, 7/T3, 3/(2*T2), -1/T2],
                          [-10/T3, 10/T3, -6/T2, -4/T2, -3/(2*T), 1/(2*T)],
@@ -51,22 +61,6 @@ def calcCoefs(s0, ds0, dds0, ddds0, sT, dsT, ddsT, dddsT, T):
         vec = np.array([s0, sT, ds0, dsT, dds0, ddsT])
 
         solution = mInv @ vec
-        return solution
-
-    if polyOrder == 7:
-
-        m = np.array([[0, 0, 0, 0, 0, 0, 0, 1],
-                      [T7, T6, T5, T4, T3, T2, T, 1],
-                      [0, 0, 0, 0, 0, 0, 1, 0],
-                      [7*T6, 6*T5, 5*T4, 4*T3, 3*T2, 2*T, 1, 0],
-                      [0, 0, 0, 0, 0, 2, 0, 0],
-                      [42*T5, 30*T4, 20*T3, 12*T2, 6*T, 2, 0, 0],
-                      [0, 0, 0, 0, 6, 0, 0, 0],
-                      [210*T4, 120*T3, 60*T2, 24*T, 6, 0, 0, 0]])
-
-        vec = np.array([s0, sT, ds0, dsT, dds0, ddsT, ddds0, dddsT])
-
-        solution = np.linalg.inv(m) @ vec
         return solution
 
 
@@ -82,8 +76,9 @@ def evaluatePolynom(coef, t):
         s = A*t3 + B*t2 + C*t + D
         v = 3*A*t2 + 2*B*t + C
         a = 6*A*t + 2*B
+        j = 6*A
 
-        return np.array([s, v, a])
+        return np.array([s, v, a, j])
 
     if polyOrder == 5:
 
@@ -97,33 +92,15 @@ def evaluatePolynom(coef, t):
         s = A*t5 + B*t4 + C*t3 + D*t2 + E*t + F
         v = 5*A*t4 + 4*B*t3 + 3*C*t2 + 2*D*t + E
         a = 20*A*t3 + 12*B*t2 + 6*C*t + 2*D
+        j = 60*A*t2 + 24*B*t + 6*C
 
-        return np.array([s, v, a])
-
-    if polyOrder == 7:
-
-        A, B, C, D, E, F, G, H = coef
-
-        t2 = t * t
-        t3 = t2 * t
-        t4 = t3 * t
-        t5 = t4 * t
-        t6 = t5 * t
-        t7 = t6 * t
-
-        s = A*t7 + B*t6 + C*t5 + D*t4 + E*t3 + F*t2 + G*t + H
-        v = 7*A*t6 + 6*B*t5 + 5*C*t4 + 4*D*t3 + 3*E*t2 + 2*F*t + G
-        a = 2*A*t5 + 30*B*t4 + 20*C*t3 + 12*D*t2 + 6*E*t + 2*F
-
-        return np.array([s, v, a])
+        return np.array([s, v, a, j])
 
 
 def main():
     rospy.init_node('PolynomialTrajectoryTest', anonymous=True)
 
-    simple = False
-
-    if simple:
+    if not useRealData:
         targetPos = np.array([0.15,
                         0.15,
                         0.16,
@@ -200,7 +177,8 @@ def main():
         -6.504701125124667804e-02,
         -6.513028514455787565e-02,
         -6.511793471727855831e-02,
-        -6.500997787090523339e-02,
+        -6.500997787090523339e-02])#,
+        """
         -6.480657109051879416e-02,
         -6.450800924463062636e-02,
         -6.411472520765792993e-02,
@@ -335,7 +313,7 @@ def main():
         -2.611795488244927910e-02,
         -2.838774702058310950e-02,
         -3.061564494531099356e-02,
-        -3.279836963417115392e-02])
+        -3.279836963417115392e-02])"""
     
     """
     controllerData = np.load("controllerTarget.npy",allow_pickle=True)
@@ -368,14 +346,17 @@ def main():
     pos1 = np.zeros(shape=(steps, ))
     vel1 = np.zeros(shape=(steps, ))
     acc1 = np.zeros(shape=(steps, ))
+    jerk1 = np.zeros(shape=(steps, ))
     
     pos2 = np.zeros(shape=(steps, ))
     vel2 = np.zeros(shape=(steps, ))
     acc2 = np.zeros(shape=(steps, ))
+    jerk2 = np.zeros(shape=(steps, ))
     
     pos3 = np.zeros(shape=(steps, ))
     vel3 = np.zeros(shape=(steps, ))
     acc3 = np.zeros(shape=(steps, ))
+    jerk3 = np.zeros(shape=(steps, ))
     
     tVec = np.zeros(shape=(steps, ))
 
@@ -418,9 +399,9 @@ def main():
 
             index += 1
 
-            coefs1 = calcCoefs(currentPos1, currentVel1, currentAcc1, 0, nextTwoPositions[0], nextVelocity1, nextAcceleration1, 0, sectionLength.to_sec())
-            coefs2 = calcCoefs(currentPos2, currentVel2, currentAcc2, 0, nextTwoPositions[0], nextVelocity2, nextAcceleration2, 0, sectionLength.to_sec())
-            coefs3 = calcCoefs(currentPos3, currentVel3, currentAcc3, 0, nextTwoPositions[0], nextVelocity3, nextAcceleration3, 0, sectionLength.to_sec())
+            coefs1 = calcCoefs(currentPos1, currentVel1, currentAcc1, nextTwoPositions[0], nextVelocity1, nextAcceleration1, sectionLength.to_sec())
+            coefs2 = calcCoefs(currentPos2, currentVel2, currentAcc2, nextTwoPositions[0], nextVelocity2, nextAcceleration2, sectionLength.to_sec())
+            coefs3 = calcCoefs(currentPos3, currentVel3, currentAcc3, nextTwoPositions[0], nextVelocity3, nextAcceleration3, sectionLength.to_sec())
             #print(coefs3)
             
             if j == 0:
@@ -431,21 +412,24 @@ def main():
             t1 = time.time()
             #print("New trajectories took {}s".format(t1-t0))
         
-        currentPos1, currentVel1, currentAcc1 = evaluatePolynom(coef=coefs1, t=tSection.to_sec())
-        currentPos2, currentVel2, currentAcc2 = evaluatePolynom(coef=coefs2, t=tSection.to_sec())
-        currentPos3, currentVel3, currentAcc3 = evaluatePolynom(coef=coefs3, t=tSection.to_sec())
+        currentPos1, currentVel1, currentAcc1, currentJerk1 = evaluatePolynom(coef=coefs1, t=tSection.to_sec())
+        currentPos2, currentVel2, currentAcc2, currentJerk2  = evaluatePolynom(coef=coefs2, t=tSection.to_sec())
+        currentPos3, currentVel3, currentAcc3, currentJerk3  = evaluatePolynom(coef=coefs3, t=tSection.to_sec())
             
         pos1[j] = currentPos1
         vel1[j] = currentVel1
         acc1[j] = currentAcc1
+        jerk1[j] = currentJerk1
 
         pos2[j] = currentPos2
         vel2[j] = currentVel2
         acc2[j] = currentAcc2
+        jerk2[j] = currentJerk2
 
         pos3[j] = currentPos3
         vel3[j] = currentVel3
         acc3[j] = currentAcc3
+        jerk3[j] = currentJerk3
 
         tVec[j] = t.to_sec()
 
@@ -464,8 +448,8 @@ def main():
     cropStart = 10
     cropEnd = 10
 
-    fig, axs = plt.subplots(3, 3, sharex=True, sharey='row')
-    labels = ["s in m", "v in m/s", "a in m/s2"]
+    fig, axs = plt.subplots(4, 3, sharex=True, sharey='row')
+    labels = ["s in m", "v in m/s", "a in m/s2", "j in m/s3"]
     
     axs[0][0].plot(targetT, targetPos, 'kx')
     axs[0][0].set_ylabel(labels[0])
@@ -474,60 +458,64 @@ def main():
     axs[1][0].grid()
     axs[2][0].set_ylabel(labels[2])
     axs[2][0].grid()
-    axs[2][0].set_xlabel("t in s")
+    axs[3][0].set_ylabel(labels[3])
+    axs[3][0].grid()
+    axs[3][0].set_xlabel("t in s")
     axs[0][0].set_title("v_T = v_avg1")
 
     axs[0][1].plot(targetT, targetPos, 'kx')
     axs[0][1].grid()
     axs[1][1].grid()
     axs[2][1].grid()
-    axs[2][1].set_xlabel("t in s")
+    axs[3][1].grid()
+    axs[3][1].set_xlabel("t in s")
     axs[0][1].set_title("v_T = v_avg2")
 
-    
     axs[0][2].plot(targetT, targetPos, 'kx')
     axs[0][2].grid()
     axs[1][2].grid()
     axs[2][2].grid()
-    axs[2][2].set_xlabel("t in s")
+    axs[3][2].grid()
+    axs[3][2].set_xlabel("t in s")
     axs[0][2].set_title("v_T = v_avg12")
 
-    if simple:
+    if not useRealData:
         axs[0][0].plot(tVec, pos1)
         axs[1][0].plot(tVec, vel1)
         axs[2][0].plot(tVec, acc1)
+        axs[3][0].plot(tVec, jerk1)
         axs[0][1].plot(tVec, pos2)
         axs[1][1].plot(tVec, vel2)
         axs[2][1].plot(tVec, acc2)
+        axs[3][1].plot(tVec, jerk2)
         axs[0][2].plot(tVec, pos3)
         axs[1][2].plot(tVec, vel3)
         axs[2][2].plot(tVec, acc3)
+        axs[3][2].plot(tVec, jerk3)
     else:
         axs[0][0].plot(tVec[cropStart:-cropEnd], pos1[cropStart:-cropEnd])
         axs[1][0].plot(tVec[cropStart:-cropEnd], vel1[cropStart:-cropEnd])
         axs[2][0].plot(tVec[cropStart:-cropEnd], acc1[cropStart:-cropEnd])
+        axs[3][0].plot(tVec[cropStart:-cropEnd], jerk1[cropStart:-cropEnd])
 
         axs[0][1].plot(tVec[cropStart:-cropEnd], pos2[cropStart:-cropEnd])
         axs[1][1].plot(tVec[cropStart:-cropEnd], vel2[cropStart:-cropEnd])
         axs[2][1].plot(tVec[cropStart:-cropEnd], acc2[cropStart:-cropEnd])
+        axs[3][1].plot(tVec[cropStart:-cropEnd], jerk2[cropStart:-cropEnd])
 
         axs[0][2].plot(tVec[cropStart:-cropEnd], pos3[cropStart:-cropEnd])
         axs[1][2].plot(tVec[cropStart:-cropEnd], vel3[cropStart:-cropEnd])
         axs[2][2].plot(tVec[cropStart:-cropEnd], acc3[cropStart:-cropEnd])
-
-    if polyOrder == 7: # in this case we have to limit axes as polynom returns too high values for graph
-        axs[0][0].set_ylim(bottom=0.14, top=0.22)
-        axs[1][0].set_ylim(bottom=-4, top=4)
-        axs[2][0].set_ylim(bottom=-1250, top=1250)
+        axs[3][2].plot(tVec[cropStart:-cropEnd], jerk3[cropStart:-cropEnd])
         
     fig.set_tight_layout(True)
     plt.show()
 
-    plt.figure()
-    plt.plot(targetT, targetPos, 'bx')
-    plt.plot(targetT, exuTarget, 'r.')
-    plt.plot(tVec[cropStart:-cropEnd], pos3[cropStart:-cropEnd])
-    plt.show()
+    #plt.figure()
+    #plt.plot(targetT, targetPos, 'bx')
+    #plt.plot(targetT, exuTarget, 'r.')
+    #plt.plot(tVec[cropStart:-cropEnd], pos3[cropStart:-cropEnd])
+    #plt.show()
 
 
 if __name__ == "__main__":
