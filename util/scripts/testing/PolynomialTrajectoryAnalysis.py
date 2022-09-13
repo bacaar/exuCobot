@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 import time
 
 
-polyOrder = 5
-useRealData = False
+polyOrder = 3
+useRealData = True
 
 # polynoms only implemented for 3rd and 5th order
 assert polyOrder == 3 or polyOrder == 5
@@ -27,26 +27,24 @@ def calcCoefs(s0, ds0, dds0, sT, dsT, ddsT, T):
     T5 = T4 * T
 
     if polyOrder == 3:
-        """
-        # boundary conditions: pos and acc
-        m = np.array([[0, 0, 0, 1],
-                      [T3, T2, T, 1],
-                      [0, 2, 0, 0],
-                      [6*T, 2, 0, 0]])
-                    
-        vec = np.array([s0, sT, dds0, ddsT])
-        """
-        
+            
         # boundary conditions: pos x2, vel x2
+        """
         m = np.array([[0, 0, 0, 1],
                       [T3, T2, T, 1],
                       [0, 0, 1, 0],
                       [3*T2, 2*T, 1, 0]])
-        
-        vec = np.array([s0, sT, ds0, dsT])                    
+        """
 
-        solution = np.linalg.inv(m) @ vec
-        return solution
+        sol = np.array([[ds0/T**2 + dsT/T**2 + 2*s0/T**3 - 2*sT/T**3], 
+                        [-2*ds0/T - dsT/T - 3*s0/T**2 + 3*sT/T**2], 
+                        [ds0], 
+                        [s0]])
+
+        #vec = np.array([s0, sT, ds0, dsT])                    
+
+        #solution = mInv @ vec
+        return sol
 
     if polyOrder == 5:
 
