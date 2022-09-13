@@ -77,12 +77,15 @@ namespace franka_example_controllers {
         pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentPose", 20);
 
         // initialize variables
-        current_state_ = std::vector<std::vector<double>>(3, std::vector<double>(3, 0));
-        current_target_ = std::vector<double>(3, 0);
+        current_state_ = std::vector<std::vector<double>>(3, std::vector<double>(4, 0));    // for 3 dimensions a vector of size 4 (s, v, a, j)
+        current_target_ = std::vector<double>(3, 0);    // (x, y, z)
         position_buffer_ = std::vector<std::vector<double>>(position_buffer_length_, std::vector<double>(3, 0));
         position_buffer_index_reading_ = 0;
         position_buffer_index_writing_ = 1;
         coefs_ = std::vector<std::vector<double>>(3, std::vector<double>(6, 0));
+
+        std::cout << "INFO: Starting velocity Controller with interpolation polynomial degree " << polynomialDegree_;
+        std::cout << " and nominal position buffer size " << nominalPositionBufferSize_ << std::endl;
 
         return true;
     }
@@ -131,12 +134,13 @@ namespace franka_example_controllers {
         if(polynomialDegree_ == 3) {
             solution[0] = 0;    // just for easier implementation afterwards
             solution[1] = 0;
-            solution[2] = v0/T2 + vT/T2 + (2 * s0)/T3 + (2*sT)/T3;
-            solution[3] = (-2*v0)/T - vT/T - 3*s0/T2 + 3*sT/T2;
+            solution[2] = (v0 + vT)/T2 + 2*(s0 - sT)/T3;
+            solution[3] = (-2*v0 - vT)/T + 3*(-s0 + sT)/T2;
             solution[4] = v0;
             solution[5] = s0;
+            //[ds0/T**2 + dsT/T**2 + 2*s0/T**3 - 2*sT/T**3], [-2*ds0/T - dsT/T - 3*s0/T**2 + 3*sT/T**2], [ds0], [s0]]
         }
-        
+
         if(polynomialDegree_ == 5) {
             double T4 = T3 * T;
             double T5 = T4 * T;
@@ -159,11 +163,12 @@ namespace franka_example_controllers {
         double t4 = t3 * t;
         double t5 = t4 * t;
 
-        std::vector<double> stateVec(3, 0);
+        std::vector<double> stateVec(4, 0);
 
         stateVec[0] =    coef[0]*t5 +    coef[1]*t4 +   coef[2]*t3 +   coef[3]*t2 + coef[4]*t + coef[5];
         stateVec[1] =  5*coef[0]*t4 +  4*coef[1]*t3 + 3*coef[2]*t2 + 2*coef[3]*t  + coef[4];
         stateVec[2] = 20*coef[0]*t3 + 12*coef[1]*t2 + 6*coef[2]*t  + 2*coef[3];
+        stateVec[3] = 60*coef[0]*t2 + 24*coef[1]*t  + 6*coef[2];
 
         return stateVec;
 
@@ -184,7 +189,7 @@ namespace franka_example_controllers {
 
         // when starting the controller, wait until position buffer is filled with 3 values
         if(!started){
-            if(getPositionBufferReserve() >= 8){
+            if(getPositionBufferReserve() >= nominalPositionBufferSize_){
                 started = true;
                 std::cerr << "Buffer partly filled with " << getPositionBufferReserve() << " entries. Starting-permission granted.\n";
             }
@@ -249,7 +254,22 @@ namespace franka_example_controllers {
                 //std::cerr << "\tDvy=" << vy - current_command_[1];
                 //std::cerr << "\tDvz=" << vz - current_command_[2] << std::endl;
 
-                /*if(segment_time_
+                // check jerk boundaries
+                {
+                    double jx = current_state_[0][3];
+                    double jy = current_state_[0][3];
+                    double jz = current_state_[0][3];
+                    double jAbs = sqrt(jx * jx + jy * jy + jz * jz);
+
+                    const double max_j_trans = 6500.0; // m/s³
+
+                    if (jAbs > max_j_trans) {
+                        std::cerr << "ERROR: Jerk too high: " << jAbs << std::endl;
+                        exit(-1);
+                    }
+                }
+
+                // check acceleration boundaries
                 {   // check threshold for translational acceleration
                     double ax = current_state_[0][2];
                     double ay = current_state_[0][2];
@@ -259,14 +279,15 @@ namespace franka_example_controllers {
                     const double max_a_trans = 13.0; // m/s²
 
                     if (aAbs > max_a_trans) {
-                        //std::cerr << "ERROR: Acceleration too high: " << aAbs << std::endl;
+                        std::cerr << "ERROR: Acceleration too high: " << aAbs << std::endl;
+                        exit(-1);
 
                         // scale translational velocity vector down to max velocity
-                        double factor = max_a_trans / aAbs; // actually vice versa, but when doing it in this order I can use multiplication instead of division afterwards
+                        /*double factor = max_a_trans / aAbs; // actually vice versa, but when doing it in this order I can use multiplication instead of division afterwards
                         vx *= factor;
                         vy *= factor;
                         vz *= factor;
-                        std::cerr << "vel scaled according to acc\n";
+                        std::cerr << "vel scaled according to acc\n";*/
                     }
                 }
 
@@ -274,16 +295,17 @@ namespace franka_example_controllers {
                     double vAbs = sqrt(vx * vx + vy * vy + vz * vz);
                     const double max_v_trans = 1.7; // m/s
                     if (vAbs > max_v_trans) {
-                        //std::cerr << "ERROR: Velocity too high: " << absV << std::endl;
+                        std::cerr << "ERROR: Velocity too high: " << vAbs << std::endl;
+                        exit(-1);
 
                         // scale translational velocity vector down to max velocity
-                        double factor = max_v_trans / vAbs; // actually vice versa, but when doing it in this order I can use multiplication instead of division afterwards
+                        /*double factor = max_v_trans / vAbs; // actually vice versa, but when doing it in this order I can use multiplication instead of division afterwards
                         vx *= factor;
                         vy *= factor;
                         vz *= factor;
-                        //std::cerr << "vel scaled according to vel\n";
+                        //std::cerr << "vel scaled according to vel\n";*/
                     }
-                }*/
+                }
 
                 // update command
                 current_command_ = {vx, vy, vz, wx, wy, wz};
