@@ -59,6 +59,11 @@ namespace franka_example_controllers {
                                                   &MyCartesianVelocityController::updateTargetPoseCallback, this,
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
+        if(polynomialDegree_ != 3 && polynomialDegree_ != 5){
+            std::cerr << "ERROR: Polynomial degree for interpolation not implemented!\n";
+            exit(-1);
+        }
+
         // create publisher for returning target pose
         pub_current_target_confirmation_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentTarget", 20);
 
@@ -120,17 +125,29 @@ namespace franka_example_controllers {
     std::vector<double> MyCartesianVelocityController::calcCoefs(double s0, double v0, double a0, double sT, double vT, double aT, double T){
         double T2 = T*T;
         double T3 = T2 * T;
-        double T4 = T3 * T;
-        double T5 = T4 * T;
 
         std::vector<double> solution(6, 0);
 
-        solution[0] = -a0/(2*T3) + aT/(2*T3) - 3*v0/T4 - 3*vT/T4 - 6*s0/T5 + 6*sT/T5;
-        solution[1] = 3*a0/(2*T2) - aT/T2 + 8*v0/T3 + 7*vT/T3 + 15*s0/T4 - 15*sT/T4;
-        solution[2] = -3*a0/(2*T) + aT/(2*T) - 6*v0/T2 - 4*vT/T2 - 10*s0/T3 + 10*sT/T3;
-        solution[3] = a0/2;
-        solution[4] = v0;
-        solution[5] = s0;
+        if(polynomialDegree_ == 3) {
+            solution[0] = 0;    // just for easier implementation afterwards
+            solution[1] = 0;
+            solution[2] = v0/T2 + vT/T2 + (2 * s0)/T3 + (2*sT)/T3;
+            solution[3] = (-2*v0)/T - vT/T - 3*s0/T2 + 3*sT/T2;
+            solution[4] = v0;
+            solution[5] = s0;
+        }
+        
+        if(polynomialDegree_ == 5) {
+            double T4 = T3 * T;
+            double T5 = T4 * T;
+
+            solution[0] = -a0 / (2 * T3) + aT / (2 * T3) - 3 * v0 / T4 - 3 * vT / T4 - 6 * s0 / T5 + 6 * sT / T5;
+            solution[1] = 3 * a0 / (2 * T2) - aT / T2 + 8 * v0 / T3 + 7 * vT / T3 + 15 * s0 / T4 - 15 * sT / T4;
+            solution[2] = -3 * a0 / (2 * T) + aT / (2 * T) - 6 * v0 / T2 - 4 * vT / T2 - 10 * s0 / T3 + 10 * sT / T3;
+            solution[3] = a0 / 2;
+            solution[4] = v0;
+            solution[5] = s0;
+        }
 
         return solution;
     }

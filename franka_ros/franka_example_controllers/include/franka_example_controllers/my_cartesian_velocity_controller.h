@@ -36,6 +36,8 @@ namespace franka_example_controllers {
 
         void updateTrajectory();
 
+        const int polynomialDegree_ = 5;
+
         std::vector<double> calcCoefs(double s0, double ds0, double dds0, double sT, double dsT, double ddsT, double T);
         std::vector<double> evaluatePolynom(std::vector<double> &coef, double t);
 
