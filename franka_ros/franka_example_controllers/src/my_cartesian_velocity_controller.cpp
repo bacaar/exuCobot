@@ -212,6 +212,8 @@ namespace franka_example_controllers {
 
                     updateTrajectory();
 
+                    std::cerr << "Used one element from position buffer. Remaining: " << getPositionBufferReserve() << std::endl;
+
                     if(max_segments != 0 && ++counter > max_segments){
                         std::cerr << "DEBUG BREAK: " << max_segments << " segments completed!\n";
                         exit(-1);
@@ -224,11 +226,12 @@ namespace franka_example_controllers {
                     }
                 }
                 else { // if there are not enough values to update trajectory (2 needed), keep last velocity
-                    //std::cerr << "WARNING: Not enough positions to calculate new segment, keep last velocity\n";
+                    std::cerr << "WARNING: Not enough positions to calculate new segment (" << getPositionBufferReserve() << ") , keep last velocity\n";
                 }
             }
 
             // if within semgent_duration, calc new state
+            // can't be "else" to above statement, as it also has to be executed if
             if(segment_time_ <= segment_duration_) {
                 // calculat new positions, velocities and accelerations
                 current_state_[0] = evaluatePolynom(coefs_[0], segment_time_);
@@ -248,18 +251,12 @@ namespace franka_example_controllers {
                 double wx, wy, wz;
                 wx = wy = wz = 0;
 
-                // print differences to previous step
-                //double Dvx = vx - current_command_[0];
-                //std::cerr << "Dvx=" << vx - current_command_[0];
-                //std::cerr << "\tDvy=" << vy - current_command_[1];
-                //std::cerr << "\tDvz=" << vz - current_command_[2] << std::endl;
-
-                // check jerk boundaries
+                // check jerk boundaries according to https://frankaemika.github.io/docs/control_parameters.html#limit-table
                 {
                     double jx = current_state_[0][3];
                     double jy = current_state_[0][3];
                     double jz = current_state_[0][3];
-                    double jAbs = sqrt(jx * jx + jy * jy + jz * jz);
+                    double jAbs = sqrt(jx*jx + jy*jy + jz*jz);
 
                     const double max_j_trans = 6500.0; // m/s³
 
@@ -270,45 +267,37 @@ namespace franka_example_controllers {
                 }
 
                 // check acceleration boundaries
-                {   // check threshold for translational acceleration
+                {
                     double ax = current_state_[0][2];
                     double ay = current_state_[0][2];
                     double az = current_state_[0][2];
-                    double aAbs = sqrt(ax * ax + ay * ay + az * az);
+                    double aAbs = sqrt(ax*ax + ay*ay + az*az);
 
                     const double max_a_trans = 13.0; // m/s²
 
                     if (aAbs > max_a_trans) {
                         std::cerr << "ERROR: Acceleration too high: " << aAbs << std::endl;
                         exit(-1);
-
-                        // scale translational velocity vector down to max velocity
-                        /*double factor = max_a_trans / aAbs; // actually vice versa, but when doing it in this order I can use multiplication instead of division afterwards
-                        vx *= factor;
-                        vy *= factor;
-                        vz *= factor;
-                        std::cerr << "vel scaled according to acc\n";*/
                     }
                 }
 
-                {   // check threshold for translational velocity is according to https://frankaemika.github.io/docs/control_parameters.html#limit-table
+                // check velocity boundaries
+                {
                     double vAbs = sqrt(vx * vx + vy * vy + vz * vz);
                     const double max_v_trans = 1.7; // m/s
                     if (vAbs > max_v_trans) {
                         std::cerr << "ERROR: Velocity too high: " << vAbs << std::endl;
                         exit(-1);
-
-                        // scale translational velocity vector down to max velocity
-                        /*double factor = max_v_trans / vAbs; // actually vice versa, but when doing it in this order I can use multiplication instead of division afterwards
-                        vx *= factor;
-                        vy *= factor;
-                        vz *= factor;
-                        //std::cerr << "vel scaled according to vel\n";*/
                     }
                 }
 
                 // update command
                 current_command_ = {vx, vy, vz, wx, wy, wz};
+            }
+            else{
+                // do nothing, keep current_command_ the same as before
+                // -> means that robot should keep current velocity
+                std::cerr << "Keep current velocity\n";
             }
 
             /*ros::Time now = ros::Time::now();

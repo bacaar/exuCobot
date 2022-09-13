@@ -38,6 +38,7 @@ namespace franka_example_controllers {
 
         const int polynomialDegree_ = 5;
         const int nominalPositionBufferSize_ = 8;
+        const bool testing_ = false;        // flag to use current_state_ instead of current_pose_
 
         std::vector<double> calcCoefs(double s0, double ds0, double dds0, double sT, double dsT, double ddsT, double T);
         std::vector<double> evaluatePolynom(std::vector<double> &coef, double t);
@@ -64,8 +65,6 @@ namespace franka_example_controllers {
 
         const double segment_duration_ = 0.01;  // planned duration of one segment in s
         double segment_time_;                   // time in current segment in s
-
-        const bool testing_ = false;        // flag to use current_state_ instead of current_pose_
 
         ros::Publisher pub_current_target_confirmation_;    // publisher for sending received target back
         ros::Publisher pub_commanded_velocity_;     // publisher for current commanded velocity
