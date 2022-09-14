@@ -6,6 +6,7 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <fstream>
 
 #include <controller_interface/controller_base.h>
 #include <hardware_interface/hardware_interface.h>
@@ -76,6 +77,9 @@ namespace franka_example_controllers {
         // create publisher for current pose
         pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentPose", 20);
 
+        // create publisher for current state
+        pub_current_state_ = node_handle.advertise<util::kinematicState3dStamped>("getCurrentState", 20);
+
         // initialize variables
         current_state_ = std::vector<std::vector<double>>(3, std::vector<double>(4, 0));    // for 3 dimensions a vector of size 4 (s, v, a, j)
         current_target_ = std::vector<double>(3, 0);    // (x, y, z)
@@ -105,6 +109,9 @@ namespace franka_example_controllers {
         lastSendingTime_ = ros::Time::now();
 
         elapsed_time_ = ros::Duration(0.0);
+
+        stateFile_.open("/home/robocup/catkinAaron/src/exuCobot/state.log", std::ios::out);
+        segmentFile_.open("/home/robocup/catkinAaron/src/exuCobot/segment.log", std::ios::out);
 
         if(testing_){
             std::cerr << "WARNING: Testing mode active!\n";
@@ -174,6 +181,39 @@ namespace franka_example_controllers {
 
     }
 
+    void MyCartesianVelocityController::logState(){
+        auto time = ros::Time::now();
+        stateFile_ << time.sec << ",";
+        stateFile_ << time.nsec << ",";
+        for(int coord = 0; coord < 3; ++coord)
+            for(int derivative = 0; derivative < 4; ++derivative)
+                stateFile_ << current_state_[coord][derivative] << ",";
+        stateFile_ << std::endl;
+    }
+
+    void MyCartesianVelocityController::logSegment(){
+        segmentFile_ << ros::Time::now().toSec();
+        segmentFile_ << std::endl;
+    }
+
+    void publishState(const ros::Publisher &pub, const std::vector<std::vector<double>> &state){
+        util::kinematicState3dStamped msg;
+        msg.header.stamp = ros::Time::now();
+        msg.state.x.pos = state[0][0];
+        msg.state.x.vel = state[0][1];
+        msg.state.x.acc = state[0][2];
+        msg.state.x.jerk = state[0][3];
+        msg.state.y.pos = state[1][0];
+        msg.state.y.vel = state[1][1];
+        msg.state.y.acc = state[1][2];
+        msg.state.y.jerk = state[1][3];
+        msg.state.z.pos = state[2][0];
+        msg.state.z.vel = state[2][1];
+        msg.state.z.acc = state[2][2];
+        msg.state.z.jerk = state[2][3];
+        pub.publish(msg);
+    }
+
     void MyCartesianVelocityController::update(const ros::Time & /* time */,
                                            const ros::Duration &period) {
         elapsed_time_ += period;
@@ -210,9 +250,13 @@ namespace franka_example_controllers {
                     current_state_[1] = evaluatePolynom(coefs_[1], segment_time_);
                     current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
 
-                    updateTrajectory();
+                    publishState(pub_current_state_, current_state_);
+                    logState();
 
-                    std::cerr << "Used one element from position buffer. Remaining: " << getPositionBufferReserve() << std::endl;
+                    updateTrajectory();
+                    logSegment();
+
+                    //std::cerr << "Used one element from position buffer. Remaining: " << getPositionBufferReserve() << std::endl;
 
                     if(max_segments != 0 && ++counter > max_segments){
                         std::cerr << "DEBUG BREAK: " << max_segments << " segments completed!\n";
@@ -226,7 +270,7 @@ namespace franka_example_controllers {
                     }
                 }
                 else { // if there are not enough values to update trajectory (2 needed), keep last velocity
-                    std::cerr << "WARNING: Not enough positions to calculate new segment (" << getPositionBufferReserve() << ") , keep last velocity\n";
+                    std::cerr << "WARNING: Not enough positions (" << getPositionBufferReserve() << ") to calculate new segment, keep last velocity\n";
                 }
             }
 
@@ -237,6 +281,9 @@ namespace franka_example_controllers {
                 current_state_[0] = evaluatePolynom(coefs_[0], segment_time_);
                 current_state_[1] = evaluatePolynom(coefs_[1], segment_time_);
                 current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
+
+                publishState(pub_current_state_, current_state_);
+                logState();
 
                 // when debugging
                 if (max_segments != 0) {
@@ -297,7 +344,6 @@ namespace franka_example_controllers {
             else{
                 // do nothing, keep current_command_ the same as before
                 // -> means that robot should keep current velocity
-                std::cerr << "Keep current velocity\n";
             }
 
             /*ros::Time now = ros::Time::now();
@@ -426,6 +472,9 @@ namespace franka_example_controllers {
         // WARNING: DO NOT SEND ZERO VELOCITIES HERE AS IN CASE OF ABORTING DURING MOTION
         // A JUMP TO ZERO WILL BE COMMANDED PUTTING HIGH LOADS ON THE ROBOT. LET THE DEFAULT
         // BUILT-IN STOPPING BEHAVIOR SLOW DOWN THE ROBOT.
+
+        stateFile_.close();
+        segmentFile_.close();
     }
 
 }  // namespace franka_example_controllers

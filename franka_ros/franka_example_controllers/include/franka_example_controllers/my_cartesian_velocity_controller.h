@@ -5,6 +5,7 @@
 #include <array>
 #include <memory>
 #include <string>
+#include <fstream>
 
 #include <controller_interface/multi_interface_controller.h>
 #include <franka_hw/franka_cartesian_command_interface.h>
@@ -15,6 +16,7 @@
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Vector3Stamped.h>
+#include <util/kinematicState3dStamped.h>
 
 namespace franka_example_controllers {
 
@@ -35,6 +37,12 @@ namespace franka_example_controllers {
         void updateTargetPoseCallback(const geometry_msgs::PoseStamped &msg);
 
         void updateTrajectory();
+
+        void logState();
+        void logSegment();
+
+        std::ofstream stateFile_;
+        std::ofstream segmentFile_;
 
         const int polynomialDegree_ = 5;
         const int nominalPositionBufferSize_ = 8;
@@ -70,6 +78,7 @@ namespace franka_example_controllers {
         ros::Publisher pub_commanded_velocity_;     // publisher for current commanded velocity
         ros::Publisher pub_current_trajectory_pos_; // publisher for current trajectory position
         ros::Publisher pub_current_pose_;   // publisher for current pose
+        ros::Publisher pub_current_state_;  // publisher for full kinematic state
 
         ros::Subscriber sub_desired_pose_;  // Subscriber for new desired pose
     };
