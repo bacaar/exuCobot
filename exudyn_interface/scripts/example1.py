@@ -23,7 +23,6 @@ import tf
 import sys
 import os
 
-
 f = os.path.dirname(os.path.abspath(__file__))
 # go to directories up
 for _ in range(2):
@@ -33,6 +32,7 @@ sys.path.append(f)  # append [...]/exuCobot directory to system path
 
 from util.scripts.util.common import createPoseStampedMsg
 
+logFile = None
 
 # global variable for external forces and moments (combined => efforts)
 extEfforts = np.zeros(shape=(6, 1))
@@ -239,6 +239,9 @@ def main():
     xPublish = 10
     xPublishCounter = 0
 
+    global logFile
+    logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudyn.log", "w")
+    logFile.write("t,globalX,globalY,globalZ\n")
     def PreStepUserFunction(mbs, t):
         nonlocal firstPose
         nonlocal posOffset
@@ -286,6 +289,7 @@ def main():
             tsend = rospy.Time.now()
             msg = createPoseStampedMsg(posGlobal, (angleX, 0, 0), tsend)
             pub.publish(msg)
+            logFile.write("{},{},{},{}\n".format(tsend.to_sec(), posGlobal[0], posGlobal[1], posGlobal[2]))
 
             # publish current external force
             msgF = WrenchStamped()
@@ -340,3 +344,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    logFile.close()

@@ -110,9 +110,23 @@ namespace franka_example_controllers {
 
         elapsed_time_ = ros::Duration(0.0);
 
-        stateFile_.open("/home/robocup/catkinAaron/src/exuCobot/state.log", std::ios::out);
-        segmentFile_.open("/home/robocup/catkinAaron/src/exuCobot/segment.log", std::ios::out);
+        evaluatedTrajectoryFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/evaluatedTrajectory.log", std::ios::out);
+        currentPositionFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/currentPosition.log", std::ios::out);
+        trajectoryCreationFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/trajectoryCreation.log", std::ios::out);
 
+        if(!evaluatedTrajectoryFile_.is_open()) { std::cerr << "WARNING: Could not create open evaluated trajectory log file!\n"; }
+        else { evaluatedTrajectoryFile_ << "s,ns,px,vx,ax,jx,py,vy,ay,jy,pz,vz,az,jz\n"; }
+
+        if(!currentPositionFile_.is_open()) { std::cerr << "WARNING: Could not create open current position log file!\n"; }
+        else { currentPositionFile_ << "s,ns,px,py,pz\n"; }
+
+        if(!trajectoryCreationFile_.is_open()) { std::cerr << "WARNING: Could not create open trajectory creation log file!\n"; }
+        else {
+            // cpx = current position x, cvx = current velocity x, etc...
+            // npx = next position x, etc...
+            // dt = segment_timeobserving position, velocity acceleration and jerk of robot in cartesian and space6
+            trajectoryCreationFile_ << "s,ns,cpx,cvx,cax,cpy,cvy,cay,cpz,cvz,caz,npx,nvx,nax,npy,nvy,nay,npz,nvz,naz,dt\n";
+        }
         if(testing_){
             std::cerr << "WARNING: Testing mode active!\n";
         }
@@ -181,19 +195,67 @@ namespace franka_example_controllers {
 
     }
 
-    void MyCartesianVelocityController::logState(){
-        auto time = ros::Time::now();
-        stateFile_ << time.sec << ",";
-        stateFile_ << time.nsec << ",";
-        for(int coord = 0; coord < 3; ++coord)
-            for(int derivative = 0; derivative < 4; ++derivative)
-                stateFile_ << current_state_[coord][derivative] << ",";
-        stateFile_ << std::endl;
+    void MyCartesianVelocityController::logEvaluatedTrajectory(ros::Time time){
+        //auto time = ros::Time::now();
+        evaluatedTrajectoryFile_ << time.sec << ",";
+        evaluatedTrajectoryFile_ << time.nsec << ",";
+        for(int coord = 0; coord < 3; ++coord){
+            for(int derivative = 0; derivative < 4; ++derivative){
+                evaluatedTrajectoryFile_ << current_state_[coord][derivative];
+                if(coord != 2 || derivative != 3) evaluatedTrajectoryFile_ << ",";    // for each entry except the last
+            }
+        }
+        evaluatedTrajectoryFile_ << std::endl;
     }
 
-    void MyCartesianVelocityController::logSegment(){
-        segmentFile_ << ros::Time::now().toSec();
-        segmentFile_ << std::endl;
+    void MyCartesianVelocityController::logCurrentPosition(ros::Time time, const std::array<double, 16> &current_pose) {
+        currentPositionFile_ << time.sec << ",";
+        currentPositionFile_ << time.nsec << ",";
+        currentPositionFile_ << current_pose[12] << ",";
+        currentPositionFile_ << current_pose[13] << ",";
+        currentPositionFile_ << current_pose[14];
+        currentPositionFile_ << std::endl;
+    }
+
+    void MyCartesianVelocityController::logTrajectoryCreation(const std::array<double, 16> &current_pose, int pos_buffer_index, const std::array<double, 3> &next_vel, const std::array<double, 3> &next_acc){
+        auto time = ros::Time::now();
+
+        trajectoryCreationFile_ << time.sec << ",";
+        trajectoryCreationFile_ << time.nsec << ",";
+
+        // current state x
+        trajectoryCreationFile_ << current_state_[0][0] << ",";
+        trajectoryCreationFile_ << current_state_[0][1] << ",";
+        trajectoryCreationFile_ << current_state_[0][2] << ",";
+
+        // current state y
+        trajectoryCreationFile_ << current_state_[1][0] << ",";
+        trajectoryCreationFile_ << current_state_[1][1] << ",";
+        trajectoryCreationFile_ << current_state_[1][2] << ",";
+
+        // current state z
+        trajectoryCreationFile_ << current_state_[2][0] << ",";
+        trajectoryCreationFile_ << current_state_[2][1] << ",";
+        trajectoryCreationFile_ << current_state_[2][2] << ",";
+
+        // next state x
+        trajectoryCreationFile_ << position_buffer_[pos_buffer_index][0] << ",";
+        trajectoryCreationFile_ << next_vel[0] << ",";
+        trajectoryCreationFile_ << next_acc[0] << ",";
+
+        // next state y
+        trajectoryCreationFile_ << position_buffer_[pos_buffer_index][1] << ",";
+        trajectoryCreationFile_ << next_vel[1] << ",";
+        trajectoryCreationFile_ << next_acc[1] << ",";
+
+        // next state z
+        trajectoryCreationFile_ << position_buffer_[pos_buffer_index][2] << ",";
+        trajectoryCreationFile_ << next_vel[2] << ",";
+        trajectoryCreationFile_ << next_acc[2] << ",";
+
+        trajectoryCreationFile_ << segment_duration_;
+
+        trajectoryCreationFile_ << std::endl;
     }
 
     void publishState(const ros::Publisher &pub, const std::vector<std::vector<double>> &state){
@@ -218,6 +280,8 @@ namespace franka_example_controllers {
                                            const ros::Duration &period) {
         elapsed_time_ += period;
         segment_time_ += period.toSec();
+
+        //std::cout << period.toSec() << std::endl;
 
         //std::cerr << "Update\t pos buffer write : " << position_buffer_index_writing_ << "\t read: " << position_buffer_index_reading_ << "\treserve: " << getPositionBufferReserve() << std::endl;
 
@@ -251,10 +315,9 @@ namespace franka_example_controllers {
                     current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
 
                     publishState(pub_current_state_, current_state_);
-                    logState();
+                    logEvaluatedTrajectory(ros::Time::now());
 
                     updateTrajectory();
-                    logSegment();
 
                     //std::cerr << "Used one element from position buffer. Remaining: " << getPositionBufferReserve() << std::endl;
 
@@ -283,7 +346,9 @@ namespace franka_example_controllers {
                 current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
 
                 publishState(pub_current_state_, current_state_);
-                logState();
+                auto time = ros::Time::now();
+                logEvaluatedTrajectory(time);
+                logCurrentPosition(time, current_pose);
 
                 // when debugging
                 if (max_segments != 0) {
@@ -345,12 +410,6 @@ namespace franka_example_controllers {
                 // do nothing, keep current_command_ the same as before
                 // -> means that robot should keep current velocity
             }
-
-            /*ros::Time now = ros::Time::now();
-            double dif = (now - lastSendingTime_).toSec();
-            if(dif > 0.0011){
-                std::cerr << "dt: " << dif << std::endl;
-            }*/
 
             // pass velocity to robot control
             velocity_cartesian_handle_->setCommand(current_command_);
@@ -453,15 +512,7 @@ namespace franka_example_controllers {
             //std::cerr << "[[" << current_pose[13];
         }
 
-        /*std::cerr<< ", " << current_state_[1][1] << ", " << current_state_[1][2];
-        std::cerr << ", " << position_buffer_[i1][1] << ", " << next_velocity[1] << ", " << 0 << ", " << segment_duration_ << "],\t\t\t";
-        std::cerr << "[";
-        for(int i = 0; i < 6; ++i){
-            std::cerr << coefs_[1][i];
-            if (i != 5) std::cerr << ", ";
-        }
-        std::cerr << "]]," << std::endl;
-         */
+        logTrajectoryCreation(current_pose, i1, next_velocity, next_acceleration);
 
         // for next segment
         int old = position_buffer_index_reading_;
@@ -473,8 +524,9 @@ namespace franka_example_controllers {
         // A JUMP TO ZERO WILL BE COMMANDED PUTTING HIGH LOADS ON THE ROBOT. LET THE DEFAULT
         // BUILT-IN STOPPING BEHAVIOR SLOW DOWN THE ROBOT.
 
-        stateFile_.close();
-        segmentFile_.close();
+        evaluatedTrajectoryFile_.close();
+        currentPositionFile_.close();
+        trajectoryCreationFile_.close();
     }
 
 }  // namespace franka_example_controllers

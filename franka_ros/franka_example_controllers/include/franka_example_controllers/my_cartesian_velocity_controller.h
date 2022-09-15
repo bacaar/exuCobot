@@ -38,11 +38,13 @@ namespace franka_example_controllers {
 
         void updateTrajectory();
 
-        void logState();
-        void logSegment();
+        void logEvaluatedTrajectory(ros::Time time);
+        void logCurrentPosition(ros::Time time, const std::array<double, 16> &current_pose);
+        void logTrajectoryCreation(const std::array<double, 16> &current_pose, int pos_buffer_index, const std::array<double, 3> &next_vel, const std::array<double, 3> &next_acc);
 
-        std::ofstream stateFile_;
-        std::ofstream segmentFile_;
+        std::ofstream evaluatedTrajectoryFile_;
+        std::ofstream currentPositionFile_;
+        std::ofstream trajectoryCreationFile_;
 
         const int polynomialDegree_ = 5;
         const int nominalPositionBufferSize_ = 8;
