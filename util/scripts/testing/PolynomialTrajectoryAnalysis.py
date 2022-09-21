@@ -12,14 +12,13 @@ import rospy
 import matplotlib.pyplot as plt
 import time
 
-
-polyOrder = 3
 useRealData = True
+polyOrder = 3
 
-# polynoms only implemented for 3rd and 5th order
-assert polyOrder == 3 or polyOrder == 5
+def calcCoefs(s0, ds0, dds0, sT, dsT, ddsT, T, polyOrder):
 
-def calcCoefs(s0, ds0, dds0, sT, dsT, ddsT, T):
+    # polynoms only implemented for 3rd and 5th order
+    assert polyOrder == 3 or polyOrder == 5
 
     T2 = T*T
     T3 = T2 * T
@@ -64,7 +63,7 @@ def calcCoefs(s0, ds0, dds0, sT, dsT, ddsT, T):
 
 def evaluatePolynom(coef, t):
 
-    if polyOrder == 3:
+    if coef.size == 4:  # polyOrder = 3
 
         A, B, C, D = coef
 
@@ -78,7 +77,7 @@ def evaluatePolynom(coef, t):
 
         return np.array([s, v, a, j])
 
-    if polyOrder == 5:
+    if coef.size == 6:  # polyOrder = 5
 
         A, B, C, D, E, F = coef
 
@@ -397,9 +396,9 @@ def main():
 
             index += 1
 
-            coefs1 = calcCoefs(currentPos1, currentVel1, currentAcc1, nextTwoPositions[0], nextVelocity1, nextAcceleration1, sectionLength.to_sec())
-            coefs2 = calcCoefs(currentPos2, currentVel2, currentAcc2, nextTwoPositions[0], nextVelocity2, nextAcceleration2, sectionLength.to_sec())
-            coefs3 = calcCoefs(currentPos3, currentVel3, currentAcc3, nextTwoPositions[0], nextVelocity3, nextAcceleration3, sectionLength.to_sec())
+            coefs1 = calcCoefs(currentPos1, currentVel1, currentAcc1, nextTwoPositions[0], nextVelocity1, nextAcceleration1, sectionLength.to_sec(), polyOrder)
+            coefs2 = calcCoefs(currentPos2, currentVel2, currentAcc2, nextTwoPositions[0], nextVelocity2, nextAcceleration2, sectionLength.to_sec(), polyOrder)
+            coefs3 = calcCoefs(currentPos3, currentVel3, currentAcc3, nextTwoPositions[0], nextVelocity3, nextAcceleration3, sectionLength.to_sec(), polyOrder)
             #print(coefs3)
             
             if j == 0:
