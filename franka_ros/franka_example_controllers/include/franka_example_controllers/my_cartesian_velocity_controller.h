@@ -18,6 +18,21 @@
 #include <geometry_msgs/Vector3Stamped.h>
 #include <util/kinematicState3dStamped.h>
 
+// struct representing kinematic state for one dimension
+struct State{
+    double pos = 0;
+    double vel = 0;
+    double acc = 0;
+    double jerk = 0;
+};
+
+// struct representing kinematic state for three dimensions
+struct State3{
+    State x;
+    State y;
+    State z;
+};
+
 namespace franka_example_controllers {
 
     class MyCartesianVelocityController : public controller_interface::MultiInterfaceController<
@@ -40,7 +55,7 @@ namespace franka_example_controllers {
 
         void logEvaluatedTrajectory(ros::Time time);
         void logCurrentPosition(ros::Time time, const std::array<double, 16> &current_pose);
-        void logTrajectoryCreation(const std::array<double, 16> &current_pose, int pos_buffer_index, const std::array<double, 3> &next_vel, const std::array<double, 3> &next_acc);
+        void logTrajectoryCreation(const State3 &startState, const State3 &endState);
 
         std::ofstream evaluatedTrajectoryFile_;
         std::ofstream currentPositionFile_;
@@ -48,10 +63,12 @@ namespace franka_example_controllers {
 
         const int polynomialDegree_ = 5;
         const int nominalPositionBufferSize_ = 8;
-        const bool testing_ = false;        // flag to use current_state_ instead of current_pose_
+        const bool useActualRobotPosition_ = true;        // flag to use current_state_ instead of current_pose_
 
-        std::vector<double> calcCoefs(double s0, double ds0, double dds0, double sT, double dsT, double ddsT, double T);
-        std::vector<double> evaluatePolynom(std::vector<double> &coef, double t);
+        const bool logYonly_ = false;
+
+        std::vector<double> calcCoefs(State startState, State endState, double T);
+        State evaluatePolynom(std::vector<double> &coef, double t);
 
         franka_hw::FrankaVelocityCartesianInterface *velocity_cartesian_interface_;
         std::unique_ptr <franka_hw::FrankaCartesianVelocityHandle> velocity_cartesian_handle_;
@@ -59,7 +76,7 @@ namespace franka_example_controllers {
         ros::Duration elapsed_time_;
         ros::Time lastSendingTime_;
 
-        std::vector<std::vector<double>> current_state_;    // pos, vel and acc for x, y, and z; describing current state of trajectory
+        State3 current_state_;    // pos, vel, acc and jerk for x, y, and z; describing current state of trajectory
         std::vector<std::vector<double>> coefs_;    // trajectory / polynom coefficients
 
         std::array<double, 6> current_command_;
