@@ -2,7 +2,7 @@
 
 """
 Author: Aaron Bacher
-Date: 03.08.2022
+Date: 20.09.2022
 
 Script for testing creation of polynomial trajectories
 """
@@ -14,10 +14,16 @@ import os
 
 from PolynomialTrajectoryAnalysis import evaluatePolynom, calcCoefs
 
-def offlineCalculation(polyOrder=5):
-    segments = pd.read_csv(os.getcwd() + "/log/trajectoryCreation.csv")    
+segments = pd.read_csv(os.getcwd() + "/log/trajectoryCreation.csv")
 
-    segments = segments.drop([0])
+def offlineCalculation(polyOrder=5):
+        
+    global segments
+
+    # get rid of first nDrop rows
+    nDrop = 158
+    for i in range(nDrop):
+        segments = segments.drop([i])
 
     steps = (segments.shape[0]-1) * 10
 
@@ -44,16 +50,28 @@ def offlineCalculation(polyOrder=5):
     coefs2 = np.zeros(shape=(polyOrder + 1, ))  # for nextVelocity = avg vel of second next section
     coefs3 = np.zeros(shape=(polyOrder + 1, ))  # for nextVelocity = avg vel of both next 2 sections
 
-    print(segments)
+    #print(segments)
 
-    for i in range(1, segments.shape[0]):
+    for i0 in range(segments.shape[0]):
+
+        i = i0 + nDrop
+
+        vec = np.empty(shape=(3,2))
+        vec[0,0] = segments["cpy"][i]
+        vec[1,0] = segments["cvy"][i]
+        vec[2,0] = segments["cay"][i]
+        vec[0,1] = segments["npy"][i]
+        vec[1,1] = segments["nvy"][i]
+        vec[2,1] = segments["nay"][i]
+
+        tstart = segments["t"][i]
 
         coefs1 = calcCoefs(segments["cpx"][i], segments["cvx"][i], segments["cax"][i], segments["npx"][i], segments["nvx"][i], segments["nax"][i], segments["dt"][i], polyOrder)
         coefs2 = calcCoefs(segments["cpy"][i], segments["cvy"][i], segments["cay"][i], segments["npy"][i], segments["nvy"][i], segments["nay"][i], segments["dt"][i], polyOrder)
         coefs3 = calcCoefs(segments["cpz"][i], segments["cvz"][i], segments["caz"][i], segments["npz"][i], segments["nvz"][i], segments["naz"][i], segments["dt"][i], polyOrder)
 
         t = 0
-        j = (i-1)*10
+        j = (i0-1)*10
 
         counter = 0
 
@@ -114,7 +132,10 @@ def main():
 
     for i in range(4):
         for j in range(3):
-            axs[i][j].plot(t, data[i][j])
+            axs[i][j].plot(t, data[:,i,j])
+
+    axs[0][1].plot(segments["t"], segments["cpy"], "x")
+    axs[0][1].plot(segments["t"]+segments["dt"], segments["npy"], "x")
         
     fig.set_tight_layout(True)
     plt.show()
