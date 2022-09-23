@@ -49,21 +49,29 @@ namespace franka_example_controllers {
 
     private:
 
+        ros::Time logTime_;
+        ros::Duration elapsed_time_;
+
         void updateTargetPoseCallback(const geometry_msgs::PoseStamped &msg);
 
         void updateTrajectory();
 
-        void logEvaluatedTrajectory(ros::Time time);
-        void logCurrentPosition(ros::Time time, const std::array<double, 16> &current_pose);
+        void logEvaluatedTrajectory();
+        void logCurrentPosition(const std::array<double, 16> &current_pose);
         void logTrajectoryCreation(const State3 &startState, const State3 &endState);
+        void logCoefficients();
 
+        std::ofstream generalLogFile_;
+        std::ofstream commandLogFile_;
         std::ofstream evaluatedTrajectoryFile_;
         std::ofstream currentPositionFile_;
         std::ofstream trajectoryCreationFile_;
+        std::ofstream coefficientsFile_;
 
         const int polynomialDegree_ = 5;
         const int nominalPositionBufferSize_ = 8;
-        const bool useActualRobotPosition_ = true;        // flag to use current_state_ instead of current_pose_
+        const bool useActualRobotPosition_ = true;        // flag to use current_pose_ (true) instead of current_state_ (false)
+        const bool exitIfTheoreticalValuesExceedLimits_ = true;
 
         const bool logYonly_ = false;
 
@@ -73,13 +81,11 @@ namespace franka_example_controllers {
         franka_hw::FrankaVelocityCartesianInterface *velocity_cartesian_interface_;
         std::unique_ptr <franka_hw::FrankaCartesianVelocityHandle> velocity_cartesian_handle_;
 
-        ros::Duration elapsed_time_;
-        ros::Time lastSendingTime_;
-
         State3 current_state_;    // pos, vel, acc and jerk for x, y, and z; describing current state of trajectory
         std::vector<std::vector<double>> coefs_;    // trajectory / polynom coefficients
 
         std::array<double, 6> current_command_;
+        std::array<double, 6> last_command_;
 
         std::vector<std::vector<double>> position_buffer_;  // x, y and z value of next positions to travers
         const int position_buffer_length_ = 50;             // length of position buffer. Also if buffer is vector, it's length is static
