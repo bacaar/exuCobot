@@ -30,8 +30,8 @@ namespace franka_example_controllers {
                 "equilibrium_pose", 20, &MyCartesianImpedanceController::equilibriumPoseCallback, this,
                 ros::TransportHints().reliable().tcpNoDelay());
 
-        // set callback method for updating desired pose
-        sub_desired_pose_ = node_handle.subscribe("setDesiredPose", 20,
+        // set callback method for updating target pose
+        sub_desired_pose_ = node_handle.subscribe("setTargetPose", 20,
                               &MyCartesianImpedanceController::updateDesiredPoseCallback, this,
                               ros::TransportHints().reliable().tcpNoDelay());
 
