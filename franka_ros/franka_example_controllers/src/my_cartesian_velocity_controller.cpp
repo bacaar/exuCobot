@@ -108,7 +108,7 @@ namespace franka_example_controllers {
         last_command_ = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // initialize variable, assume that robot is standing still
 
         logTime_ = ros::Time(0);
-        segment_time_ = 0;
+        segment_time_ = ros::Duration(0);
 
         elapsed_time_ = ros::Duration(0.0);
 
@@ -335,7 +335,7 @@ namespace franka_example_controllers {
             trajectoryCreationFile_ << endState.z.acc << ",";
         }
 
-        trajectoryCreationFile_ << segment_duration_;
+        trajectoryCreationFile_ << segment_duration_.toSec();
 
         trajectoryCreationFile_ << std::endl;
     }
@@ -377,7 +377,7 @@ namespace franka_example_controllers {
                                            const ros::Duration &period) {
 
         elapsed_time_ += period;
-        segment_time_ += period.toSec();
+        segment_time_ += period;
 
         static ros::Time lastRosTime = ros::Time(0);
         static ros::Time lastLogTime = ros::Time(0);
@@ -433,11 +433,10 @@ namespace franka_example_controllers {
                     }
 
                     // reset segment_time_ as new one starts now
-                    // normally subtracting duration once should be enough
-                    while(segment_time_ > segment_duration_){
-                        //segment_time_ -= segment_duration_;
-                        segment_time_ = 0;
-                    }
+                    segment_time_ = ros::Duration(0);
+                    generalLogFile_ << "setting segment_time_ to 0\n";
+
+                    generalLogFile_ << "new segment_duration_ is " << segment_duration_ << " s" << std::endl;
                 }
                 else { // if there are not enough values to update trajectory (2 needed), keep last velocity
                     std::cerr << "WARNING: Not enough positions (" << getPositionBufferReserve() << ") to calculate new segment, keep last velocity\n";
@@ -456,9 +455,9 @@ namespace franka_example_controllers {
             // can't be "else" to above statement, as it also has to be executed if
             if(segment_time_ <= segment_duration_) {
                 // calculat new positions, velocities and accelerations
-                current_state_.x = evaluatePolynomial(coefs_[0], segment_time_);
-                current_state_.y = evaluatePolynomial(coefs_[1], segment_time_);
-                current_state_.z = evaluatePolynomial(coefs_[2], segment_time_);
+                current_state_.x = evaluatePolynomial(coefs_[0], segment_time_.toSec());
+                current_state_.y = evaluatePolynomial(coefs_[1], segment_time_.toSec());
+                current_state_.z = evaluatePolynomial(coefs_[2], segment_time_.toSec());
 
                 publishState(logTime_, pub_current_state_, current_state_);
 
@@ -682,9 +681,9 @@ namespace franka_example_controllers {
 
         // at last iteration segment_time was at e.g. 0.009 (if segment_duration_ is 0.01)
         // last calculation for previous segment has still to be done in order to let new segment start from correct position
-        current_state_.x = evaluatePolynomial(coefs_[0], segment_time_);
-        current_state_.y = evaluatePolynomial(coefs_[1], segment_time_);
-        current_state_.z = evaluatePolynomial(coefs_[2], segment_time_);
+        current_state_.x = evaluatePolynomial(coefs_[0], segment_time_.toSec());
+        current_state_.y = evaluatePolynomial(coefs_[1], segment_time_.toSec());
+        current_state_.z = evaluatePolynomial(coefs_[2], segment_time_.toSec());
 
         publishState(logTime_, pub_current_state_, current_state_);
         logEvaluatedTrajectory();
@@ -751,27 +750,27 @@ namespace franka_example_controllers {
 
         static bool firstTime = true;
 
-        double overdue = segment_time_ - segment_duration_;
+        ros::Duration overdue = segment_time_ - segment_duration_;
         if(firstTime){
-            overdue = 0;
+            overdue = ros::Duration(0);
             firstTime = false;
         }
-        segment_duration_ = position_buffer_[i1].dt - overdue;
-        double nextSegmentDuration = position_buffer_[i2].dt;
+        segment_duration_ = ros::Duration(position_buffer_[i1].dt) - overdue;
+        ros::Duration nextSegmentDuration = ros::Duration(position_buffer_[i2].dt);
 
         // calculate desired velocity for end of (first) segment as mean velocity of next two segments
-        endState.x.vel = (position_buffer_[i2][0] - startState.x.pos) / (segment_duration_ + nextSegmentDuration);
-        endState.y.vel = (position_buffer_[i2][1] - startState.y.pos) / (segment_duration_ + nextSegmentDuration);
-        endState.z.vel = (position_buffer_[i2][2] - startState.z.pos) / (segment_duration_ + nextSegmentDuration);
+        endState.x.vel = (position_buffer_[i2][0] - startState.x.pos) / (segment_duration_ + nextSegmentDuration).toSec();
+        endState.y.vel = (position_buffer_[i2][1] - startState.y.pos) / (segment_duration_ + nextSegmentDuration).toSec();
+        endState.z.vel = (position_buffer_[i2][2] - startState.z.pos) / (segment_duration_ + nextSegmentDuration).toSec();
 
         //endState.x.vel = (position_buffer_[i1][0] - startState.x.pos) / (segment_duration_);
         //endState.y.vel = (position_buffer_[i1][1] - startState.y.pos) / (segment_duration_);
         //endState.z.vel = (position_buffer_[i1][2] - startState.z.pos) / (segment_duration_);
 
         // calculate desired acceleration for end of (first) segment as mean acceleration of next two segments
-        endState.y.acc = (endState.y.vel - startState.y.vel) / segment_duration_;
-        endState.z.acc = (endState.z.vel - startState.z.vel) / segment_duration_;
-        endState.x.acc = (endState.x.vel - startState.x.vel) / segment_duration_;
+        endState.y.acc = (endState.y.vel - startState.y.vel) / segment_duration_.toSec();
+        endState.z.acc = (endState.z.vel - startState.z.vel) / segment_duration_.toSec();
+        endState.x.acc = (endState.x.vel - startState.x.vel) / segment_duration_.toSec();
         //endState.y.acc = 0;
         //endState.z.acc = 0;
         //endState.x.acc = 0;
@@ -832,12 +831,12 @@ namespace franka_example_controllers {
         trajectoryCreationFile2_ << (position_buffer_[i2][1] - startState.y.pos) << ",\t";  // dp2
         trajectoryCreationFile2_ << (endState.y.vel - startState.y.vel) << ",\t";           // dv
         trajectoryCreationFile2_ << (endState.y.acc - startState.y.acc) << ",\t";           // da
-        trajectoryCreationFile2_ << segment_duration_ << std::endl;
+        trajectoryCreationFile2_ << segment_duration_.toSec() << std::endl;
 
         // calculate polynom coefficients
-        coefs_[0] = calcCoefs(startState.x, endState.x, segment_duration_);
-        coefs_[1] = calcCoefs(startState.y, endState.y, segment_duration_);
-        coefs_[2] = calcCoefs(startState.z, endState.z, segment_duration_);
+        coefs_[0] = calcCoefs(startState.x, endState.x, segment_duration_.toSec());
+        coefs_[1] = calcCoefs(startState.y, endState.y, segment_duration_.toSec());
+        coefs_[2] = calcCoefs(startState.z, endState.z, segment_duration_.toSec());
 
         logTrajectoryCreation(startState, endState);
         logCoefficients();

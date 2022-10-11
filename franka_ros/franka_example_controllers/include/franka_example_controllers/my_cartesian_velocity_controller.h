@@ -17,6 +17,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Vector3Stamped.h>
 #include <util/kinematicState3dStamped.h>
+#include <util/segmentCommand.h>
 
 // struct representing kinematic state for one dimension
 struct State{
@@ -113,6 +114,24 @@ struct State3{
     }
 };
 
+struct Command{
+    double x;
+    double y;
+    double z;
+
+    double dt;
+
+    double operator[] (int i){
+        if(i == 0) return x;
+        else if (i == 1) return y;
+        else if (i == 2) return z;
+        else{
+            std::cerr << "ERROR: Index " << i << " out of range 3. Use .dt to access time\n";
+            exit(-1);
+        }
+    }
+};
+
 namespace franka_example_controllers {
 
     class MyCartesianVelocityController : public controller_interface::MultiInterfaceController<
@@ -132,12 +151,15 @@ namespace franka_example_controllers {
         ros::Time logTime_;
         ros::Duration elapsed_time_;
 
-        void updateTargetPoseCallback(const geometry_msgs::PoseStamped &msg);
+        std::string logTimeString_;     // string with time starting at beginning of program
+        std::string rosTimeString_;     // string with time starting at ros::Time(0)
+
+        void updateTargetPoseCallback(const util::segmentCommand &msg);
 
         void updateTrajectory();
 
         void logEvaluatedTrajectory();
-        void logCurrentPosition(const std::array<double, 16> &current_pose);
+        void logCurrentPosition(const std::array<double, 16> &current_pose, const std::array< double, 7 > &current_joint_positions);
         void logTrajectoryCreation(const State3 &startState, const State3 &endState);
         void logCoefficients();
 
@@ -176,7 +198,7 @@ namespace franka_example_controllers {
         std::array<double, 6> current_command_;
         std::array<double, 6> last_command_;
 
-        std::vector<std::vector<double>> position_buffer_;  // x, y and z value of next positions to travers
+        std::vector<Command> position_buffer_;              // x, y and z value of next positions to travers
         const int position_buffer_length_ = 50;             // length of position buffer. Also if buffer is vector, it's length is static
         // as position_buffer will be a ring buffer, current indices for reading and writing have to be stored
         int position_buffer_index_writing_;                 // holds index in which to write next (write then increase)
@@ -185,8 +207,8 @@ namespace franka_example_controllers {
 
         std::vector<double> current_target_;    // only for analytics
 
-        const double segment_duration_ = 0.01;  // planned duration of one segment in s
-        double segment_time_;                   // time in current segment in s
+        ros::Duration segment_duration_;               // planned duration of one segment in s
+        ros::Duration segment_time_;                   // time in current segment in s
 
         ros::Publisher pub_current_target_confirmation_;    // publisher for sending received target back
         ros::Publisher pub_commanded_velocity_;     // publisher for current commanded velocity
