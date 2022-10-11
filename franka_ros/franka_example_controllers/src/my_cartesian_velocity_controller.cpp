@@ -452,7 +452,7 @@ namespace franka_example_controllers {
             }
 
             // if within segment_duration, calc new state
-            // can't be "else" to above statement, as it also has to be executed if
+            // can't be "else" to above statement, as it also has to be executed if trajectory has just been updated
             if(segment_time_ <= segment_duration_) {
                 // calculate new positions, velocities and accelerations
                 current_state_.x = evaluatePolynomial(coefs_[0], segment_time_.toSec());
@@ -692,48 +692,61 @@ namespace franka_example_controllers {
         // startState equals current state, except .pos might be taken from robot end-effector position
         State3 startState = current_state_;
 
-        if (useActualRobotPosition_) {
-            // get current robot state
-            std::array<double, 16> current_robot_state = velocity_cartesian_handle_->getRobotState().O_T_EE_d;
+        // get current robot state
+        std::array<double, 16> current_robot_state = velocity_cartesian_handle_->getRobotState().O_T_EE_d;
 
-            // when receiving first time a trajectory, coefficients are still all on zero at this point (and therefor current_state, too)
-            // therefore use current_robot_state as current_state
-            if (current_state_.x.pos == 0 && current_state_.y.pos == 0 && current_state_.z.pos == 0) {
-                current_state_.x.pos = current_robot_state[12];
-                current_state_.y.pos = current_robot_state[13];
-                current_state_.z.pos = current_robot_state[14];
-            }
+        // when receiving first time a trajectory, coefficients are still all on zero at this point (and therefor current_state, too)
+        // therefore use current_robot_state as current_state
+        if (current_state_.x.pos == 0 && current_state_.y.pos == 0 && current_state_.z.pos == 0) {
+            current_state_.x.pos = current_robot_state[12];
+            current_state_.y.pos = current_robot_state[13];
+            current_state_.z.pos = current_robot_state[14];
+        }
 
-            double distance = cartesianDistance({current_state_.x.pos, current_state_.y.pos, current_state_.z.pos},
-                                                {current_robot_state[12], current_robot_state[13],
-                                                 current_robot_state[14]});
+        double distance = cartesianDistance({current_state_.x.pos, current_state_.y.pos, current_state_.z.pos},
+                                            {current_robot_state[12], current_robot_state[13],
+                                             current_robot_state[14]});
 
-            // distance must not be bigger than maximal distance which can be covered in one step (0.001s) with max velocity
-            if (distance < max_v_trans_ * 0.001) {
-                startState.x.pos = current_robot_state[12];
-                startState.y.pos = current_robot_state[13];
-                startState.z.pos = current_robot_state[14];
-            } else {  // else keep current_state_ as start state
-                auto now = ros::Time::now();
-                std::cerr << "[ERROR] [" << rosTimeString_ << "]: exucobot: ";
-                std::cerr << "Position measurement error!\n";
-                std::cerr << "current state: " << current_state_.x.pos << "\t" << current_state_.y.pos << "\t"
-                          << current_state_.z.pos << std::endl;
-                std::cerr << "current robot state: " << current_robot_state[12] << "\t" << current_robot_state[13]
-                          << "\t" << current_robot_state[14] << std::endl;
-                std::cerr << "distance: " << distance << std::endl;
-                generalLogFile_ << "[" << rosTimeString_ << "] Position measurement error! Distance: " << distance << std::endl;
-                exit(-1);
-            }
+        // distance must not be bigger than maximal distance which can be covered in one step (0.001s) with max velocity
+        if (distance < max_v_trans_ * 0.001) {
+            startState.x.pos = current_robot_state[12];
+            startState.y.pos = current_robot_state[13];
+            startState.z.pos = current_robot_state[14];
+        } else {  // else keep current_state_ as start state
+            auto now = ros::Time::now();
+            std::cerr << "[ERROR] [" << rosTimeString_ << "]: exucobot: ";
+            std::cerr << "Position measurement error!\n";
+            std::cerr << "current state: " << current_state_.x.pos << "\t" << current_state_.y.pos << "\t"
+                      << current_state_.z.pos << std::endl;
+            std::cerr << "current robot state: " << current_robot_state[12] << "\t" << current_robot_state[13]
+                      << "\t" << current_robot_state[14] << std::endl;
+            std::cerr << "distance: " << distance << std::endl;
+            generalLogFile_ << "[" << rosTimeString_ << "] Position measurement error! Distance: " << distance << std::endl;
+            exit(-1);
         }
 
         // index of next positions
         int i1 = (position_buffer_index_reading_ + 1) % position_buffer_length_; // next position
         int i2 = (position_buffer_index_reading_ + 2) % position_buffer_length_; // second next position -> used for velocity calculation
 
+        // calc new segment_duration_
+        // probably this function hasn't been called exectly at segment_time_ == segment_duration, but somewhen after
+        // thus substract overdue time from segment duration
+        // when calling this function the first time, overdue time quite big (several seconds), depending on how long
+        // it takes to start exudyn. So ignore first time
+        ros::Duration overdue = segment_time_ - segment_duration_;
+        static bool firstTime = true;
+        if(firstTime){
+            overdue = ros::Duration(0);
+            firstTime = false;
+        }
+        segment_duration_ = ros::Duration(position_buffer_[i1].dt) - overdue;
+        ros::Duration nextSegmentDuration = ros::Duration(position_buffer_[i2].dt);
+
+        // calculate trajectory endstate
         State3 endState;
 
-        // ignore new values whose difference to old values are smaller than 1e-6
+        // get endState._.pos from position buffer but ignore new values if difference to old values is smaller than 1e-6
         for(int c = 0; c < 3; ++c){     // for coordinates c = x, y, z
             if(abs(position_buffer_[i1][c] - startState[c].pos) < 1e-6){
                 endState[c].pos = startState[c].pos;
@@ -742,21 +755,6 @@ namespace franka_example_controllers {
                 endState[c].pos = position_buffer_[i1][c];
             }
         }
-
-        // probably this function hasn't been called exectly at segment_time_ == segment_duration, but somewhen after
-        // thus substract overdue time from segment duration
-        // when calling this function the first time, overdue time quite big (several seconds), depending on how long
-        // it takes to start exudyn. So ignore first time
-
-        static bool firstTime = true;
-
-        ros::Duration overdue = segment_time_ - segment_duration_;
-        if(firstTime){
-            overdue = ros::Duration(0);
-            firstTime = false;
-        }
-        segment_duration_ = ros::Duration(position_buffer_[i1].dt) - overdue;
-        ros::Duration nextSegmentDuration = ros::Duration(position_buffer_[i2].dt);
 
         // calculate desired velocity for end of (first) segment as mean velocity of next two segments
         endState.x.vel = (position_buffer_[i2][0] - startState.x.pos) / (segment_duration_ + nextSegmentDuration).toSec();
@@ -778,52 +776,6 @@ namespace franka_example_controllers {
         //roundState3(startState, 6);
         //roundState3(endState, 6);
 
-        /*
-        State3 zeroState;    // default initialization with all zeros
-        State3 stateChange = endState - startState;
-
-        if (!(lastChange_ == zeroState)) {
-            for (int c = 0; c < 3; ++c) {     // coordinates x, y, z
-                // check if change is withing +/- max percentage of last change
-
-                // remove sign of velocity for now
-                int sign = stateChange[c].pos >= 0 ? 1 : -1;
-                int lastSign = lastChange_[c].pos >= 0 ? 1 : -1;
-
-                if(sign == lastSign) {  // movement continues in the same direction
-                    if (abs(stateChange[c].pos) > maxChangeFactorSameDirection_ * abs(lastChange_[c].pos)){
-                        endState[c].pos = startState[c].pos + lastChange_[c].pos * maxChangeFactorSameDirection_;
-                    }
-                    if (abs(stateChange[c].pos) < (1 - 1/(maxChangeFactorSameDirection_)) * abs(lastChange_[c].pos)) {
-                        endState[c].pos = startState[c].pos + lastChange_[c].pos * (1 - 1/(maxChangeFactorSameDirection_));
-                    }
-                }
-                else{
-                    // TODO
-                }
-
-                //State3 maxState = startState + lastChange_ * maxChangePercentage_;
-                //State3 minState = startState - lastChange_ * maxChangePercentage_;
-
-
-                int d = 0;      // check position only
-                if (endState[c][d] > maxState[c][d]) {
-                    std::cerr << "(" << c << ")(" << d << ") Start State " << startState[c][d];
-                    std::cerr << "\tEnd state " << endState[c][d] << " too HIGH, using "
-                              << maxState[c][d] << std::endl;
-                    endState[c][d] = maxState[c][d];
-                } else if (endState[c][d] < minState[c][d]) {
-                    std::cerr << "(" << c << ")(" << d << ") Start State " << startState[c][d];
-                    std::cerr << "\tEnd state " << endState[c][d] << " too LOW, using "
-                              << minState[c][d] << std::endl;
-                    endState[c][d] = minState[c][d];
-                }
-            }
-        }
-        */
-
-        // t,cpy,npy,npy2,cvy,nvy,cay,nay,dpy,dpy2,dvy,day,dt
-
         trajectoryCreationFile2_ << startState.y.pos << ",\t" << endState.y.pos << ",\t" << position_buffer_[i2][1] << ",\t";   // pos
         trajectoryCreationFile2_ << startState.y.vel << ",\t" << endState.y.vel << ",\t";   // vel
         trajectoryCreationFile2_ << startState.y.acc << ",\t" << endState.y.acc << ",\t";   // acc
@@ -840,47 +792,6 @@ namespace franka_example_controllers {
 
         logTrajectoryCreation(startState, endState);
         logCoefficients();
-
-        lastChange_ = endState - startState;
-
-        // test: trajectory evaluation at t=0 must be same as startState
-        /*auto stateX = evaluatePolynomial(coefs_[0], 0);
-        auto stateY = evaluatePolynomial(coefs_[1], 0);
-        auto stateZ = evaluatePolynomial(coefs_[2], 0);
-
-        roundState(stateX, 6);
-        roundState(stateY, 6);
-        roundState(stateZ, 6);
-
-        if(stateX.pos != startState.x.pos || stateX.vel != startState.x.vel || stateX.acc != startState.x.acc ||
-           stateY.pos != startState.y.pos || stateY.vel != startState.y.vel || stateY.acc != startState.y.acc ||
-           stateZ.pos != startState.z.pos || stateZ.vel != startState.z.vel || stateZ.acc != startState.z.acc){
-            std::cerr << "ERROR: trajectory error at t=0\n";
-        }
-
-        stateX = evaluatePolynomial(coefs_[0], segment_duration_);
-        stateY = evaluatePolynomial(coefs_[1], segment_duration_);
-        stateZ = evaluatePolynomial(coefs_[2], segment_duration_);
-
-        roundState(stateX, 6);
-        roundState(stateY, 6);
-        roundState(stateZ, 6);
-
-        if(stateX.pos != endState.x.pos || stateX.vel != endState.x.vel || stateX.acc != endState.x.acc ||
-           stateY.pos != endState.y.pos || stateY.vel != endState.y.vel || stateY.acc != endState.y.acc ||
-           stateZ.pos != endState.z.pos || stateZ.vel != endState.z.vel || stateZ.acc != endState.z.acc){
-            std::cerr << "ERROR: trajectory error at t=" << segment_duration_ << std::endl;
-            std::cerr << "x pos\t" << stateX.pos << "\tvs\t" << endState.x.pos << std::endl;
-            std::cerr << "x vel\t" << stateX.vel << "\tvs\t" << endState.x.vel << std::endl;
-            std::cerr << "x acc\t" << stateX.acc << "\tvs\t" << endState.x.acc << std::endl;
-            std::cerr << "y pos\t" << stateY.pos << "\tvs\t" << endState.y.pos << std::endl;
-            std::cerr << "y vel\t" << stateY.vel << "\tvs\t" << endState.y.vel << std::endl;
-            std::cerr << "y acc\t" << stateY.acc << "\tvs\t" << endState.y.acc << std::endl;
-            std::cerr << "z pos\t" << stateZ.pos << "\tvs\t" << endState.z.pos << std::endl;
-            std::cerr << "z vel\t" << stateZ.vel << "\tvs\t" << endState.z.vel << std::endl;
-            std::cerr << "z acc\t" << stateZ.acc << "\tvs\t" << endState.z.acc << std::endl;
-            exit(-1);
-        }*/
 
         // for next segment
         position_buffer_index_reading_ = (position_buffer_index_reading_ + 1) % position_buffer_length_;

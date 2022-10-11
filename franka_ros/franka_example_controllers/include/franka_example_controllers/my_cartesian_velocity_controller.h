@@ -172,9 +172,6 @@ namespace franka_example_controllers {
         std::ofstream coefficientsFile_;
         std::ofstream trajectoryCreationFile2_;
 
-        State3 lastChange_;
-        double maxChangeFactorSameDirection_ = 2;  // + 200% or -50% (200/4)
-
         const int polynomialDegree_ = 5;
         const int nominalPositionBufferSize_ = 8;
         const bool useActualRobotPosition_ = true;        // flag to use current_pose_ (true) instead of current_state_ (false)

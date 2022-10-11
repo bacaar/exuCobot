@@ -27,10 +27,11 @@ f = os.path.dirname(os.path.abspath(__file__))
 # go two directories up
 for _ in range(2):
     f = f[0:f.rfind("/")]
-print(f)
 sys.path.append(f)  # append [...]/exuCobot directory to system path
 
 from util.scripts.util.common import createPoseStampedMsg
+
+from util.msg import segmentCommand
 
 logFile = None
 
@@ -101,36 +102,33 @@ def externalForceCallback(data):
     extEfforts[5] = mx
 
 
-def main(useVelocityController=False):
+def main(impedanceDemonstration = False):
 
     # flag for activating testing mode
     # if True, friction is disabled, robot doesn't go to starting pose and simulation starts with initial velocity
     theoreticalTest = False
-
-    impedanceDemonstration = False
-    if not useVelocityController:
-        impedanceDemonstration = True
 
     # init ros
     rospy.init_node('ExudynExample1', anonymous=True)
 
     # publisher for pendulum poses (=endeffector positions)
     
-    if useVelocityController:
-        pub = rospy.Publisher('/my_cartesian_velocity_controller/setTargetPose', PoseStamped, queue_size=1000)
-        pubF = rospy.Publisher('/my_cartesian_velocity_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
-    else:
+    if impedanceDemonstration:
         pub = rospy.Publisher('/my_cartesian_impedance_controller/setTargetPose', PoseStamped, queue_size=1000)
         pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
+    else:
+        pub = rospy.Publisher('/my_cartesian_velocity_controller/setTargetPose', segmentCommand, queue_size=1000)
+        pubF = rospy.Publisher('/my_cartesian_velocity_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
 
     # subscriber for external forces
     rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)
 
     # subscriber for current pose
-    if useVelocityController:
-        globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, currentPoseCallback)
-    else:
+    if impedanceDemonstration:
         globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+    else:
+        globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+        
 
     # init exudyn
     SC = exu.SystemContainer()
@@ -160,7 +158,7 @@ def main(useVelocityController=False):
     if impedanceDemonstration:
         massRigid = 2
     else:
-        massRigid = 12
+        massRigid = 6
     inertiaRigid = massRigid/3 * a**2
 
     graphics2a = GraphicsDataOrthoCube(xMin=-b/2, xMax=b/2,
@@ -229,7 +227,7 @@ def main(useVelocityController=False):
         else:
             mbs.AddObject(TorsionalSpringDamper(markerNumbers=[mGF, mR1F],
                                                 stiffness=0,
-                                                damping=5))
+                                                damping=2))
 
     # external applied forces
     def UFloadX(mbs, t, load):
@@ -264,14 +262,29 @@ def main(useVelocityController=False):
     xPublishCounter = 0
 
     global logFile
-    logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudyn.log", "w")
-    logFile.write("t,globalX,globalY,globalZ\n")
+    logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudyn.csv", "w")
+    logFile.write("dt,globalX,globalY,globalZ\n")
+    #logFile.write("dt,globalX,globalY,globalZ,dT,dx,dy,dz\n")
+
+    lastGlobalX = 0 # initialization only important for first step, so don't bother
+    lastGlobalY = 0
+    lastGlobalZ = 0
+    lastT = 0
+
+    lastStepTime = 0    # last step time (exudyn time)
+
     def PreStepUserFunction(mbs, t):
         nonlocal firstPose
         nonlocal posOffset
         nonlocal T
         nonlocal xPublishCounter
-        
+
+        nonlocal lastGlobalX
+        nonlocal lastGlobalY
+        nonlocal lastGlobalZ
+        nonlocal lastT
+        nonlocal lastStepTime
+
         if xPublishCounter == 0:
             # read current position and orientation
             pos_ = mbs.GetSensorValues(mbs.variables['pos'])
@@ -311,10 +324,34 @@ def main(useVelocityController=False):
 
             # compose message and publish
             tsend = rospy.Time.now()
-            msg = createPoseStampedMsg(posGlobal, (angleX, 0, 0), tsend)
+            segment_duration = t - lastStepTime     # time from last position to this position
+            #print(segment_duration.to_sec(), "\t", t - lastStepTime)
+            lastStepTime = t
+
+            if impedanceDemonstration:
+                msg = createPoseStampedMsg(posGlobal, (angleX, 0, 0), tsend)
+            else:
+                msg = segmentCommand()
+                msg.x = posGlobal[0]
+                msg.y = posGlobal[1]
+                msg.z = posGlobal[2]
+                msg.dt = segment_duration
+
             if not theoreticalTest:
                 pub.publish(msg)
-            logFile.write("{},{},{},{}\n".format(tsend.to_sec(), posGlobal[0], posGlobal[1], posGlobal[2]))
+
+            #dx = posGlobal[0] - lastGlobalX
+            #dy = posGlobal[0] - lastGlobalY
+            #dz = posGlobal[0] - lastGlobalZ
+            #dt = tsendS - lastT
+
+            logFile.write("{},{},{},{}\n".format(segment_duration, posGlobal[0], posGlobal[1], posGlobal[2]))
+            #logFile.write("{},{},{},{},\t{},{},{},{}\n".format(tsendS, posGlobal[0], posGlobal[1], posGlobal[2], dt, dx, dy, dz))
+
+            #lastGlobalX = posGlobal[0]
+            #lastGlobalY = posGlobal[1]
+            #lastGlobalZ = posGlobal[2]
+            #lastT = tsendS
 
             # publish current external force
             msgF = WrenchStamped()
@@ -336,12 +373,13 @@ def main(useVelocityController=False):
 
     # wait for global start position
     print("Waiting for global start position")
+    t0 = rospy.Time.now()
+
     if not theoreticalTest:
         while not globalStartPosSet:
-            if rospy.ok():
-                pass
-            else:
-                break
+            if rospy.Time.now() - t0 > rospy.Duration(5):
+                print("ERROR: Did not get any robot position after 5 seconds of waiting")
+                return
 
     globalStartPosSub.unregister()  # we don't need current pose anymore
 
@@ -358,6 +396,8 @@ def main(useVelocityController=False):
     simulationSettings.timeIntegration.newton.useModifiedNewton = False
     simulationSettings.timeIntegration.newton.numericalDifferentiation.minimumCoordinateSize = 1
     simulationSettings.timeIntegration.generalizedAlpha.spectralRadius = 0.5
+    simulationSettings.timeIntegration.generalizedAlpha.computeInitialAccelerations = False
+    
     simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
     simulationSettings.displayStatistics = True
     simulationSettings.solutionSettings.solutionInformation = "2D Pendulum"
@@ -374,11 +414,11 @@ def main(useVelocityController=False):
 
 
 if __name__ == "__main__":
-    print(sys.argv)
 
-    useVelocityController = True    # default
+    impedanceDemonstration = False  # default
+  
     if len(sys.argv) >= 2 and sys.argv[1] == '-i':
-        useVelocityController = False
+        impedanceDemonstration = True
 
-    main(useVelocityController)
+    main(impedanceDemonstration)
     logFile.close()
