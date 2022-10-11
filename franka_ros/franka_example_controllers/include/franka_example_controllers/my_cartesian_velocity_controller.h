@@ -162,6 +162,7 @@ namespace franka_example_controllers {
         void logCurrentPosition(const std::array<double, 16> &current_pose, const std::array< double, 7 > &current_joint_positions);
         void logTrajectoryCreation(const State3 &startState, const State3 &endState);
         void logCoefficients();
+        void publishState(ros::Time now, const State3 &state);
 
         std::ofstream generalLogFile_;
         std::ofstream commandLogFile_;

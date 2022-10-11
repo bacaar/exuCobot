@@ -355,7 +355,7 @@ namespace franka_example_controllers {
         }
     }
 
-    void publishState(ros::Time now, const ros::Publisher &pub, const State3 &state){
+    void MyCartesianVelocityController::publishState(ros::Time now, const State3 &state){
         util::kinematicState3dStamped msg;
         msg.header.stamp = now;
         msg.state.x.pos  = state.x.pos;
@@ -370,7 +370,7 @@ namespace franka_example_controllers {
         msg.state.z.vel  = state.z.vel;
         msg.state.z.acc  = state.z.acc;
         msg.state.z.jerk = state.z.jerk;
-        pub.publish(msg);
+        pub_current_state_.publish(msg);
     }
 
     void MyCartesianVelocityController::update(const ros::Time &time,
@@ -451,15 +451,15 @@ namespace franka_example_controllers {
                 }
             }
 
-            // if within semgent_duration, calc new state
+            // if within segment_duration, calc new state
             // can't be "else" to above statement, as it also has to be executed if
             if(segment_time_ <= segment_duration_) {
-                // calculat new positions, velocities and accelerations
+                // calculate new positions, velocities and accelerations
                 current_state_.x = evaluatePolynomial(coefs_[0], segment_time_.toSec());
                 current_state_.y = evaluatePolynomial(coefs_[1], segment_time_.toSec());
                 current_state_.z = evaluatePolynomial(coefs_[2], segment_time_.toSec());
 
-                publishState(logTime_, pub_current_state_, current_state_);
+                //publishState(logTime_, current_state_);
 
                 logEvaluatedTrajectory();
 
@@ -627,12 +627,12 @@ namespace franka_example_controllers {
     void MyCartesianVelocityController::updateTargetPoseCallback(const util::segmentCommand &msg) {
 
         // send it back immediately
-        geometry_msgs::PoseStamped msgnew;
+        /*geometry_msgs::PoseStamped msgnew;
         msgnew.pose.position.x = msg.x;
         msgnew.pose.position.y = msg.y;
         msgnew.pose.position.z = msg.z;
         msgnew.header.stamp = logTime_;
-        pub_current_target_confirmation_.publish(msgnew);
+        pub_current_target_confirmation_.publish(msgnew);*/
 
         if(position_buffer_index_writing_ == position_buffer_index_reading_){
             std::cerr << "Position buffer full!\n";
@@ -685,7 +685,7 @@ namespace franka_example_controllers {
         current_state_.y = evaluatePolynomial(coefs_[1], segment_time_.toSec());
         current_state_.z = evaluatePolynomial(coefs_[2], segment_time_.toSec());
 
-        publishState(logTime_, pub_current_state_, current_state_);
+        //publishState(logTime_, current_state_);
         logEvaluatedTrajectory();
         generalLogFile_ << "evaluating trajectory" << std::endl;
 
