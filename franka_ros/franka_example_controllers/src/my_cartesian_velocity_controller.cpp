@@ -61,7 +61,8 @@ namespace franka_example_controllers {
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
         if(polynomialDegree_ != 3 && polynomialDegree_ != 5){
-            std::cerr << "ERROR: Polynomial degree for interpolation not implemented!\n";
+            std::cerr << "ERROR: Polynomial degree for interpolation not implemented\n";
+            generalLogFile_ << "ERROR: Polynomial degree for interpolation not implemented\n";
             exit(-1);
         }
 
@@ -167,10 +168,6 @@ namespace franka_example_controllers {
         else {
             trajectoryCreationFile2_ << "rt,t,cpy,npy,npy2,cvy,nvy,cay,nay,dpy,dpy2,dvy,day,dt\n";
         }
-
-        if(!useActualRobotPosition_){
-            std::cerr << "INFO: Using theoretical trajectory positions!\n";
-        }
     }
 
     const int MyCartesianVelocityController::getPositionBufferReserve(){
@@ -182,12 +179,16 @@ namespace franka_example_controllers {
             return position_buffer_index_writing_ + position_buffer_length_ - position_buffer_index_reading_- 1;
         }
         else{
-            std::cerr << "ERROR: Writing index has catched reading index!";
+            std::cerr << "ERROR: Writing index has caught reading index\n";
+            generalLogFile_ << "ERROR: Writing index has caught reading index\n";
             exit(-1);
         }
     }
 
     std::vector<double> MyCartesianVelocityController::calcCoefs(State startState, State endState, double T){
+
+        assert(T > 0);
+
         double T2 = T*T;
         double T3 = T2 * T;
 
@@ -410,27 +411,20 @@ namespace franka_example_controllers {
             }
         }
 
-        int max_segments = 0;
-
         if(started){
 
             //generalLogFile_ << logTime_.toSec() << "\t" << segment_time_ << "\t" << current_robot_state[13] << std::endl;
 
             // if segment_duration_ has passed, calc new trajectory
             if(segment_time_ >= segment_duration_){
+                generalLogFile_ << "new Trajectory needed\n";
                 if(getPositionBufferReserve() >= 2){
-                    //std::cerr << period.toSec() << "\t" << segment_time_ << std::endl;
 
                     trajectoryCreationFile2_ << rosTimeString_ << "," << logTimeString_ << ",";
                     updateTrajectory();
                     generalLogFile_ << "updating trajectory after " << segment_time_ << " s" << std::endl;
 
                     //std::cerr << "Used one element from position buffer. Remaining: " << getPositionBufferReserve() << std::endl;
-
-                    if(max_segments != 0 && ++counter > max_segments){
-                        std::cerr << "DEBUG BREAK: " << max_segments << " segments completed!\n";
-                        exit(-1);
-                    }
 
                     // reset segment_time_ as new one starts now
                     segment_time_ = ros::Duration(0);
@@ -440,8 +434,12 @@ namespace franka_example_controllers {
                 }
                 else { // if there are not enough values to update trajectory (2 needed), keep last velocity
                     std::cerr << "WARNING: Not enough positions (" << getPositionBufferReserve() << ") to calculate new segment, keep last velocity\n";
+                    generalLogFile_ << "WARNING: Not enough positions (" << getPositionBufferReserve() << ") to calculate new segment, keep last velocity\n";
 
-                    exit(-1); // TODO remove this, this was just for testing
+                    if(exitIfPositionBufferEmpty_) {
+                        generalLogFile_ << "ERROR: Position buffer empty\n";
+                        exit(-1);
+                    }
 
                     // just update current state
                     // update position; velocity remains the same and thus acceleration is 0
@@ -467,11 +465,6 @@ namespace franka_example_controllers {
                 // get current pose
                 std::array<double, 7> current_joint_positions= velocity_cartesian_handle_->getRobotState().q;
                 logCurrentPosition(current_robot_state, current_joint_positions);
-
-                // when debugging
-                if (max_segments != 0) {
-                    //std::cerr << "[" << current_state_[1][0] << ", " << current_state_[1][1] << ", " << current_state_[1][2] << ", " << elapsed_time_.toSec() << "],\n";
-                }
 
                 // compose new velocity
                 double vx = current_state_.x.vel;
@@ -506,9 +499,23 @@ namespace franka_example_controllers {
 
                     bool quit = false;
 
-                    factor = std::max(factor, jAbs / max_j_trans_);
-                    factor = std::max(factor, aAbs / max_a_trans_);
-                    factor = std::max(factor, vAbs / max_v_trans_);
+                    double factorJ = jAbs / max_j_trans_;
+                    double factorA = aAbs / max_a_trans_;
+                    double factorV = vAbs / max_v_trans_;
+
+                    if(factorJ > 1.0){
+                        generalLogFile_ << "Jerk by factor " << factorJ << " too high. Adapting\n";
+                    }
+                    if(factorA > 1.0){
+                        generalLogFile_ << "Acceleration by factor " << factorA << " too high. Adapting\n";
+                    }
+                    if(factorV > 1.0){
+                        generalLogFile_ << "Velocity by factor " << factorV << " too high. Adapting\n";
+                    }
+
+                    factor = std::max(factor, factorJ);
+                    factor = std::max(factor, factorA);
+                    factor = std::max(factor, factorV);
 
                     jAbs /= factor; // TODO not linear
                     aAbs /= factor;
@@ -551,6 +558,8 @@ namespace franka_example_controllers {
                             generalLogFile_ << std::endl;
                         }
                         //current_command_ = last_command_;
+
+                        generalLogFile_ << "ERROR: Movement discontinuity detected\n";
                         exit(-1);
                     }
                 }
@@ -584,6 +593,15 @@ namespace franka_example_controllers {
 
             // pass velocity to robot control and log it
             commandLogFile_ << rosTimeString_ << "," << logTimeString_ << ", " << current_command_[0] << ", " << current_command_[1] << ", " << current_command_[2] << std::endl;
+
+            // check if one of commanded velocities is NaN. Can't reproduce error but once I got a "FrankaHW::controlCallback: Got NaN command!" fatal error
+            for(int i = 0; i < 6; ++i){
+                if(isnan(current_command_[i])){
+                    generalLogFile_ << "ERROR: Command [" << i << "] is NaN\n";
+                    exit(-1);
+                }
+            }
+
             velocity_cartesian_handle_->setCommand(current_command_);
             last_command_ = current_command_;
         }
@@ -635,14 +653,16 @@ namespace franka_example_controllers {
         pub_current_target_confirmation_.publish(msgnew);*/
 
         if(position_buffer_index_writing_ == position_buffer_index_reading_){
-            std::cerr << "Position buffer full!\n";
+            std::cerr << "ERROR: Position buffer full\n";
+            generalLogFile_ << "ERROR: Position buffer full\n";
             exit(-1);
         }
 
         position_buffer_[position_buffer_index_writing_] = {msg.x, msg.y, msg.z, msg.dt};
 
         if(msg.dt == 0){
-            std::cerr << "ERROR: dt of new segment is 0!\n";
+            std::cerr << "ERROR: dt of new segment is 0\n";
+            generalLogFile_ << "ERROR: dt of new segment is 0\n";
             exit(-1);
         }
 
@@ -712,16 +732,9 @@ namespace franka_example_controllers {
             startState.x.pos = current_robot_state[12];
             startState.y.pos = current_robot_state[13];
             startState.z.pos = current_robot_state[14];
-        } else {  // else keep current_state_ as start state
-            auto now = ros::Time::now();
-            std::cerr << "[ERROR] [" << rosTimeString_ << "]: exucobot: ";
-            std::cerr << "Position measurement error!\n";
-            std::cerr << "current state: " << current_state_.x.pos << "\t" << current_state_.y.pos << "\t"
-                      << current_state_.z.pos << std::endl;
-            std::cerr << "current robot state: " << current_robot_state[12] << "\t" << current_robot_state[13]
-                      << "\t" << current_robot_state[14] << std::endl;
-            std::cerr << "distance: " << distance << std::endl;
-            generalLogFile_ << "[" << rosTimeString_ << "] Position measurement error! Distance: " << distance << std::endl;
+        } else {
+            std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << std::endl;
+            generalLogFile_ << "ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << std::endl;
             exit(-1);
         }
 
@@ -740,6 +753,12 @@ namespace franka_example_controllers {
             overdue = ros::Duration(0);
             firstTime = false;
         }
+
+        if(position_buffer_[i1].dt <= 0 || position_buffer_[i2].dt <= 0){
+            generalLogFile_ << "ERROR: Desired segment-time must be >0\n";
+            exit(-1);
+        }
+
         segment_duration_ = ros::Duration(position_buffer_[i1].dt) - overdue;
         ros::Duration nextSegmentDuration = ros::Duration(position_buffer_[i2].dt);
 

@@ -173,9 +173,9 @@ namespace franka_example_controllers {
         std::ofstream trajectoryCreationFile2_;
 
         const int polynomialDegree_ = 5;
-        const int nominalPositionBufferSize_ = 8;
-        const bool useActualRobotPosition_ = true;        // flag to use current_pose_ (true) instead of current_state_ (false)
+        const int nominalPositionBufferSize_ = 4;
         const bool exitIfTheoreticalValuesExceedLimits_ = true;
+        const bool exitIfPositionBufferEmpty_ = false;
 
         const bool logYonly_ = false;
 
