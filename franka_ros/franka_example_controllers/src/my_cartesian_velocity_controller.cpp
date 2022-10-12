@@ -479,17 +479,12 @@ namespace franka_example_controllers {
 
                 if(exitIfTheoreticalValuesExceedLimits_) {
 
-                    double factor = 1.0;  // factor = 1 means we are at jerk/acc/vel limit.
-                                          // factor being >= 1 meaning we are accelerating/moving to fast -> slow down
-
-                    // velocity
-                    double vAbs = sqrt(vx * vx + vy * vy + vz * vz);
+                    // check if v, a and j are within absolute limits, else reduce them (especially velocity)
 
                     // acceleration
                     double ax = current_state_.x.acc;
                     double ay = current_state_.y.acc;
                     double az = current_state_.z.acc;
-                    double aAbs = sqrt(ax * ax + ay * ay + az * az);
 
                     // jerk
                     double jx = current_state_.x.jerk;
@@ -497,29 +492,60 @@ namespace franka_example_controllers {
                     double jz = current_state_.z.jerk;
                     double jAbs = sqrt(jx * jx + jy * jy + jz * jz);
 
-                    bool quit = false;
-
                     double factorJ = jAbs / max_j_trans_;
-                    double factorA = aAbs / max_a_trans_;
-                    double factorV = vAbs / max_v_trans_;
 
                     if(factorJ > 1.0){
                         generalLogFile_ << "Jerk by factor " << factorJ << " too high. Adapting\n";
+
+                        // update jerk
+                        jx /= factorJ;
+                        jy /= factorJ;
+                        jz /= factorJ;
+
+                        // calculate new velocity according to v = v0 + 1/2 * j1 * t²
+                        last_command_[0] += 0.5 * jx * pow(period.toSec(), 2);
+                        last_command_[1] += 0.5 * jy * pow(period.toSec(), 2);
+                        last_command_[2] += 0.5 * jz * pow(period.toSec(), 2);
+
+                        // calculate new acceleration according to a = a0 + j1 * t
+                        ax += jx * period.toSec();
+                        ay += jy * period.toSec();
+                        az += jz * period.toSec();
                     }
+
+                    double aAbs = sqrt(ax * ax + ay * ay + az * az);
+                    double factorA = aAbs / max_a_trans_;
+
                     if(factorA > 1.0){
                         generalLogFile_ << "Acceleration by factor " << factorA << " too high. Adapting\n";
+
+                        // update acceleration
+                        ax /= factorA;
+                        ay /= factorA;
+                        az /= factorA;
+
+                        // calculate new velocity according to v = v0 + a1 * t
+                        last_command_[0] += ax / factorA * period.toSec();
+                        last_command_[1] += ay / factorA * period.toSec();
+                        last_command_[2] += az / factorA * period.toSec();
                     }
+
+                    double vAbs = sqrt(vx * vx + vy * vy + vz * vz);
+                    double factorV = vAbs / max_v_trans_;
+
                     if(factorV > 1.0){
                         generalLogFile_ << "Velocity by factor " << factorV << " too high. Adapting\n";
+
+                        // update velocity (according to change since last command)
+                        vx = last_command_[0] + (vx - last_command_[0]) / factorV;
+                        vy = last_command_[1] + (vy - last_command_[1]) / factorV;
+                        vz = last_command_[2] + (vz - last_command_[2]) / factorV;
                     }
 
-                    factor = std::max(factor, factorJ);
-                    factor = std::max(factor, factorA);
-                    factor = std::max(factor, factorV);
-
-                    jAbs /= factor; // TODO not linear
-                    aAbs /= factor;
-                    vAbs /= factor;
+                    jAbs = sqrt(jx * jx + jy * jy + jz * jz);
+                    aAbs = sqrt(ax * ax + ay * ay + az * az);
+                    vAbs = sqrt(vx * vx + vy * vy + vz * vz);
+                    bool quit = false;
 
                     // add small constant because of numerical inaccuracy
                     if (jAbs > max_j_trans_ + 0.0001) {
@@ -540,13 +566,6 @@ namespace franka_example_controllers {
                         quit = true;
                     }
 
-                    if (factor > 1.0) {
-                        for (int i = 0; i < 6; ++i) {
-                            double command_change = current_command_[i] - last_command_[i];
-                            current_command_[i] = last_command_[i] + command_change / factor;
-                        }
-                    }
-
                     if(quit){
                         // print current values of trajectory
                         generalLogFile_ << logTime_.toSec() << "\tv= " << vAbs << "\ta= " << aAbs << "\tj= " << jAbs << std::endl;
@@ -562,6 +581,8 @@ namespace franka_example_controllers {
                         generalLogFile_ << "ERROR: Movement discontinuity detected\n";
                         exit(-1);
                     }
+
+                    current_command_ = {vx, vy, vz, wx, wy, wz};
                 }
             }
 
