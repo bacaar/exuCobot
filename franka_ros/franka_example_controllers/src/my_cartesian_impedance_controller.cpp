@@ -154,14 +154,48 @@ namespace franka_example_controllers {
         position_d_target_ = initial_transform.translation();
         orientation_d_target_ = Eigen::Quaterniond(initial_transform.linear());
 
+        targetLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/target.csv", std::ios::out);
+        currentPositionFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/currentPosition.csv", std::ios::out);
+
+        if(!targetLogFile_.is_open()) { std::cerr << "WARNING: Could not create open target log file!\n"; }
+        else {
+            targetLogFile_ << "rt,t,px,py,pz,dt\n";
+        }
+
+        if(!currentPositionFile_.is_open()) { std::cerr << "WARNING: Could not create open current position log file!\n"; }
+        else {
+            currentPositionFile_ << "rt,t,px,py,pz,q0,q1,q2,q3,q4,q5,q6\n";
+        }
+
         // set nullspace equilibrium configuration to initial q
         q_d_nullspace_ = q_initial;
     }
 
-    void MyCartesianImpedanceController::update(const ros::Time & /*time*/,
-                                                     const ros::Duration & /*period*/) {
+    // function to format ros::Time as s.ns
+    std::string getRosTimeStringImpedanceController(ros::Time time){
+
+        std::string sec = std::to_string(time.sec);
+        std::string nsec = std::to_string(time.nsec);
+
+        // nsec should have 9 digits, else fill front up with zeros
+        int nZeros = 9 - nsec.length();
+        std::string zeros = "";
+        for(int i = 0; i < nZeros; ++i){
+            zeros += "0";
+        }
+
+        std::string res = sec + "." + zeros + nsec;
+        return res;
+    }
+
+    void MyCartesianImpedanceController::update(const ros::Time &time,
+                                                const ros::Duration &period) {
 
         auto start = std::chrono::high_resolution_clock::now();
+
+        logTime_ += period;
+        logTimeString_ = getRosTimeStringImpedanceController(logTime_);
+        rosTimeString_ = getRosTimeStringImpedanceController(time);
 
         // get state variables
         franka::RobotState robot_state = state_handle_->getRobotState();
@@ -183,6 +217,19 @@ namespace franka_example_controllers {
         Eigen::Vector3d position(transform.translation());
         Eigen::Quaterniond orientation(transform.linear());
 
+        currentPositionFile_ << rosTimeString_ << "," << logTimeString_ << ",";
+        currentPositionFile_ << position[0] << ",";
+        currentPositionFile_ << position[1] << ",";
+        currentPositionFile_ << position[2] << ",";
+        currentPositionFile_ << q[0] << ",";
+        currentPositionFile_ << q[1] << ",";
+        currentPositionFile_ << q[2] << ",";
+        currentPositionFile_ << q[3] << ",";
+        currentPositionFile_ << q[4] << ",";
+        currentPositionFile_ << q[5] << ",";
+        currentPositionFile_ << q[6];
+        currentPositionFile_ << std::endl;
+
         // publish current cartesian position and orientation
         geometry_msgs::PoseStamped msg;
         msg.header.stamp = ros::Time::now();
@@ -195,6 +242,7 @@ namespace franka_example_controllers {
         msg.pose.orientation.w = orientation.w();
         pub_current_pose_.publish(msg);
 
+        /*
         // publish current target pose
         msg.pose.position.x = position_d_target_[0];
         msg.pose.position.y = position_d_target_[1];
@@ -204,6 +252,7 @@ namespace franka_example_controllers {
         msg.pose.orientation.z = orientation_d_target_.z();
         msg.pose.orientation.w = orientation_d_target_.w();
         pub_current_target_.publish(msg);
+         */
 
         // compute error to desired pose
         // position error
@@ -222,6 +271,7 @@ namespace franka_example_controllers {
         // Transform to base frame
         error.tail(3) << -transform.linear() * error.tail(3);
 
+        /*
         // publish current error of position and orientation
         msg.pose.position.x = error[0];        // TODO maybe prettier with tf function?
         msg.pose.position.y = error[1];
@@ -231,6 +281,7 @@ namespace franka_example_controllers {
         msg.pose.orientation.z = error_quaternion.z();
         msg.pose.orientation.w = error_quaternion.w();
         pub_current_error_.publish(msg);
+         */
 
         // compute control
         // allocate variables
@@ -365,6 +416,9 @@ namespace franka_example_controllers {
         if (last_orientation_d_target.coeffs().dot(orientation_d_target_.coeffs()) < 0.0) {
             orientation_d_target_.coeffs() << -orientation_d_target_.coeffs();
         }
+
+        targetLogFile_ << rosTimeString_ << "," << logTimeString_ << ",";
+        targetLogFile_ << msg.pose.position.x << "," << msg.pose.position.y << "," << msg.pose.position.z << ",0.01\n";
     }
 
     Eigen::Matrix<double, 7, 1> MyCartesianImpedanceController::saturateTorqueRate(
@@ -417,6 +471,15 @@ namespace franka_example_controllers {
             orientation_d_target_.coeffs() << -orientation_d_target_.coeffs();
         }
          */
+    }
+
+    void MyCartesianImpedanceController::stopping(const ros::Time & /*time*/) {
+        // WARNING: DO NOT SEND ZERO VELOCITIES HERE AS IN CASE OF ABORTING DURING MOTION
+        // A JUMP TO ZERO WILL BE COMMANDED PUTTING HIGH LOADS ON THE ROBOT. LET THE DEFAULT
+        // BUILT-IN STOPPING BEHAVIOR SLOW DOWN THE ROBOT.
+
+        targetLogFile_.close();
+        currentPositionFile_.close();
     }
 
 }  // namespace franka_example_controllers

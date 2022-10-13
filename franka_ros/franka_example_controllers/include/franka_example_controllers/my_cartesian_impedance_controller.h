@@ -6,6 +6,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <fstream>
 
 #include <controller_interface/multi_interface_controller.h>
 #include <dynamic_reconfigure/server.h>
@@ -33,6 +34,8 @@ namespace franka_example_controllers {
         bool init(hardware_interface::RobotHW *robot_hw, ros::NodeHandle &node_handle) override;
 
         void starting(const ros::Time &) override;
+
+        void stopping(const ros::Time &) override;
 
         void update(const ros::Time &, const ros::Duration &period) override;
 
@@ -72,6 +75,14 @@ namespace franka_example_controllers {
         void equilibriumPoseCallback(const geometry_msgs::PoseStampedConstPtr &msg);
 
         void updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg);
+
+        ros::Time logTime_;
+        std::string logTimeString_;     // string with time starting at beginning of program
+        std::string rosTimeString_;     // string with time starting at ros::Time(0)
+
+        // log files
+        std::ofstream targetLogFile_;
+        std::ofstream currentPositionFile_;
 
         // for measuring required time [us] of update-method
         int tarray_[10000];
