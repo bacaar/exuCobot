@@ -156,7 +156,7 @@ def main(impedanceDemonstration = False):
                                          visualization=VObjectGround(graphicsData=[background])))
     
     if impedanceDemonstration:
-        massRigid = 2
+        massRigid = 6
     else:
         massRigid = 6
     inertiaRigid = massRigid/3 * a**2
@@ -223,7 +223,7 @@ def main(impedanceDemonstration = False):
         if impedanceDemonstration:
             mbs.AddObject(TorsionalSpringDamper(markerNumbers=[mGF, mR1F],
                                                 stiffness=0,
-                                                damping=0.5))
+                                                damping=2))
         else:
             mbs.AddObject(TorsionalSpringDamper(markerNumbers=[mGF, mR1F],
                                                 stiffness=0,
@@ -263,7 +263,7 @@ def main(impedanceDemonstration = False):
 
     global logFile
     logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudyn.csv", "w")
-    logFile.write("dt,globalX,globalY,globalZ\n")
+    logFile.write("rt,dt,globalX,globalY,globalZ\n")
     #logFile.write("dt,globalX,globalY,globalZ,dT,dx,dy,dz\n")
 
     lastGlobalX = 0 # initialization only important for first step, so don't bother
@@ -345,7 +345,7 @@ def main(impedanceDemonstration = False):
             #dz = posGlobal[0] - lastGlobalZ
             #dt = tsendS - lastT
 
-            logFile.write("{},{},{},{}\n".format(segment_duration, posGlobal[0], posGlobal[1], posGlobal[2]))
+            logFile.write("{},{},{},{},{}\n".format(tsend.to_sec(), segment_duration, posGlobal[0], posGlobal[1], posGlobal[2]))
             #logFile.write("{},{},{},{},\t{},{},{},{}\n".format(tsendS, posGlobal[0], posGlobal[1], posGlobal[2], dt, dx, dy, dz))
 
             #lastGlobalX = posGlobal[0]
@@ -403,7 +403,10 @@ def main(impedanceDemonstration = False):
     simulationSettings.solutionSettings.solutionInformation = "2D Pendulum"
     simulationSettings.solutionSettings.writeSolutionToFile = False
 
-    SC.visualizationSettings.window.renderWindowSize = [1920, 1080]
+    if impedanceDemonstration:
+        SC.visualizationSettings.window.renderWindowSize = [1920, 1080]
+    else:
+        SC.visualizationSettings.window.renderWindowSize = [480, 320]
 
     # exudyn magic
     exu.StartRenderer()
