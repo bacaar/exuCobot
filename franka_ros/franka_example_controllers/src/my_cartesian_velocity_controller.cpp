@@ -114,9 +114,10 @@ namespace franka_example_controllers {
         elapsed_time_ = ros::Duration(0.0);
 
         generalLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/general.log", std::ios::out);
+        targetLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/targetVC.csv", std::ios::out);
         commandLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/commands.csv", std::ios::out);
         evaluatedTrajectoryFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/evaluatedTrajectory.csv", std::ios::out);
-        currentPositionFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/currentPosition.csv", std::ios::out);
+        currentPositionFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/currentPositionVC.csv", std::ios::out);
         trajectoryCreationFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/trajectoryCreation.csv", std::ios::out);
         coefficientsFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/coefficientsCppController.csv", std::ios::out);
         trajectoryCreationFile2_.open("/home/robocup/catkinAaron/src/exuCobot/log/trajectoryCreation2.csv", std::ios::out);
@@ -129,6 +130,11 @@ namespace franka_example_controllers {
             else{
                 evaluatedTrajectoryFile_ << "rt,t,px,vx,ax,jx,py,vy,ay,jy,pz,vz,az,jz\n";
             }
+        }
+
+        if(!targetLogFile_.is_open()) { std::cerr << "WARNING: Could not create open target log file!\n"; }
+        else {
+            targetLogFile_ << "rt,t,px,py,pz,dt\n";
         }
 
         if(!commandLogFile_.is_open()) { std::cerr << "WARNING: Could not create open evaluated trajectory log file!\n"; }
@@ -695,6 +701,9 @@ namespace franka_example_controllers {
         current_target_[1] = msg.y;
         current_target_[2] = msg.z;
         current_target_[3] = msg.dt;
+
+        targetLogFile_ << rosTimeString_ << "," << logTimeString_ << ",";
+        targetLogFile_ << msg.x << "," << msg.y << "," << msg.z << "," << msg.dt << std::endl;
     }
 
     double cartesianDistance(std::vector<double> s1, std::vector<double> s2){
@@ -745,8 +754,7 @@ namespace franka_example_controllers {
         }
 
         double distance = cartesianDistance({current_state_.x.pos, current_state_.y.pos, current_state_.z.pos},
-                                            {current_robot_state[12], current_robot_state[13],
-                                             current_robot_state[14]});
+                                            {current_robot_state[12], current_robot_state[13], current_robot_state[14]});
 
         // distance must not be bigger than maximal distance which can be covered in one step (0.001s) with max velocity
         if (distance < max_v_trans_ * 0.001) {
@@ -754,8 +762,8 @@ namespace franka_example_controllers {
             startState.y.pos = current_robot_state[13];
             startState.z.pos = current_robot_state[14];
         } else {
-            std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << std::endl;
-            generalLogFile_ << "ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << std::endl;
+            std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m\n";
+            generalLogFile_ << "ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m\n";
             exit(-1);
         }
 
@@ -843,6 +851,7 @@ namespace franka_example_controllers {
         // BUILT-IN STOPPING BEHAVIOR SLOW DOWN THE ROBOT.
 
         generalLogFile_.close();
+        targetLogFile_.close();
         commandLogFile_.close();
         evaluatedTrajectoryFile_.close();
         currentPositionFile_.close();

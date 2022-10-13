@@ -165,6 +165,7 @@ namespace franka_example_controllers {
         void publishState(ros::Time now, const State3 &state);
 
         std::ofstream generalLogFile_;
+        std::ofstream targetLogFile_;
         std::ofstream commandLogFile_;
         std::ofstream evaluatedTrajectoryFile_;
         std::ofstream currentPositionFile_;
@@ -173,7 +174,7 @@ namespace franka_example_controllers {
         std::ofstream trajectoryCreationFile2_;
 
         const int polynomialDegree_ = 5;
-        const int nominalPositionBufferSize_ = 4;
+        const int nominalPositionBufferSize_ = 8;
         const bool exitIfTheoreticalValuesExceedLimits_ = true;
         const bool exitIfPositionBufferEmpty_ = false;
 

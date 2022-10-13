@@ -154,8 +154,8 @@ namespace franka_example_controllers {
         position_d_target_ = initial_transform.translation();
         orientation_d_target_ = Eigen::Quaterniond(initial_transform.linear());
 
-        targetLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/target.csv", std::ios::out);
-        currentPositionFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/currentPosition.csv", std::ios::out);
+        targetLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/targetIC.csv", std::ios::out);
+        currentPositionFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/currentPositionIC.csv", std::ios::out);
 
         if(!targetLogFile_.is_open()) { std::cerr << "WARNING: Could not create open target log file!\n"; }
         else {
