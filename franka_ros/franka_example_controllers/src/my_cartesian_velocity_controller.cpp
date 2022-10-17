@@ -172,7 +172,7 @@ namespace franka_example_controllers {
 
         if(!trajectoryCreationFile2_.is_open()) { std::cerr << "WARNING: Could not create open trajectory creation log file!\n"; }
         else {
-            trajectoryCreationFile2_ << "rt,t,cpy,npy,npy2,cvy,nvy,cay,nay,dpy,dpy2,dvy,day,dt\n";
+            trajectoryCreationFile2_ << "rt,t,cpy,npy,cvy,nvy,cay,nay,dpy,dvy,day,dt\n";
         }
     }
 
@@ -425,7 +425,7 @@ namespace franka_example_controllers {
             if(segment_time_ >= segment_duration_){
                 generalLogFile_ << "new Trajectory needed" << std::endl;
 
-                if(getPositionBufferReserve() >= 2){
+                if(getPositionBufferReserve() >= 1){
 
                     overdueTime_ += segment_time_ - segment_duration_;
 
@@ -452,10 +452,10 @@ namespace franka_example_controllers {
                     segment_time_ = ros::Duration(0);
                     generalLogFile_ << "setting segment_time_ to 0" << std::endl;
                 }
-                else { // if there are not enough values to update trajectory (2 needed), keep last velocity
+                else { // if there is no further entry in position_buffer_, keep last velocity
 
-                    std::cerr << "WARNING: Not enough positions (" << getPositionBufferReserve() << ") to calculate new segment, keep last velocity" << std::endl;
-                    generalLogFile_ << "WARNING: Not enough positions (" << getPositionBufferReserve() << ") to calculate new segment, keep last velocity" << std::endl;
+                    std::cerr << "WARNING: No further entry to calculate new segment available, keep last velocity" << std::endl;
+                    generalLogFile_ << "WARNING: No further entry to calculate new segment available, keep last velocity" << std::endl;
 
                     if(exitIfPositionBufferEmpty_) {
                         generalLogFile_ << "ERROR: Position buffer empty" << std::endl;
@@ -777,6 +777,9 @@ namespace franka_example_controllers {
                                             {current_robot_state[12], current_robot_state[13], current_robot_state[14]});
 
         // distance must not be bigger than maximal distance which can be covered in one step (0.001s) with max velocity
+
+        // use current robot position as startState. If distance between theoretical and practical positions are too big,
+        // there is probably a measurement error, thus keep theoretical state
         if (distance < max_v_trans_ * 0.001) {
             startState.x.pos = current_robot_state[12];
             startState.y.pos = current_robot_state[13];
@@ -784,14 +787,13 @@ namespace franka_example_controllers {
         } else {
             std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
             generalLogFile_ << "ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
-            exit(-1);
+            //exit(-1);
         }
 
         // index of next positions
         int i1 = (position_buffer_index_reading_ + 1) % position_buffer_length_; // next position
-        int i2 = (position_buffer_index_reading_ + 2) % position_buffer_length_; // second next position -> used for velocity calculation
 
-        if(position_buffer_[i1].dt <= 0 || position_buffer_[i2].dt <= 0){
+        if(position_buffer_[i1].dt <= 0){
             generalLogFile_ << "ERROR: Desired segment-time must be >0" << std::endl;
             exit(-1);
         }
@@ -812,8 +814,6 @@ namespace franka_example_controllers {
         }
         generalLogFile_ << "new segment_duration_ is " << segment_duration_.toSec() << " s" << std::endl;
 
-        ros::Duration nextSegmentDuration = ros::Duration(position_buffer_[i2].dt);
-
         // calculate trajectory endstate
         State3 endState;
 
@@ -827,11 +827,10 @@ namespace franka_example_controllers {
         //roundState3(startState, 6);
         //roundState3(endState, 6);
 
-        trajectoryCreationFile2_ << startState.y.pos << ",\t" << endState.y.pos << ",\t" << position_buffer_[i2].state.y.pos << ",\t";   // pos
+        trajectoryCreationFile2_ << startState.y.pos << ",\t" << endState.y.pos << ",\t";   // pos
         trajectoryCreationFile2_ << startState.y.vel << ",\t" << endState.y.vel << ",\t";   // vel
         trajectoryCreationFile2_ << startState.y.acc << ",\t" << endState.y.acc << ",\t";   // acc
         trajectoryCreationFile2_ << (endState.y.pos - startState.y.pos) << ",\t";           // dp1
-        trajectoryCreationFile2_ << (position_buffer_[i2].state.y.pos - startState.y.pos) << ",\t";  // dp2
         trajectoryCreationFile2_ << (endState.y.vel - startState.y.vel) << ",\t";           // dv
         trajectoryCreationFile2_ << (endState.y.acc - startState.y.acc) << ",\t";           // da
         trajectoryCreationFile2_ << segment_duration_.toSec() << std::endl;
