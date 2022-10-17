@@ -115,16 +115,14 @@ struct State3{
 };
 
 struct Command{
-    double x;
-    double y;
-    double z;
+    State3 state;
 
     double dt;
 
-    double operator[] (int i){
-        if(i == 0) return x;
-        else if (i == 1) return y;
-        else if (i == 2) return z;
+    State operator[] (int i){
+        if(i == 0) return state.x;
+        else if (i == 1) return state.y;
+        else if (i == 2) return state.z;
         else{
             std::cerr << "ERROR: Index " << i << " out of range 3. Use .dt to access time\n";
             exit(-1);

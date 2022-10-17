@@ -700,7 +700,12 @@ namespace franka_example_controllers {
             exit(-1);
         }
 
-        position_buffer_[position_buffer_index_writing_] = {msg.x, msg.y, msg.z, msg.dt};
+        State3 state;
+        state.x = {msg.x.pos, msg.x.vel, msg.x.acc, 0.0};
+        state.y = {msg.y.pos, msg.y.vel, msg.y.acc, 0.0};
+        state.z = {msg.z.pos, msg.z.vel, msg.z.acc, 0.0};
+
+        position_buffer_[position_buffer_index_writing_] = {state, msg.dt};
 
         if(msg.dt <= 0){
             std::cerr << "ERROR: dt of new segment must be >0" << std::endl;
@@ -712,9 +717,9 @@ namespace franka_example_controllers {
         position_buffer_index_writing_ = (position_buffer_index_writing_ + 1) % position_buffer_length_;
 
         // for analytics
-        current_target_[0] = msg.x;
-        current_target_[1] = msg.y;
-        current_target_[2] = msg.z;
+        current_target_[0] = msg.x.pos;
+        current_target_[1] = msg.y.pos;
+        current_target_[2] = msg.z.pos;
         current_target_[3] = msg.dt;
 
         targetLogFile_ << rosTimeString_ << "," << logTimeString_ << ",";
@@ -812,41 +817,21 @@ namespace franka_example_controllers {
         // calculate trajectory endstate
         State3 endState;
 
-        // get endState._.pos from position buffer but ignore new values if difference to old values is smaller than 1e-6
+        // get endState._.pos from position buffer
         for(int c = 0; c < 3; ++c){     // for coordinates c = x, y, z
-            if(abs(position_buffer_[i1][c] - startState[c].pos) < 1e-6){
-                endState[c].pos = startState[c].pos;
-            }
-            else {
-                endState[c].pos = position_buffer_[i1][c];
-            }
+            endState[c].pos = position_buffer_[i1][c].pos;
+            endState[c].vel = position_buffer_[i1][c].vel;
+            endState[c].acc = position_buffer_[i1][c].acc;
         }
-
-        // calculate desired velocity for end of (first) segment as mean velocity of next two segments
-        endState.x.vel = (position_buffer_[i2][0] - startState.x.pos) / (segment_duration_ + nextSegmentDuration).toSec();
-        endState.y.vel = (position_buffer_[i2][1] - startState.y.pos) / (segment_duration_ + nextSegmentDuration).toSec();
-        endState.z.vel = (position_buffer_[i2][2] - startState.z.pos) / (segment_duration_ + nextSegmentDuration).toSec();
-
-        //endState.x.vel = (position_buffer_[i1][0] - startState.x.pos) / (segment_duration_);
-        //endState.y.vel = (position_buffer_[i1][1] - startState.y.pos) / (segment_duration_);
-        //endState.z.vel = (position_buffer_[i1][2] - startState.z.pos) / (segment_duration_);
-
-        // calculate desired acceleration for end of (first) segment as mean acceleration of next two segments
-        endState.y.acc = (endState.y.vel - startState.y.vel) / segment_duration_.toSec();
-        endState.z.acc = (endState.z.vel - startState.z.vel) / segment_duration_.toSec();
-        endState.x.acc = (endState.x.vel - startState.x.vel) / segment_duration_.toSec();
-        //endState.y.acc = 0;
-        //endState.z.acc = 0;
-        //endState.x.acc = 0;
 
         //roundState3(startState, 6);
         //roundState3(endState, 6);
 
-        trajectoryCreationFile2_ << startState.y.pos << ",\t" << endState.y.pos << ",\t" << position_buffer_[i2][1] << ",\t";   // pos
+        trajectoryCreationFile2_ << startState.y.pos << ",\t" << endState.y.pos << ",\t" << position_buffer_[i2].state.y.pos << ",\t";   // pos
         trajectoryCreationFile2_ << startState.y.vel << ",\t" << endState.y.vel << ",\t";   // vel
         trajectoryCreationFile2_ << startState.y.acc << ",\t" << endState.y.acc << ",\t";   // acc
         trajectoryCreationFile2_ << (endState.y.pos - startState.y.pos) << ",\t";           // dp1
-        trajectoryCreationFile2_ << (position_buffer_[i2][1] - startState.y.pos) << ",\t";  // dp2
+        trajectoryCreationFile2_ << (position_buffer_[i2].state.y.pos - startState.y.pos) << ",\t";  // dp2
         trajectoryCreationFile2_ << (endState.y.vel - startState.y.vel) << ",\t";           // dv
         trajectoryCreationFile2_ << (endState.y.acc - startState.y.acc) << ",\t";           // da
         trajectoryCreationFile2_ << segment_duration_.toSec() << std::endl;

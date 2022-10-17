@@ -102,7 +102,7 @@ def externalForceCallback(data):
     extEfforts[5] = mx
 
 
-def main(impedanceDemonstration = False):
+def main(impedanceController = False):
 
     # flag for activating testing mode
     # if True, friction is disabled, robot doesn't go to starting pose and simulation starts with initial velocity
@@ -113,7 +113,7 @@ def main(impedanceDemonstration = False):
 
     # publisher for pendulum poses (=endeffector positions)
     
-    if impedanceDemonstration:
+    if impedanceController:
         pub = rospy.Publisher('/my_cartesian_impedance_controller/setTargetPose', PoseStamped, queue_size=1000)
         pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
     else:
@@ -124,7 +124,7 @@ def main(impedanceDemonstration = False):
     rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)
 
     # subscriber for current pose
-    if impedanceDemonstration:
+    if impedanceController:
         globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
     else:
         globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, currentPoseCallback)
@@ -155,7 +155,7 @@ def main(impedanceDemonstration = False):
     oGround = mbs.AddObject(ObjectGround(referencePosition=[0, 0, 0],
                                          visualization=VObjectGround(graphicsData=[background])))
     
-    if impedanceDemonstration:
+    if impedanceController:
         massRigid = 6
     else:
         massRigid = 6
@@ -220,7 +220,7 @@ def main(impedanceDemonstration = False):
 
     # friction
     if not theoreticalTest:
-        if impedanceDemonstration:
+        if impedanceController:
             mbs.AddObject(TorsionalSpringDamper(markerNumbers=[mGF, mR1F],
                                                 stiffness=0,
                                                 damping=2))
@@ -240,10 +240,19 @@ def main(impedanceDemonstration = False):
                                loadUserFunction=UFloadX))
 
     # sensor for position of endpoint of pendulum
-    sensorPos = mbs.AddSensor(SensorMarker(markerNumber=mR3,
-                                           outputVariableType=exu.OutputVariableType.Position))
+    #sensorPos = mbs.AddSensor(SensorMarker(markerNumber=mR3,
+    #                                       outputVariableType=exu.OutputVariableType.Position))
+    sensorPos = mbs.AddSensor(SensorBody(bodyNumber=oRigid2,
+                                         outputVariableType=exu.OutputVariableType.Position))
+    sensorVel = mbs.AddSensor(SensorBody(bodyNumber=oRigid2,
+                                         outputVariableType=exu.OutputVariableType.Velocity))
+    sensorAcc = mbs.AddSensor(SensorBody(bodyNumber=oRigid2,
+                                         outputVariableType=exu.OutputVariableType.Acceleration))
+
     # store sensor value of each step in mbs variable, so that is accessible from user function
     mbs.variables['pos'] = sensorPos
+    mbs.variables['vel'] = sensorVel
+    mbs.variables['acc'] = sensorAcc
 
     # sensor for rotation (orientation) of endpoint of pendulum
     sensorRot = mbs.AddSensor(SensorBody(bodyNumber=oRigid,
@@ -262,8 +271,11 @@ def main(impedanceDemonstration = False):
     xPublishCounter = 0
 
     global logFile
-    logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudyn.csv", "w")
-    logFile.write("rt,dt,globalX,globalY,globalZ\n")
+    if impedanceController:
+        logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynIC.csv", "w")
+    else:
+        logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynVC.csv", "w")
+    logFile.write("rt,dt,px,py,pz\n")
     #logFile.write("dt,globalX,globalY,globalZ,dT,dx,dy,dz\n")
 
     lastGlobalX = 0 # initialization only important for first step, so don't bother
@@ -286,10 +298,17 @@ def main(impedanceDemonstration = False):
         nonlocal lastStepTime
 
         if xPublishCounter == 0:
-            # read current position and orientation
+            # read current kinematic state and orientation
             pos_ = mbs.GetSensorValues(mbs.variables['pos'])
+            vel_ = mbs.GetSensorValues(mbs.variables['vel'])
+            acc_ = mbs.GetSensorValues(mbs.variables['acc'])
+
             rot_ = mbs.GetSensorValues(mbs.variables['rotation'])
+            
+            # convert data to numpy arrays
             pos = np.array(pos_)
+            vel = np.array(vel_)
+            acc = np.array(acc_)
             rot = np.array(rot_)
 
             # in first iteration, calculate posOffset and T
@@ -328,13 +347,22 @@ def main(impedanceDemonstration = False):
             #print(segment_duration.to_sec(), "\t", t - lastStepTime)
             lastStepTime = t
 
-            if impedanceDemonstration:
+            if impedanceController:
                 msg = createPoseStampedMsg(posGlobal, (angleX, 0, 0), tsend)
             else:
                 msg = segmentCommand()
-                msg.x = posGlobal[0]
-                msg.y = posGlobal[1]
-                msg.z = posGlobal[2]
+                msg.x.pos = posGlobal[0]
+                msg.y.pos = posGlobal[1]
+                msg.z.pos = posGlobal[2]
+
+                msg.x.vel = vel[2]
+                msg.y.vel = vel[0]
+                msg.z.vel = vel[1]
+
+                msg.x.acc = acc[2]
+                msg.y.acc = acc[0]
+                msg.z.acc = acc[1]
+
                 msg.dt = segment_duration
 
             if not theoreticalTest:
@@ -403,10 +431,8 @@ def main(impedanceDemonstration = False):
     simulationSettings.solutionSettings.solutionInformation = "2D Pendulum"
     simulationSettings.solutionSettings.writeSolutionToFile = False
 
-    if impedanceDemonstration:
-        SC.visualizationSettings.window.renderWindowSize = [1920, 1080]
-    else:
-        SC.visualizationSettings.window.renderWindowSize = [480, 320]
+    #SC.visualizationSettings.window.renderWindowSize = [1920, 1080]
+    SC.visualizationSettings.window.renderWindowSize = [480, 320]
 
     # exudyn magic
     exu.StartRenderer()
@@ -418,10 +444,10 @@ def main(impedanceDemonstration = False):
 
 if __name__ == "__main__":
 
-    impedanceDemonstration = False  # default
+    impedanceController = False  # default
   
     if len(sys.argv) >= 2 and sys.argv[1] == '-i':
-        impedanceDemonstration = True
+        impedanceController = True
 
-    main(impedanceDemonstration)
+    main(impedanceController)
     logFile.close()
