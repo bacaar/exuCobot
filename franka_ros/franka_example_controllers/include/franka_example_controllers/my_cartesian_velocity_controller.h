@@ -178,6 +178,9 @@ namespace franka_example_controllers {
         const bool exitIfTheoreticalValuesExceedLimits_ = true;
         const bool exitIfPositionBufferEmpty_ = false;
 
+        ros::Duration overdueTime_;
+        double maxOverdueRecoverPercentage_ = 0.1;  // maximal percentage, segment_time_ can be reduced in order to recover overdue time
+
         const bool logYonly_ = false;
 
         // max v,a,j values according to https://frankaemika.github.io/docs/control_parameters.html#limit-table

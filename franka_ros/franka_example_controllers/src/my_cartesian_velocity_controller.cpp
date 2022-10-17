@@ -61,8 +61,8 @@ namespace franka_example_controllers {
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
         if(polynomialDegree_ != 3 && polynomialDegree_ != 5){
-            std::cerr << "ERROR: Polynomial degree for interpolation not implemented\n";
-            generalLogFile_ << "ERROR: Polynomial degree for interpolation not implemented\n";
+            std::cerr << "ERROR: Polynomial degree for interpolation not implemented" << std::endl;
+            generalLogFile_ << "ERROR: Polynomial degree for interpolation not implemented" << std::endl;
             exit(-1);
         }
 
@@ -122,7 +122,7 @@ namespace franka_example_controllers {
         coefficientsFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/coefficientsCppController.csv", std::ios::out);
         trajectoryCreationFile2_.open("/home/robocup/catkinAaron/src/exuCobot/log/trajectoryCreation2.csv", std::ios::out);
 
-        if(!evaluatedTrajectoryFile_.is_open()) { std::cerr << "WARNING: Could not create open evaluated trajectory log file!\n"; }
+        if(!evaluatedTrajectoryFile_.is_open()) { std::cerr << "WARNING: Could not create open evaluated trajectory log file!" << std::endl; }
         else {
             if(logYonly_) {
                 evaluatedTrajectoryFile_ << "rt,t,py,vy,ay,jy\n";
@@ -185,8 +185,8 @@ namespace franka_example_controllers {
             return position_buffer_index_writing_ + position_buffer_length_ - position_buffer_index_reading_- 1;
         }
         else{
-            std::cerr << "ERROR: Writing index has caught reading index\n";
-            generalLogFile_ << "ERROR: Writing index has caught reading index\n";
+            std::cerr << "ERROR: Writing index has caught reading index" << std::endl;
+            generalLogFile_ << "ERROR: Writing index has caught reading index" << std::endl;
             exit(-1);
         }
     }
@@ -394,7 +394,7 @@ namespace franka_example_controllers {
         rosTimeString_ = getRosTimeString(time);
         generalLogFile_ << "[" << rosTimeString_ << "] (+ " << (time - lastRosTime).toSec();
         generalLogFile_ << ")\t[" << logTimeString_ << "] (+ " << (logTime_ - lastLogTime).toSec();
-        generalLogFile_ << ") new step after " << period.toSec() << " s\n";
+        generalLogFile_ << ") new step after " << period.toSec() << " s" << std::endl;
 
         lastRosTime = time;
         lastLogTime = logTime_;
@@ -413,7 +413,7 @@ namespace franka_example_controllers {
         if(!started){
             if(getPositionBufferReserve() >= nominalPositionBufferSize_){
                 started = true;
-                std::cerr << "Buffer partly filled with " << getPositionBufferReserve() << " entries. Starting-permission granted.\n";
+                std::cerr << "Buffer partly filled with " << getPositionBufferReserve() << " entries. Starting-permission granted." << std::endl;
             }
         }
 
@@ -423,27 +423,42 @@ namespace franka_example_controllers {
 
             // if segment_duration_ has passed, calc new trajectory
             if(segment_time_ >= segment_duration_){
-                generalLogFile_ << "new Trajectory needed\n";
+                generalLogFile_ << "new Trajectory needed" << std::endl;
+
                 if(getPositionBufferReserve() >= 2){
 
+                    overdueTime_ += segment_time_ - segment_duration_;
+
+                    // when getting in here the first time, overdue time quite big (several seconds), depending on how long
+                    // it takes to start exudyn. So ignore first time
+                    static bool firstTime = true;
+                    if(firstTime){
+                        overdueTime_ = ros::Duration(0);
+                        firstTime = false;
+                    }
+
+                    if (overdueTime_ > ros::Duration(0)) {
+                        generalLogFile_ << "Overdue time: " << overdueTime_ << std::endl;
+                    }
+                    if (overdueTime_ < ros::Duration(0)) {
+                        generalLogFile_ << "ERROR: overdue Time < 0" << std::endl;
+                    }
+
+                    generalLogFile_ << "updating trajectory after " << segment_time_ << " s" << std::endl;
                     trajectoryCreationFile2_ << rosTimeString_ << "," << logTimeString_ << ",";
                     updateTrajectory();
-                    generalLogFile_ << "updating trajectory after " << segment_time_ << " s" << std::endl;
-
-                    //std::cerr << "Used one element from position buffer. Remaining: " << getPositionBufferReserve() << std::endl;
 
                     // reset segment_time_ as new one starts now
                     segment_time_ = ros::Duration(0);
-                    generalLogFile_ << "setting segment_time_ to 0\n";
-
-                    generalLogFile_ << "new segment_duration_ is " << segment_duration_ << " s" << std::endl;
+                    generalLogFile_ << "setting segment_time_ to 0" << std::endl;
                 }
                 else { // if there are not enough values to update trajectory (2 needed), keep last velocity
-                    std::cerr << "WARNING: Not enough positions (" << getPositionBufferReserve() << ") to calculate new segment, keep last velocity\n";
-                    generalLogFile_ << "WARNING: Not enough positions (" << getPositionBufferReserve() << ") to calculate new segment, keep last velocity\n";
+
+                    std::cerr << "WARNING: Not enough positions (" << getPositionBufferReserve() << ") to calculate new segment, keep last velocity" << std::endl;
+                    generalLogFile_ << "WARNING: Not enough positions (" << getPositionBufferReserve() << ") to calculate new segment, keep last velocity" << std::endl;
 
                     if(exitIfPositionBufferEmpty_) {
-                        generalLogFile_ << "ERROR: Position buffer empty\n";
+                        generalLogFile_ << "ERROR: Position buffer empty" << std::endl;
                         exit(-1);
                     }
 
@@ -459,15 +474,14 @@ namespace franka_example_controllers {
             // can't be "else" to above statement, as it also has to be executed if trajectory has just been updated
             if(segment_time_ <= segment_duration_) {
                 // calculate new positions, velocities and accelerations
+                generalLogFile_ << "evaluating trajectory" << std::endl;
                 current_state_.x = evaluatePolynomial(coefs_[0], segment_time_.toSec());
                 current_state_.y = evaluatePolynomial(coefs_[1], segment_time_.toSec());
                 current_state_.z = evaluatePolynomial(coefs_[2], segment_time_.toSec());
 
                 //publishState(logTime_, current_state_);
-
                 logEvaluatedTrajectory();
 
-                generalLogFile_ << "evaluating trajectory" << std::endl;
                 // get current pose
                 std::array<double, 7> current_joint_positions= velocity_cartesian_handle_->getRobotState().q;
                 logCurrentPosition(current_robot_state, current_joint_positions);
@@ -501,7 +515,7 @@ namespace franka_example_controllers {
                     double factorJ = jAbs / max_j_trans_;
 
                     if(factorJ > 1.0){
-                        generalLogFile_ << "Jerk by factor " << factorJ << " too high. Adapting\n";
+                        generalLogFile_ << "Jerk by factor " << factorJ << " too high. Adapting" << std::endl;
 
                         // update jerk
                         jx /= factorJ;
@@ -523,7 +537,7 @@ namespace franka_example_controllers {
                     double factorA = aAbs / max_a_trans_;
 
                     if(factorA > 1.0){
-                        generalLogFile_ << "Acceleration by factor " << factorA << " too high. Adapting\n";
+                        generalLogFile_ << "Acceleration by factor " << factorA << " too high. Adapting" << std::endl;
 
                         // update acceleration
                         ax /= factorA;
@@ -540,7 +554,7 @@ namespace franka_example_controllers {
                     double factorV = vAbs / max_v_trans_;
 
                     if(factorV > 1.0){
-                        generalLogFile_ << "Velocity by factor " << factorV << " too high. Adapting\n";
+                        generalLogFile_ << "Velocity by factor " << factorV << " too high. Adapting" << std::endl;
 
                         // update velocity (according to change since last command)
                         vx = last_command_[0] + (vx - last_command_[0]) / factorV;
@@ -575,7 +589,7 @@ namespace franka_example_controllers {
                     if(quit){
                         // print current values of trajectory
                         generalLogFile_ << logTime_.toSec() << "\tv= " << vAbs << "\ta= " << aAbs << "\tj= " << jAbs << std::endl;
-                        generalLogFile_ << "Current trajectory coefficients:\n";
+                        generalLogFile_ << "Current trajectory coefficients:" << std::endl;
                         for(int i = 0; i < 3; ++i){
                             for(int j = 0; j < 6; ++j){
                                 generalLogFile_ << coefs_[i][j] << ", ";
@@ -584,7 +598,7 @@ namespace franka_example_controllers {
                         }
                         //current_command_ = last_command_;
 
-                        generalLogFile_ << "ERROR: Movement discontinuity detected\n";
+                        generalLogFile_ << "ERROR: Movement discontinuity detected" << std::endl;
                         exit(-1);
                     }
 
@@ -624,7 +638,8 @@ namespace franka_example_controllers {
             // check if one of commanded velocities is NaN. Can't reproduce error but once I got a "FrankaHW::controlCallback: Got NaN command!" fatal error
             for(int i = 0; i < 6; ++i){
                 if(isnan(current_command_[i])){
-                    generalLogFile_ << "ERROR: Command [" << i << "] is NaN\n";
+                    generalLogFile_ << "ERROR: Command [" << i << "] is NaN" << std::endl;
+                    generalLogFile_ << "Segment time: " << segment_time_ << "\tSegment duration: " << segment_duration_ << "\toverdue time: " << overdueTime_ << std::endl;
                     exit(-1);
                 }
             }
@@ -636,7 +651,7 @@ namespace franka_example_controllers {
         double updateTime = (ros::Time::now() - time).toSec();
         double updateTimePrintThreshold = 1e-4;
         if(updateTime > updateTimePrintThreshold) { // update call on average takes 3e-5 - 5e-5 seconds. just print it when significantly above
-            generalLogFile_ << "Update call took over " << updateTimePrintThreshold << " s ( " << updateTime << " s)\n";
+            generalLogFile_ << "Update call took over " << updateTimePrintThreshold << " s ( " << updateTime << " s)" << std::endl;
         }
 
         //rostopic pub -1 /franka_control/error_recovery/goal franka_msgs/ErrorRecoveryActionGoal "{}"
@@ -680,16 +695,16 @@ namespace franka_example_controllers {
         pub_current_target_confirmation_.publish(msgnew);*/
 
         if(position_buffer_index_writing_ == position_buffer_index_reading_){
-            std::cerr << "ERROR: Position buffer full\n";
-            generalLogFile_ << "ERROR: Position buffer full\n";
+            std::cerr << "ERROR: Position buffer full" << std::endl;
+            generalLogFile_ << "ERROR: Position buffer full" << std::endl;
             exit(-1);
         }
 
         position_buffer_[position_buffer_index_writing_] = {msg.x, msg.y, msg.z, msg.dt};
 
-        if(msg.dt == 0){
-            std::cerr << "ERROR: dt of new segment is 0\n";
-            generalLogFile_ << "ERROR: dt of new segment is 0\n";
+        if(msg.dt <= 0){
+            std::cerr << "ERROR: dt of new segment must be >0" << std::endl;
+            generalLogFile_ << "ERROR: dt of new segment must be >0" << std::endl;
             exit(-1);
         }
 
@@ -762,8 +777,8 @@ namespace franka_example_controllers {
             startState.y.pos = current_robot_state[13];
             startState.z.pos = current_robot_state[14];
         } else {
-            std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m\n";
-            generalLogFile_ << "ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m\n";
+            std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
+            generalLogFile_ << "ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
             exit(-1);
         }
 
@@ -771,24 +786,27 @@ namespace franka_example_controllers {
         int i1 = (position_buffer_index_reading_ + 1) % position_buffer_length_; // next position
         int i2 = (position_buffer_index_reading_ + 2) % position_buffer_length_; // second next position -> used for velocity calculation
 
-        // calc new segment_duration_
-        // probably this function hasn't been called exectly at segment_time_ == segment_duration, but somewhen after
-        // thus substract overdue time from segment duration
-        // when calling this function the first time, overdue time quite big (several seconds), depending on how long
-        // it takes to start exudyn. So ignore first time
-        ros::Duration overdue = segment_time_ - segment_duration_;
-        static bool firstTime = true;
-        if(firstTime){
-            overdue = ros::Duration(0);
-            firstTime = false;
-        }
-
         if(position_buffer_[i1].dt <= 0 || position_buffer_[i2].dt <= 0){
-            generalLogFile_ << "ERROR: Desired segment-time must be >0\n";
+            generalLogFile_ << "ERROR: Desired segment-time must be >0" << std::endl;
             exit(-1);
         }
 
-        segment_duration_ = ros::Duration(position_buffer_[i1].dt) - overdue;
+        // calc new segment_duration_
+        // substract overdueRecoverage from segment_duration to recover overdue time
+        ros::Duration maxOverdueRecoverage = ros::Duration(position_buffer_[i1].dt * maxOverdueRecoverPercentage_);
+        ros::Duration overdueRecoverage = std::min(maxOverdueRecoverage, overdueTime_);
+
+        if(overdueRecoverage > ros::Duration(0)) {
+            generalLogFile_ << "recovering overdue by " << overdueRecoverage << " s" << std::endl;
+            segment_duration_ = ros::Duration(position_buffer_[i1].dt) - overdueRecoverage;
+            overdueTime_ -= overdueRecoverage;
+            generalLogFile_ << "remaining overdue time: " << overdueTime_.toSec() << std::endl;
+        }
+        else{
+            segment_duration_ = ros::Duration(position_buffer_[i1].dt);
+        }
+        generalLogFile_ << "new segment_duration_ is " << segment_duration_.toSec() << " s" << std::endl;
+
         ros::Duration nextSegmentDuration = ros::Duration(position_buffer_[i2].dt);
 
         // calculate trajectory endstate
