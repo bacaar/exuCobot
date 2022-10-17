@@ -73,6 +73,11 @@ catkin_package(
   DEPENDS Franka
 )
 
+include_directories(
+  include
+  ${catkin_INCLUDE_DIRS}
+)
+
 add_library(franka_example_controllers
   src/elbow_example_controller.cpp
   src/cartesian_pose_example_controller.cpp
@@ -90,7 +95,7 @@ add_library(franka_example_controllers
   src/dual_arm_cartesian_impedance_example_controller.cpp
   src/teleop_joint_pd_example_controller.cpp
   src/joint_wall.cpp
-)
+  src/state.cpp)
 
 add_dependencies(franka_example_controllers
   ${${PROJECT_NAME}_EXPORTED_TARGETS}

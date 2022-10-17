@@ -787,7 +787,7 @@ namespace franka_example_controllers {
         } else {
             std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
             generalLogFile_ << "ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
-            //exit(-1);
+            exit(-1);
         }
 
         // index of next positions
