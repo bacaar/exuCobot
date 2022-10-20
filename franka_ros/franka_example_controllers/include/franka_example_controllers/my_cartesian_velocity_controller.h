@@ -21,6 +21,8 @@
 
 #include "franka_example_controllers/state.h"
 
+#define ENABLE_LOGGING 1
+
 struct Command{
     State3 state;
     double dt;
@@ -62,11 +64,11 @@ namespace franka_example_controllers {
 
         void updateTrajectory();
 
+#if ENABLE_LOGGING
         void logEvaluatedTrajectory();
         void logCurrentPosition(const std::array<double, 16> &current_pose, const std::array< double, 7 > &current_joint_positions);
         void logTrajectoryCreation(const State3 &startState, const State3 &endState);
         void logCoefficients();
-        void publishState(ros::Time now, const State3 &state);
 
         std::ofstream generalLogFile_;
         std::ofstream targetLogFile_;
@@ -77,6 +79,11 @@ namespace franka_example_controllers {
         std::ofstream coefficientsFile_;
         std::ofstream trajectoryCreationFile2_;
 
+        const bool logYonly_ = false;
+#endif
+
+        void publishState(ros::Time now, const State3 &state);
+
         const int polynomialDegree_ = 5;
         const int nominalPositionBufferSize_ = 8;
         const bool exitIfTheoreticalValuesExceedLimits_ = true;
@@ -84,8 +91,6 @@ namespace franka_example_controllers {
 
         ros::Duration overdueTime_;
         double maxOverdueRecoverPercentage_ = 0.1;  // maximal percentage, segment_time_ can be reduced in order to recover overdue time
-
-        const bool logYonly_ = false;
 
         // max v,a,j values according to https://frankaemika.github.io/docs/control_parameters.html#limit-table
         const double max_v_trans_ = 1.7; // m/s
