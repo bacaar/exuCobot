@@ -810,9 +810,9 @@ namespace franka_example_controllers {
 
         // at last iteration segment_time was at e.g. 0.009 (if segment_duration_ is 0.01)
         // last calculation for previous segment has still to be done in order to let new segment start from correct position
-        current_state_.x = evaluatePolynomial(coefs_[0], segment_time_.toSec());
-        current_state_.y = evaluatePolynomial(coefs_[1], segment_time_.toSec());
-        current_state_.z = evaluatePolynomial(coefs_[2], segment_time_.toSec());
+        current_state_.x = evaluatePolynomial(coefs_[0], segment_duration_.toSec());
+        current_state_.y = evaluatePolynomial(coefs_[1], segment_duration_.toSec());
+        current_state_.z = evaluatePolynomial(coefs_[2], segment_duration_.toSec());
 
 #if ENABLE_LOGGING
         //publishState(logTime_, current_state_);
@@ -883,6 +883,7 @@ namespace franka_example_controllers {
         else{
             segment_duration_ = ros::Duration(position_buffer_[i1].dt);
         }
+
 #if ENABLE_LOGGING
         generalLogFile_ << "new segment_duration_ is " << segment_duration_.toSec() << " s" << std::endl;
 #endif
