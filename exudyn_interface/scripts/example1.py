@@ -275,7 +275,7 @@ def main(impedanceController = False):
         logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynIC.csv", "w")
     else:
         logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynVC.csv", "w")
-    logFile.write("rt,dt,px,py,pz\n")
+    logFile.write("rt,dt,px,py,pz,vx,vy,vz,ax,ay,az\n")
     #logFile.write("dt,globalX,globalY,globalZ,dT,dx,dy,dz\n")
 
     lastGlobalX = 0 # initialization only important for first step, so don't bother
@@ -373,7 +373,7 @@ def main(impedanceController = False):
             #dz = posGlobal[0] - lastGlobalZ
             #dt = tsendS - lastT
 
-            logFile.write("{},{},{},{},{}\n".format(tsend.to_sec(), segment_duration, posGlobal[0], posGlobal[1], posGlobal[2]))
+            logFile.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(tsend.to_sec(), segment_duration, posGlobal[0], posGlobal[1], posGlobal[2], vel[2], vel[0], vel[1], acc[2], acc[0], acc[1]))
             #logFile.write("{},{},{},{},\t{},{},{},{}\n".format(tsendS, posGlobal[0], posGlobal[1], posGlobal[2], dt, dx, dy, dz))
 
             #lastGlobalX = posGlobal[0]
