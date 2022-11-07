@@ -65,11 +65,11 @@ namespace franka_example_controllers {
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
         if(polynomialDegree_ != 3 && polynomialDegree_ != 5){
-#if ENABLE_LOGGING
+            #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Polynomial degree for interpolation not implemented" << std::endl;
-#else
+            #else
             std::cerr << "ERROR: Polynomial degree for interpolation not implemented" << std::endl;
-#endif
+            #endif
             exit(-1);
         }
 
@@ -120,7 +120,7 @@ namespace franka_example_controllers {
 
         elapsed_time_ = ros::Duration(0.0);
 
-#if ENABLE_LOGGING
+        #if ENABLE_LOGGING
 
         std::cout << "This thread's id: " << std::this_thread::get_id() << std::endl;
 
@@ -194,7 +194,7 @@ namespace franka_example_controllers {
         else {
             trajectoryCreationFile2_ << "rt,t,cpy,npy,cvy,nvy,cay,nay,dpy,dvy,day,dt\n";
         }
-#endif
+        #endif
     }
 
     const int MyCartesianVelocityController::getPositionBufferReserve(){
@@ -207,11 +207,11 @@ namespace franka_example_controllers {
         }
         else{
 
-#if ENABLE_LOGGING
+            #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Writing index has caught reading index" << std::endl;
-#else
+            #else
             std::cerr << "ERROR: Writing index has caught reading index" << std::endl;
-#endif
+            #endif
             exit(-1);
         }
     }
@@ -285,7 +285,7 @@ namespace franka_example_controllers {
         return res;
     }
 
-#if ENABLE_LOGGING
+    #if ENABLE_LOGGING
     void MyCartesianVelocityController::logEvaluatedTrajectory(){
 
         evaluatedTrajectoryFile_ << rosTimeString_ << "," << logTimeString_ << ",";
@@ -403,7 +403,7 @@ namespace franka_example_controllers {
             }
         }
     }
-#endif
+    #endif
 
     void MyCartesianVelocityController::publishState(ros::Time now, const State3 &state){
         util::kinematicState3dStamped msg;
@@ -429,7 +429,7 @@ namespace franka_example_controllers {
         elapsed_time_ += period;
         segment_time_ += period;
 
-#if ENABLE_LOGGING
+        #if ENABLE_LOGGING
         static ros::Time lastRosTime = ros::Time(0);
         static ros::Time lastLogTime = ros::Time(0);
 
@@ -447,7 +447,7 @@ namespace franka_example_controllers {
 
         lastRosTime = time;
         lastLogTime = logTime_;
-#endif
+        #endif
 
         //std::cout << period.toSec() << std::endl;
 
@@ -473,9 +473,9 @@ namespace franka_example_controllers {
 
             // if segment_duration_ has passed, calc new trajectory
             if(segment_time_ >= segment_duration_){
-#if ENABLE_LOGGING
+                #if ENABLE_LOGGING
                 generalLogFile_ << "new Trajectory needed" << std::endl;
-#endif
+                #endif
 
                 if(getPositionBufferReserve() >= 1){
 
@@ -489,7 +489,7 @@ namespace franka_example_controllers {
                         firstTime = false;
                     }
 
-#if ENABLE_LOGGING
+                    #if ENABLE_LOGGING
                     if (overdueTime_ > ros::Duration(0)) {
                         generalLogFile_ << "Overdue time: " << overdueTime_ << std::endl;
                     }
@@ -499,27 +499,27 @@ namespace franka_example_controllers {
 
                     generalLogFile_ << "updating trajectory after " << segment_time_ << " s" << std::endl;
                     trajectoryCreationFile2_ << rosTimeString_ << "," << logTimeString_ << ",";
-#endif
+                    #endif
                     updateTrajectory();
 
                     // reset segment_time_ as new one starts now
                     segment_time_ = ros::Duration(0);
-#if ENABLE_LOGGING
+                    #if ENABLE_LOGGING
                     generalLogFile_ << "setting segment_time_ to 0" << std::endl;
-#endif
+                    #endif
                 }
                 else { // if there is no further entry in position_buffer_, keep last velocity
-#if ENABLE_LOGGING
+                    #if ENABLE_LOGGING
                     std::cerr << "WARNING: No further entry to calculate new segment available, keep last velocity" << std::endl;
                     generalLogFile_ << "WARNING: No further entry to calculate new segment available, keep last velocity" << std::endl;
-#endif
+                    #endif
 
                     if(exitIfPositionBufferEmpty_) {
-#if ENABLE_LOGGING
+                        #if ENABLE_LOGGING
                         generalLogFile_ << "ERROR: Position buffer empty" << std::endl;
-#else
+                        #else
                         std::cout << "ERROR: Position buffer empty" << std::endl;
-#endif
+                        #endif
                         exit(-1);
                     }
 
@@ -535,9 +535,9 @@ namespace franka_example_controllers {
             // can't be "else" to above statement, as it also has to be executed if trajectory has just been updated
             if(segment_time_ <= segment_duration_) {
                 // calculate new positions, velocities and accelerations
-#if ENABLE_LOGGING
+                #if ENABLE_LOGGING
                 generalLogFile_ << "evaluating trajectory" << std::endl;
-#endif
+                #endif
                 current_state_.x = evaluatePolynomial(coefs_[0], segment_time_.toSec());
                 current_state_.y = evaluatePolynomial(coefs_[1], segment_time_.toSec());
                 current_state_.z = evaluatePolynomial(coefs_[2], segment_time_.toSec());
@@ -547,10 +547,10 @@ namespace franka_example_controllers {
                 // get current pose
                 std::array<double, 7> current_joint_positions= velocity_cartesian_handle_->getRobotState().q;
 
-#if ENABLE_LOGGING
+                #if ENABLE_LOGGING
                 logEvaluatedTrajectory();
                 logCurrentPosition(current_robot_state, current_joint_positions);
-#endif
+                #endif
 
                 // compose new velocity
                 double vx = current_state_.x.vel;
@@ -581,9 +581,9 @@ namespace franka_example_controllers {
                     double factorJ = jAbs / max_j_trans_;
 
                     if(factorJ > 1.0){
-#if ENABLE_LOGGING
+                        #if ENABLE_LOGGING
                         generalLogFile_ << "Jerk by factor " << factorJ << " too high. Adapting" << std::endl;
-#endif
+                        #endif
 
                         // update jerk
                         jx /= factorJ;
@@ -605,9 +605,9 @@ namespace franka_example_controllers {
                     double factorA = aAbs / max_a_trans_;
 
                     if(factorA > 1.0){
-#if ENABLE_LOGGING
+                        #if ENABLE_LOGGING
                         generalLogFile_ << "Acceleration by factor " << factorA << " too high. Adapting" << std::endl;
-#endif
+                        #endif
 
                         // update acceleration
                         ax /= factorA;
@@ -624,9 +624,9 @@ namespace franka_example_controllers {
                     double factorV = vAbs / max_v_trans_;
 
                     if(factorV > 1.0){
-#if ENABLE_LOGGING
+                        #if ENABLE_LOGGING
                         generalLogFile_ << "Velocity by factor " << factorV << " too high. Adapting" << std::endl;
-#endif
+                        #endif
 
                         // update velocity (according to change since last command)
                         vx = last_command_[0] + (vx - last_command_[0]) / factorV;
@@ -641,32 +641,32 @@ namespace franka_example_controllers {
 
                     // add small constant because of numerical inaccuracy
                     if (jAbs > max_j_trans_ + 0.0001) {
-#if ENABLE_LOGGING
+                        #if ENABLE_LOGGING
                         std::cerr << "ERROR: Jerk too high: " << jAbs << std::endl;
                         generalLogFile_ << "ERROR: Jerk too high" << std::endl;
-#endif
+                        #endif
                         quit = true;
                     }
 
                     if (aAbs > max_a_trans_ + 0.0001) {
-#if ENABLE_LOGGING
+                        #if ENABLE_LOGGING
                         std::cerr << "ERROR: Acceleration too high: " << aAbs << std::endl;
                         generalLogFile_ << "ERROR: Acceleration too high" << std::endl;
-#endif
+                        #endif
                         quit = true;
                     }
 
                     if (vAbs > max_v_trans_ + 0.0001) {
-#if ENABLE_LOGGING
+                        #if ENABLE_LOGGING
                         std::cerr << "ERROR: Velocity too high: " << vAbs << std::endl;
                         generalLogFile_ << "ERROR: Velocity too high" << std::endl;
-#endif
+                        #endif
                         quit = true;
                     }
 
                     if(quit){
                         // print current values of trajectory
-#if ENABLE_LOGGING
+                        #if ENABLE_LOGGING
                         generalLogFile_ << logTime_.toSec() << "\tv= " << vAbs << "\ta= " << aAbs << "\tj= " << jAbs << std::endl;
                         generalLogFile_ << "Current trajectory coefficients:" << std::endl;
                         for(int i = 0; i < 3; ++i){
@@ -676,7 +676,7 @@ namespace franka_example_controllers {
                             generalLogFile_ << std::endl;
                         }
                         generalLogFile_ << "ERROR: Movement discontinuity detected" << std::endl;
-#endif
+                        #endif
                         //current_command_ = last_command_;
                         exit(-1);
                     }
@@ -696,11 +696,11 @@ namespace franka_example_controllers {
                 if(dv >= max_dv){
                     //current_command_[i] = last_command_[i];     // keep last velocity
                     //std::cerr << "WARNING: Keeping velocity for axis " << i << std::endl;
-#if ENABLE_LOGGING
+                    #if ENABLE_LOGGING
                     std::cerr << "Last v: " << last_command_[i] << "\t next v: " << current_command_[i];
                     std::cerr << "\tdv: " << dv;
                     std::cerr << "\texceeds limit dv of " << max_dv;
-#endif
+                    #endif
 
                     // velocity increasing or decreasing
                     int sign = current_command_[i] > last_command_[i] ? 1 : -1;
@@ -708,24 +708,24 @@ namespace franka_example_controllers {
                     // applying max velocity change but not more
                     current_command_[i] = last_command_[i] + max_dv * sign;
 
-#if ENABLE_LOGGING
+                    #if ENABLE_LOGGING
                     std::cerr << "\t-> next v: " << current_command_[i] << std::endl;
-#endif
+                    #endif
                 }
             }
 
-#if ENABLE_LOGGING
+            #if ENABLE_LOGGING
             // pass velocity to robot control and log it
             commandLogFile_ << rosTimeString_ << "," << logTimeString_ << ", " << current_command_[0] << ", " << current_command_[1] << ", " << current_command_[2] << std::endl;
-#endif
+            #endif
 
             // check if one of commanded velocities is NaN. Can't reproduce error but once I got a "FrankaHW::controlCallback: Got NaN command!" fatal error
             for(int i = 0; i < 6; ++i){
                 if(isnan(current_command_[i])){
-#if ENABLE_LOGGING
+                    #if ENABLE_LOGGING
                     generalLogFile_ << "ERROR: Command [" << i << "] is NaN" << std::endl;
                     generalLogFile_ << "Segment time: " << segment_time_ << "\tSegment duration: " << segment_duration_ << "\toverdue time: " << overdueTime_ << std::endl;
-#endif
+                    #endif
                     exit(-1);
                 }
             }
@@ -736,11 +736,12 @@ namespace franka_example_controllers {
 
         double updateTime = (ros::Time::now() - time).toSec();
         double updateTimePrintThreshold = 1e-4;
-#if ENABLE_LOGGING
+
+        #if ENABLE_LOGGING
         if(updateTime > updateTimePrintThreshold) { // update call on average takes 3e-5 - 5e-5 seconds. just print it when significantly above
             generalLogFile_ << "Update call took over " << updateTimePrintThreshold << " s ( " << updateTime << " s)" << std::endl;
         }
-#endif
+        #endif
 
         //rostopic pub -1 /franka_control/error_recovery/goal franka_msgs/ErrorRecoveryActionGoal "{}"
         //pub_error_recovery = node_handle.advertise<franka_msgs::ErrorRecoveryActionGoal>("{}", 20);
@@ -784,9 +785,9 @@ namespace franka_example_controllers {
 
         if(position_buffer_index_writing_ == position_buffer_index_reading_){
             std::cerr << "ERROR: Position buffer full" << std::endl;
-#if ENABLE_LOGGING
+            #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Position buffer full" << std::endl;
-#endif
+            #endif
             exit(-1);
         }
 
@@ -798,11 +799,11 @@ namespace franka_example_controllers {
         position_buffer_[position_buffer_index_writing_] = {state, msg.dt};
 
         if(msg.dt <= 0){
-#if ENABLE_LOGGING
+            #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: dt of new segment must be >0" << std::endl;
-#else
+            #else
             std::cerr << "ERROR: dt of new segment must be >0" << std::endl;
-#endif
+            #endif
             exit(-1);
         }
 
@@ -815,10 +816,10 @@ namespace franka_example_controllers {
         current_target_[2] = msg.z.pos;
         current_target_[3] = msg.dt;
 
-#if ENABLE_LOGGING
+        #if ENABLE_LOGGING
         targetLogFile_ << rosTimeString_ << "," << logTimeString_ << ",";
         targetLogFile_ << msg.x << "," << msg.y << "," << msg.z << "," << msg.dt << std::endl;
-#endif
+        #endif
     }
 
     double cartesianDistance(std::vector<double> s1, std::vector<double> s2){
@@ -850,11 +851,11 @@ namespace franka_example_controllers {
         current_state_.y = evaluatePolynomial(coefs_[1], segment_duration_.toSec());
         current_state_.z = evaluatePolynomial(coefs_[2], segment_duration_.toSec());
 
-#if ENABLE_LOGGING
+        #if ENABLE_LOGGING
         //publishState(logTime_, current_state_);
         logEvaluatedTrajectory();
         generalLogFile_ << "evaluating trajectory" << std::endl;
-#endif
+        #endif
 
         // startState equals current state, except .pos might be taken from robot end-effector position
         State3 startState = current_state_;
@@ -883,9 +884,9 @@ namespace franka_example_controllers {
             startState.z.pos = current_robot_state[14];
         } else {
             std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
-#if ENABLE_LOGGING
+            #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
-#endif
+            #endif
             exit(-1);
         }
 
@@ -893,11 +894,11 @@ namespace franka_example_controllers {
         int i1 = (position_buffer_index_reading_ + 1) % position_buffer_length_; // next position
 
         if(position_buffer_[i1].dt <= 0){
-#if ENABLE_LOGGING
+            #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Desired segment-time must be >0" << std::endl;
-#else
+            #else
             std::cout << "ERROR: Desired segment-time must be >0" << std::endl;
-#endif
+            #endif
             exit(-1);
         }
 
@@ -907,22 +908,22 @@ namespace franka_example_controllers {
         ros::Duration overdueRecoverage = std::min(maxOverdueRecoverage, overdueTime_);
 
         if(overdueRecoverage > ros::Duration(0)) {
-#if ENABLE_LOGGING
+            #if ENABLE_LOGGING
             generalLogFile_ << "recovering overdue by " << overdueRecoverage << " s" << std::endl;
-#endif
+            #endif
             segment_duration_ = ros::Duration(position_buffer_[i1].dt) - overdueRecoverage;
             overdueTime_ -= overdueRecoverage;
-#if ENABLE_LOGGING
+            #if ENABLE_LOGGING
             generalLogFile_ << "remaining overdue time: " << overdueTime_.toSec() << std::endl;
-#endif
+            #endif
         }
         else{
             segment_duration_ = ros::Duration(position_buffer_[i1].dt);
         }
 
-#if ENABLE_LOGGING
+        #if ENABLE_LOGGING
         generalLogFile_ << "new segment_duration_ is " << segment_duration_.toSec() << " s" << std::endl;
-#endif
+        #endif
 
         // calculate trajectory endstate
         State3 endState;
@@ -936,7 +937,7 @@ namespace franka_example_controllers {
 
         //roundState3(startState, 6);
         //roundState3(endState, 6);
-#if ENABLE_LOGGING
+        #if ENABLE_LOGGING
         trajectoryCreationFile2_ << startState.y.pos << ",\t" << endState.y.pos << ",\t";   // pos
         trajectoryCreationFile2_ << startState.y.vel << ",\t" << endState.y.vel << ",\t";   // vel
         trajectoryCreationFile2_ << startState.y.acc << ",\t" << endState.y.acc << ",\t";   // acc
@@ -944,17 +945,17 @@ namespace franka_example_controllers {
         trajectoryCreationFile2_ << (endState.y.vel - startState.y.vel) << ",\t";           // dv
         trajectoryCreationFile2_ << (endState.y.acc - startState.y.acc) << ",\t";           // da
         trajectoryCreationFile2_ << segment_duration_.toSec() << std::endl;
-#endif
+        #endif
 
         // calculate polynom coefficients
         coefs_[0] = calcCoefs(startState.x, endState.x, segment_duration_.toSec());
         coefs_[1] = calcCoefs(startState.y, endState.y, segment_duration_.toSec());
         coefs_[2] = calcCoefs(startState.z, endState.z, segment_duration_.toSec());
 
-#if ENABLE_LOGGING
+        #if ENABLE_LOGGING
         logTrajectoryCreation(startState, endState);
         logCoefficients();
-#endif
+        #endif
 
         // for next segment
         position_buffer_index_reading_ = (position_buffer_index_reading_ + 1) % position_buffer_length_;
@@ -965,7 +966,7 @@ namespace franka_example_controllers {
         // A JUMP TO ZERO WILL BE COMMANDED PUTTING HIGH LOADS ON THE ROBOT. LET THE DEFAULT
         // BUILT-IN STOPPING BEHAVIOR SLOW DOWN THE ROBOT.
 
-#if ENABLE_LOGGING
+        #if ENABLE_LOGGING
         generalLogFile_.close();
         targetLogFile_.close();
         commandLogFile_.close();
@@ -974,7 +975,7 @@ namespace franka_example_controllers {
         trajectoryCreationFile_.close();
         coefficientsFile_.close();
         trajectoryCreationFile2_.close();
-#endif
+        #endif
     }
 
 }  // namespace franka_example_controllers
