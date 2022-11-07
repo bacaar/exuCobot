@@ -2,8 +2,9 @@ cmake_minimum_required(VERSION 3.4)
 project(franka_example_controllers)
 
 set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 find_package(catkin REQUIRED COMPONENTS
   controller_interface
@@ -31,6 +32,7 @@ find_package(Franka 0.9.0 QUIET)
 if(NOT Franka_FOUND)
   find_package(Franka 0.8.0 REQUIRED)
 endif()
+find_package (Threads REQUIRED)
 
 add_message_files(FILES
   JointTorqueComparison.msg
@@ -108,6 +110,7 @@ add_dependencies(franka_example_controllers
 target_link_libraries(franka_example_controllers PUBLIC
   ${Franka_LIBRARIES}
   ${catkin_LIBRARIES}
+  ${CMAKE_THREAD_LIBS_INIT}
 )
 
 target_include_directories(franka_example_controllers SYSTEM PUBLIC
@@ -128,6 +131,7 @@ target_include_directories(teleop_gripper_node PUBLIC
 target_link_libraries(teleop_gripper_node PUBLIC
   ${Franka_LIBRARIES}
   ${catkin_LIBRARIES}
+  ${CMAKE_THREAD_LIBS_INIT}
 )
 add_dependencies(teleop_gripper_node
   ${${PROJECT_NAME}_EXPORTED_TARGETS}

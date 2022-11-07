@@ -21,6 +21,8 @@
 
 #include "franka_example_controllers/state.h"
 
+#include "franka_example_controllers/Logger.h"
+
 #define ENABLE_LOGGING 1
 
 struct Command{
@@ -70,6 +72,10 @@ namespace franka_example_controllers {
         void logTrajectoryCreation(const State3 &startState, const State3 &endState);
         void logCoefficients();
 
+        std::shared_ptr<TextLogger> textLogger_;
+        std::shared_ptr<CsvLogger> evalTrajLogger_;
+        LogThreader logThreader_;
+
         std::ofstream generalLogFile_;
         std::ofstream targetLogFile_;
         std::ofstream commandLogFile_;
@@ -85,7 +91,7 @@ namespace franka_example_controllers {
         void publishState(ros::Time now, const State3 &state);
 
         const int polynomialDegree_ = 5;
-        const int nominalPositionBufferSize_ = 8;
+        const int nominalPositionBufferSize_ = 4;
         const bool exitIfTheoreticalValuesExceedLimits_ = true;
         const bool exitIfPositionBufferEmpty_ = false;
 

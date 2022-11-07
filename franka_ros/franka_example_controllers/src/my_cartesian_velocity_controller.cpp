@@ -8,11 +8,15 @@
 #include <string>
 #include <fstream>
 
+#include <thread>
+
 #include <controller_interface/controller_base.h>
 #include <hardware_interface/hardware_interface.h>
 #include <hardware_interface/joint_command_interface.h>
 #include <pluginlib/class_list_macros.h>
 #include <ros/ros.h>
+
+//std::vector<std::string> s_openLogFiles;
 
 namespace franka_example_controllers {
 
@@ -117,6 +121,17 @@ namespace franka_example_controllers {
         elapsed_time_ = ros::Duration(0.0);
 
 #if ENABLE_LOGGING
+
+        std::cout << "This thread's id: " << std::this_thread::get_id() << std::endl;
+
+        textLogger_ = std::make_shared<TextLogger>("textLog.log", LogLevel::Debug, false, true);
+        evalTrajLogger_ = std::make_shared<CsvLogger>("evalTrajLog.csv");
+
+        textLogger_->log("This is a info msg", LogLevel::Info);
+        evalTrajLogger_->log("rt,t,px,vx,ax,jx,py,vy,ay,jy,pz,vz,az,jz");
+
+        logThreader_.addLogger(textLogger_);
+        logThreader_.addLogger(evalTrajLogger_);
 
         generalLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/general.log", std::ios::out);
         targetLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/targetVC.csv", std::ios::out);
@@ -296,6 +311,22 @@ namespace franka_example_controllers {
         }
 
         evaluatedTrajectoryFile_ << std::endl;
+
+        std::string msg = rosTimeString_ + "," + logTimeString_ + ","
+                + std::to_string(current_state_.x.pos) + ","
+                + std::to_string(current_state_.x.vel) + ","
+                + std::to_string(current_state_.x.acc) + ","
+                + std::to_string(current_state_.x.jerk) + ","
+                + std::to_string(current_state_.y.pos) + ","
+                + std::to_string(current_state_.y.vel) + ","
+                + std::to_string(current_state_.y.acc) + ","
+                + std::to_string(current_state_.y.jerk) + ","
+                + std::to_string(current_state_.z.pos) + ","
+                + std::to_string(current_state_.z.vel) + ","
+                + std::to_string(current_state_.z.acc) + ","
+                + std::to_string(current_state_.z.jerk);
+
+        evalTrajLogger_->log(msg);
     }
 
     void MyCartesianVelocityController::logCurrentPosition(const std::array<double, 16> &current_robot_state, const std::array< double, 7 > &current_joint_positions) {
@@ -405,9 +436,14 @@ namespace franka_example_controllers {
         logTime_ += period;
         logTimeString_ = getRosTimeString(logTime_);
         rosTimeString_ = getRosTimeString(time);
+        std::string timeStr = logTimeString_ + ", " + rosTimeString_;
+
         generalLogFile_ << "[" << rosTimeString_ << "] (+ " << (time - lastRosTime).toSec();
         generalLogFile_ << ")\t[" << logTimeString_ << "] (+ " << (logTime_ - lastLogTime).toSec();
         generalLogFile_ << ") new step after " << period.toSec() << " s" << std::endl;
+
+        std::string msg = "new step after " + std::to_string(period.toSec()) + " s";
+        textLogger_->log(msg, LogLevel::Debug, timeStr);
 
         lastRosTime = time;
         lastLogTime = logTime_;
