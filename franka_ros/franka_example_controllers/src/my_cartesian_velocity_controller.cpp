@@ -124,7 +124,7 @@ namespace franka_example_controllers {
 
         std::cout << "This thread's id: " << std::this_thread::get_id() << std::endl;
 
-        textLogger_ = std::make_shared<TextLogger>("textLog.log", LogLevel::Debug, false, true);
+        textLogger_ = std::make_shared<TextLogger>("/home/robocup/catkinAaron/src/exuCobot/log/textLog.log", LogLevel::Debug, true, false, true);
         evalTrajLogger_ = std::make_shared<CsvLogger>("evalTrajLog.csv");
 
         textLogger_->log("This is a info msg", LogLevel::Info);
@@ -898,26 +898,6 @@ namespace franka_example_controllers {
             exit(-1);
         }
 
-        // calc new segment_duration_
-        /*
-        // substract overdueRecoverage from segment_duration to recover overdue time
-        ros::Duration maxOverdueRecoverage = ros::Duration(position_buffer_[i1].dt * maxOverdueRecoverPercentage_);
-        ros::Duration overdueRecoverage = std::min(maxOverdueRecoverage, overdueTime_);
-
-        if(overdueRecoverage > ros::Duration(0)) {
-            #if ENABLE_LOGGING
-            generalLogFile_ << "recovering overdue by " << overdueRecoverage << " s" << std::endl;
-            #endif
-            segment_duration_ = ros::Duration(position_buffer_[i1].dt) - overdueRecoverage;
-            overdueTime_ -= overdueRecoverage;
-            #if ENABLE_LOGGING
-            generalLogFile_ << "remaining overdue time: " << overdueTime_.toSec() << std::endl;
-            #endif
-        }
-        else{
-            segment_duration_ = ros::Duration(position_buffer_[i1].dt);
-        }
-        */
         segment_duration_ = ros::Duration(position_buffer_[i1].dt);
 
         #if ENABLE_LOGGING
