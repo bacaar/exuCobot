@@ -29,20 +29,35 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
+
+// used by everybody (each class) which prints to console
+// can (should) be used also outside this header file
+std::mutex consoleMutex;
 #endif
 
 class LogEntry{
 public:
-    virtual void constructEntry() = 0;
+
+    LogEntry(const std::string& entry)
+            :m_entry(entry)
+    {}
+
+    virtual void constructEntry() {
+        // nothing to do here, just for derived classes to implement something
+    }
+
     std::string getEntry() { return m_entry; }
 protected:
+
+    LogEntry(){}    // default constructor can only be called by derived classes
+
     std::string m_entry;
 };
 
 // logger class
 class Logger{
 public:
-    Logger(std::string logFileName, bool enableConsolePrinting=false)
+    Logger(bool enableConsolePrinting=false)
             :m_enableConsolePrinting(enableConsolePrinting), m_isHandledByThreader(false)
     {}
 
@@ -50,7 +65,7 @@ public:
         m_logFile.close();
 
         // remove logfile from s_openLogFiles
-        //s_openLogFiles.erase(std::find(s_openLogFiles.begin(), s_openLogFiles.end(), m_logFilePath));
+        s_openLogFiles.erase(std::find(s_openLogFiles.begin(), s_openLogFiles.end(), m_logFilePath));
     }
 
     bool isHandledByThreader() { return m_isHandledByThreader; }
@@ -63,31 +78,46 @@ protected:
     std::ofstream m_logFile;
 
     // method to intialize file
-    void setup(std::string logFileName){
+    void setup(std::string logFileName, bool logFileNameIsAbsolutePath){
 
-        // check if log directory exists and create it if not
-        char cwd[256];
-        getcwd(cwd, 256);
+        std::string logFileDir;
+        std::string dirSeparator;
 
 #ifdef __linux__
-        std::string logFileDir = std::string(cwd) + "/log";
-        m_logFilePath = logFileDir + std::string("/") + logFileName;
+        dirSeparator = std::string("/");
 #elif _WIN32
-        std::string logFileDir = std::string(cwd) + "\\log";
-            m_logFilePath = logFileDir + std::string("\\") + logFileName;
+        dirSeparator = std::string("\\");
 #endif
 
-        /*
+        if(!logFileNameIsAbsolutePath){
+            // compose logFile path
+            char cwd[256];
+            getcwd(cwd, 256);
+
+            logFileDir = std::string(cwd) + dirSeparator + "log";
+            m_logFilePath = logFileDir + dirSeparator + logFileName;
+        }
+        else{
+            m_logFilePath = logFileName;
+            std::size_t found = logFileName.rfind(dirSeparator);
+            if(found != std::string::npos){
+                logFileDir = logFileName.substr(0, found);
+            }
+            else{
+                logFileDir = dirSeparator;
+            }
+        }
+
         // check that no other logger is already writing to that file
         if (std::find(s_openLogFiles.begin(), s_openLogFiles.end(), m_logFilePath) != s_openLogFiles.end()){
-            std::string errMsg = "-----------\nERROR: log-file already in use by other Logger!\n-----------";
+            std::string errMsg = "-----------\nERROR: log-file (" + m_logFilePath + ") already in use by other Logger!\n-----------";
             printToConsole(errMsg);
         }
         else{
             s_openLogFiles.push_back(m_logFilePath);
         }
-         */
 
+        // check if log directory exists and create it if not
         if (!boost::filesystem::exists(logFileDir)) {
             boost::filesystem::create_directory(logFileDir);
         }
@@ -105,11 +135,11 @@ protected:
 
         // check if logfile creation and opening as been successful
         if(!m_logFile.is_open()){
-            std::string errMsg = "-----------\nERROR: Could not open log-file!\n-----------";
+            std::string errMsg = "-----------\nERROR: Could not open log-file! " + m_logFilePath + "\n-----------";
             printToConsole(errMsg);
         }
         else{
-            std::string infoMsg = "opened log file " + m_logFilePath;
+            std::string infoMsg = "Logging to file " + m_logFilePath;
             printToConsole(infoMsg);
         }
     }
@@ -119,7 +149,13 @@ protected:
 
         // note: I used to differentiate between error messages (then printed with cerr <<) and non-error messages (printed with cout <<)
         // but as this might affect printing order (which was initially the objective of differentiating), I removed it
+#if ENABLE_MULTITHREADING
+        consoleMutex.lock();
+#endif
         std::cout << msg << std::endl;
+#if ENABLE_MULTITHREADING
+        consoleMutex.unlock();
+#endif
     }
 
     // prints entry to logfile
@@ -133,7 +169,7 @@ private:
 
     bool m_isHandledByThreader;       // defines if logger should work on its own (false) or if logging is done by LogThreader in separate thread (true)
 
-    //static std::vector<std::string> s_openLogFiles; // holds paths to all currently open log files in order to make sure that not two loggers are writing to same one
+    inline static std::vector<std::string> s_openLogFiles; // holds paths to all currently open log files in order to make sure that not two loggers are writing to same one
 
     // construct entry, give command to write to console and/or file
     virtual void print(std::unique_ptr<LogEntry> entry, bool enforceConsoleWriting=false) = 0;
@@ -293,8 +329,8 @@ private:
 /* Derived Logger class to handle text logging (normal .log-files) */
 class TextLogger : public Logger{
 public:
-    TextLogger(std::string logFileName, LogLevel newLogLevel, bool enableConsolePrinting=false, bool useCustomTime=false)      // for normal text logs
-            :Logger(logFileName, enableConsolePrinting), m_logLevel(newLogLevel), m_useCustomTime(useCustomTime)
+    TextLogger(std::string logFileName, LogLevel newLogLevel, bool logFileNameIsAbsolutePath=false, bool enableConsolePrinting=false, bool useCustomTime=false)      // for normal text logs
+            :Logger(enableConsolePrinting), m_logLevel(newLogLevel), m_useCustomTime(useCustomTime)
     {
         // if no specific logFileName provided, use default
         if(logFileName == ""){
@@ -306,7 +342,7 @@ public:
             logFileName += ".log";
         }
 
-        setup(logFileName);
+        setup(logFileName, logFileNameIsAbsolutePath);
 
         // check if passed log-level is valid (and get loglevel as string), else return
         std::string levelStr = "";
@@ -391,26 +427,11 @@ private:
     }
 };
 
-
-/* Derived Logger class to represend log-entries in normal text log */
-class LogEntryCSV : public LogEntry{
-public:
-    LogEntryCSV(const std::string& content)
-            :m_content(content)
-    {}
-
-    void constructEntry() override{
-        m_entry = m_content;
-    }
-
-private:
-    std::string m_content;
-};
-
 /* Derived Logger class to handle text logging (normal .log-files) */
 class CsvLogger : public Logger{
 public:
-    CsvLogger(std::string logFileName):Logger(logFileName, false){
+    CsvLogger(std::string logFileName, bool logFileNameIsAbsolutePath=false)
+            :Logger(false){
         // if no specific logFileName provided, use default
         if(logFileName == ""){
             logFileName = "csv0.csv";
@@ -421,7 +442,7 @@ public:
             logFileName += ".csv";
         }
 
-        setup(logFileName);
+        setup(logFileName, logFileNameIsAbsolutePath);
     }
 
     ~CsvLogger(){
@@ -435,7 +456,7 @@ public:
     // write entries to m_logEntries
     void log(const std::string &logEntry){
 
-        std::unique_ptr<LogEntryCSV> entry = std::make_unique<LogEntryCSV>(logEntry);
+        std::unique_ptr<LogEntry> entry = std::make_unique<LogEntry>(logEntry);
         if(isHandledByThreader()){
 #if ENABLE_MULTITHREADING
             // write to queue
@@ -496,24 +517,44 @@ class LogThreader {
 public:
     LogThreader(){
         m_loggerRunning = true;
+        consoleMutex.lock();
+        std::cout << "LogThreader INFO: starting threader from thread id " << std::this_thread::get_id() << std::endl;
+        consoleMutex.unlock();
         m_thread = std::thread(&LogThreader::logging, this);
     }
 
     ~LogThreader(){
         m_loggerRunning = false;
         m_thread.join();   // wait for logging method to finish
-        std::cout << "LogThreader has been shut down" << std::endl;
+        consoleMutex.lock();
+        std::cout << "LogThreader INFO: threader has been shut down" << std::endl;
+        consoleMutex.unlock();
     }
 
     // add new logger to be handled
     void addLogger(std::shared_ptr<Logger> logger){
         m_handledLoggers.push_back(logger);
         logger->m_isHandledByThreader = true;
+
+        std::string msgString = "Logger is now handled by LogThreader in separate thread";
+
+        // if csv file write to console only
+        if(logger->m_logFilePath.substr(logger->m_logFilePath.size()-4, 4) == ".csv"){
+            logger->printToConsole(msgString);
+        }
+        if(logger->m_logFilePath.substr(logger->m_logFilePath.size()-4, 4) == ".log"){
+            std::unique_ptr<LogEntryText> msg = std::make_unique<LogEntryText>(LogLevel::Info, msgString);
+            logger->print(move(msg));
+        }
     }
 
 private:
     // runs in separate thread; continuously writes entries of m_logEntries to file and/or console
     void logging(){
+
+        consoleMutex.lock();
+        std::cout << "LogThreader INFO: logging on thread id " << std::this_thread::get_id() << std::endl;
+        consoleMutex.unlock();
 
         while(true){
             bool canExit = !m_loggerRunning;    // if logger is still running, no chance for exit
