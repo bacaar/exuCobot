@@ -479,7 +479,8 @@ namespace franka_example_controllers {
 
                 if(getPositionBufferReserve() >= 1){
 
-                    overdueTime_ += segment_time_ - segment_duration_;
+                    //overdueTime_ += segment_time_ - segment_duration_;
+                    overdueTime_ = segment_time_ - segment_duration_;
 
                     // when getting in here the first time, overdue time quite big (several seconds), depending on how long
                     // it takes to start exudyn. So ignore first time
@@ -490,11 +491,11 @@ namespace franka_example_controllers {
                     }
 
                     #if ENABLE_LOGGING
-                    if (overdueTime_ > ros::Duration(0)) {
-                        generalLogFile_ << "Overdue time: " << overdueTime_ << std::endl;
-                    }
                     if (overdueTime_ < ros::Duration(0)) {
                         generalLogFile_ << "ERROR: overdue Time < 0" << std::endl;
+                    }
+                    else {
+                        generalLogFile_ << "Overdue time: " << overdueTime_ << std::endl;
                     }
 
                     generalLogFile_ << "updating trajectory after " << segment_time_ << " s" << std::endl;
@@ -503,9 +504,11 @@ namespace franka_example_controllers {
                     updateTrajectory();
 
                     // reset segment_time_ as new one starts now
-                    segment_time_ = ros::Duration(0);
+                    //segment_time_ = ros::Duration(0);
+                    segment_time_ = overdueTime_;
                     #if ENABLE_LOGGING
-                    generalLogFile_ << "setting segment_time_ to 0" << std::endl;
+                    //generalLogFile_ << "setting segment_time_ to 0" << std::endl;
+                    generalLogFile_ << "setting segment_time_ to " << segment_time_ << std::endl;
                     #endif
                 }
                 else { // if there is no further entry in position_buffer_, keep last velocity
@@ -524,7 +527,7 @@ namespace franka_example_controllers {
                     }
 
                     // just update current state
-                    // update position; velocity remains the same and thus acceleration is 0
+                    // update position; velocity remains the same and therefor acceleration is 0
                     current_state_.x = {current_robot_state[12], current_state_.x.vel, 0};
                     current_state_.y = {current_robot_state[13], current_state_.y.vel, 0};
                     current_state_.z = {current_robot_state[14], current_state_.z.vel, 0};
@@ -857,9 +860,6 @@ namespace franka_example_controllers {
         generalLogFile_ << "evaluating trajectory" << std::endl;
         #endif
 
-        // startState equals current state, except .pos might be taken from robot end-effector position
-        State3 startState = current_state_;
-
         // get current robot state
         std::array<double, 16> current_robot_state = velocity_cartesian_handle_->getRobotState().O_T_EE_d;
 
@@ -871,18 +871,14 @@ namespace franka_example_controllers {
             current_state_.z.pos = current_robot_state[14];
         }
 
+        // startState equals current state, except .pos might be taken from robot end-effector position
+        State3 startState = current_state_;
+
         double distance = cartesianDistance({current_state_.x.pos, current_state_.y.pos, current_state_.z.pos},
                                             {current_robot_state[12], current_robot_state[13], current_robot_state[14]});
 
         // distance must not be bigger than maximal distance which can be covered in one step (0.001s) with max velocity
-
-        // use current robot position as startState. If distance between theoretical and practical positions are too big,
-        // there is probably a measurement error, thus keep theoretical state
-        if (distance < max_v_trans_ * 0.001) {
-            startState.x.pos = current_robot_state[12];
-            startState.y.pos = current_robot_state[13];
-            startState.z.pos = current_robot_state[14];
-        } else {
+        if (distance >= max_v_trans_ * 0.001) {
             std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
             #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
@@ -903,6 +899,7 @@ namespace franka_example_controllers {
         }
 
         // calc new segment_duration_
+        /*
         // substract overdueRecoverage from segment_duration to recover overdue time
         ros::Duration maxOverdueRecoverage = ros::Duration(position_buffer_[i1].dt * maxOverdueRecoverPercentage_);
         ros::Duration overdueRecoverage = std::min(maxOverdueRecoverage, overdueTime_);
@@ -920,6 +917,8 @@ namespace franka_example_controllers {
         else{
             segment_duration_ = ros::Duration(position_buffer_[i1].dt);
         }
+        */
+        segment_duration_ = ros::Duration(position_buffer_[i1].dt);
 
         #if ENABLE_LOGGING
         generalLogFile_ << "new segment_duration_ is " << segment_duration_.toSec() << " s" << std::endl;
