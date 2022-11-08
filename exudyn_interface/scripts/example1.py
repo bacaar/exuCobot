@@ -267,7 +267,7 @@ def main(impedanceController = False):
 
     # publishing each and every step is too much, this slows the connection down
     # thus publish every xth pose, only
-    xPublish = 10
+    xPublish = 6
     xPublishCounter = 0
 
     global logFile
