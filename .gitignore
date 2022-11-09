@@ -1,4 +1,13 @@
+
+# IDE files
 .idea/
 .vscode/
 cmake-build-debug/
 **/__pycache__/
+
+# log files
+**/log/
+
+# build and devel files
+**/build/
+**/devel/
