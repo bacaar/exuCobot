@@ -38,11 +38,19 @@ from util.msg import segmentCommand
 logFile = None
 impedanceController = False  # default
 
+# force calibration
+effortsCalibrated = False
+nDesiredCalibrationValues = 100    # external efforts are sent with 30Hz from the robot, so calibration progress takes nCalibrationValues/30 seconds to finish
+calibrationValues = np.zeros(shape=(nDesiredCalibrationValues, 6))
+nGotCalibrationValues = 0   # iteration variable
+
 # global variable for external forces and moments (combined => efforts)
 extEfforts = np.zeros(shape=(6, 1))
 
 # measured force and torque by robot are not equal zero at rest, so store first measured force and torque (assumption: at rest) and substract them of every other one measured
-forceOffset = np.zeros(shape=(6, 1))
+effortsOffset = np.zeros(shape=(6, 1))
+effortsThreshold = np.zeros(shape=(6, 1))
+effortsThresholdFactor = 10  # factor for scaling threshold
 
 # start position of robot in robot base frame in meters
 globalStartPos = np.array([0.4, 0, 0.2])    # default, but not precise enough
@@ -59,67 +67,81 @@ def currentPoseCallback(data):
     if not globalStartPosSet:
         globalStartPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
         globalStartPosSet = True
-        print("Global start pos set to ", globalStartPos)
+        # TODO Logger
+        #print("Global start pos set to ", globalStartPos)
 
 
-def externalForceCallback(data):
+def externalEffortCallback(data):
     """
-    callback function for external forces and moments, applied by the user on the robot
+    callback function for external forces and torques, applied by the user on the robot
+    for simplicity reasons, forces and torques are denoted as efforts here
 
     every time new external efforts are registered by the robot(which happens continuously), 
     they are published and received by this callback function. Here they are written into 
-    another variable, in order to be processed by exudyn
+    a global variable, in order to be processed by exudyn
 
     :param geometry_msgs.msg.WrenchStamped data: received message
     """
 
-    # first time: set force/torque offset
-    global forceOffset
-    if not np.any(forceOffset):
-        forceOffset[0] = data.wrench.force.x
-        forceOffset[1] = data.wrench.force.y
-        forceOffset[2] = data.wrench.force.z
-        forceOffset[3] = data.wrench.torque.x
-        forceOffset[4] = data.wrench.torque.y
-        forceOffset[5] = data.wrench.torque.z
+    global effortsCalibrated
+    global effortsOffset
+    global effortsThreshold
+    global nGotCalibrationValues
 
-    # get forces
-    fx = data.wrench.force.x - forceOffset[0]
-    fy = data.wrench.force.y - forceOffset[1]
-    fz = data.wrench.force.z - forceOffset[2]
+    # before operation, calibrate forces
+    if not effortsCalibrated:
+        if nGotCalibrationValues < nDesiredCalibrationValues:
 
-    # get moments
-    mx = data.wrench.torque.x - forceOffset[3]
-    my = data.wrench.torque.y - forceOffset[4]
-    mz = data.wrench.torque.z - forceOffset[5]
+            calibrationValues[nGotCalibrationValues] = np.array([data.wrench.force.x,
+                                                                 data.wrench.force.y,
+                                                                 data.wrench.force.z,
+                                                                 data.wrench.torque.x,
+                                                                 data.wrench.torque.y,
+                                                                 data.wrench.torque.z])
+            nGotCalibrationValues += 1
+        else:
+            for i in range(6):
+                
+                # use mean value as offset
+                effortsOffset[i] = np.mean(calibrationValues[:,i])
 
-    # save for later use
-    global extEfforts
+                # use peak to peak value as threshold
+                effortsThreshold[i] = np.abs(np.max(calibrationValues[:,i]) - np.min(calibrationValues[:,i]))*effortsThresholdFactor
 
-    # additional to force offset, there is also some noise on force/torque measurement
-    # thus neglect everything which is smaller than 0.5N
-    threshold = 1
+            effortsCalibrated = True
 
-    if abs(fx) >= threshold:
-        extEfforts[0] = fx
-        print("fx = " + str(fx))
+            #for i in range(6):
+            #    print("effort offset: ", effortsOffset[i])
+            #    print("effort threshold: ", effortsThreshold[i])
+
+            # TODO Logger
+            # print("Effort calibration done")
+
+    # operating mode
     else:
-        extEfforts[0] = 0
-
-    if abs(fy) >= threshold:
-        extEfforts[1] = fy
-        print("fy = " + str(fy))
-    else:
-        extEfforts[1] = 0
         
-    if abs(fz) >= threshold:
-        extEfforts[2] = fz
-        print("fz = " + str(fz))
-    else:
-        extEfforts[2] = 0
-    extEfforts[3] = mx
-    extEfforts[4] = my
-    extEfforts[5] = mz
+        efforts = np.zeros(shape=(6,))
+
+        # get forces and substract offset
+        efforts[0] = data.wrench.force.x - effortsOffset[0]
+        efforts[1] = data.wrench.force.y - effortsOffset[1]
+        efforts[2] = data.wrench.force.z - effortsOffset[2]
+
+        # get torques and substract offset
+        efforts[3] = data.wrench.torque.x - effortsOffset[3]
+        efforts[4] = data.wrench.torque.y - effortsOffset[4]
+        efforts[5] = data.wrench.torque.z - effortsOffset[5]
+
+        # additional to force offset, there is also some noise on force/torque measurement
+
+        effortNames = ["fx", "fy", "fz", "mx", "my", "mz"]
+
+        for i in range(6):
+            if abs(efforts[i]) > effortsThreshold[i]:
+                extEfforts[i] = efforts[i]
+                #print("effort", effortNames[i], "=", extEfforts[i])
+            else:
+                extEfforts[i] = 0
 
 
 def main():
@@ -139,14 +161,15 @@ def main():
         pubF = rospy.Publisher('/my_cartesian_velocity_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
 
     # subscriber for external forces
-    rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)
+    rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalEffortCallback)
 
     # subscriber for current pose
     if impedanceController:
         globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
     else:
         globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, currentPoseCallback)
-        
+
+    print("Calibrating. Do not touch robot")
 
     # init exudyn
     SC = exu.SystemContainer()
@@ -421,6 +444,13 @@ def main():
             return
 
     globalStartPosSub.unregister()  # we don't need current pose anymore
+
+    # wait for calibration to finish
+    print("Waiting for effort calibration")
+    while not effortsCalibrated:
+        pass
+
+    print("Everything ready to go, start using robot now")
 
     # assemble multi body system with all previous specified properties and components
     mbs.Assemble()
