@@ -18,7 +18,7 @@ import os
 
 from PolynomialTrajectoryAnalysis import evaluatePolynom, calcCoefs
 
-segments = pd.read_csv(os.getcwd() + "/log/trajectoryCreation.csv")
+segments = pd.read_csv(os.getcwd() + "/log/trajectoryCreationModified.csv")
 nDrop = 1
 
 def evaluateCoefficients(coefs):
@@ -161,12 +161,16 @@ def offlineCalculation(polyOrder):
 def main():
     polyOrder = 5
 
-    coefs = pd.read_csv(os.getcwd() + "/log/coefficients.log")
-    coefsCpp = pd.read_csv(os.getcwd() + "/log/coefficientsCpp.csv")
+    coefsController = pd.read_csv(os.getcwd() + "/log/coefficientsCppController.csv")
+    coefsOffline = pd.read_csv(os.getcwd() + "/log/coefficientsCppOffline.csv")
 
-    t1, data1 = evaluateCoefficients(coefs)
-    t2, data2 = evaluateCoefficients(coefsCpp)
+    t1, data1 = evaluateCoefficients(coefsController)
+    t2, data2 = evaluateCoefficients(coefsOffline)
     t3, data3 = offlineCalculation(polyOrder)
+
+    #t1 = t1-t1[0]
+    #t2 = t2-t2[0]
+    #t3 = t3-t3[0]
 
     fig, axs = plt.subplots(4, 3, sharex=True)#, sharey="row")
     labels = ["s in m", "v in m/s", "a in m/s2", "j in m/s3"]
@@ -198,9 +202,9 @@ def main():
 
     for i in range(4):
         for j in range(3):
-            axs[i][j].plot(t1, data1[:,i,j])
-            axs[i][j].plot(t2, data2[:,i,j])
-            axs[i][j].plot(t3, data3[:,i,j], "--")
+            axs[i][j].plot(t1, data1[:,i,j])    # c++ online
+            axs[i][j].plot(t2, data2[:,i,j], "--")    # c++ offline
+            axs[i][j].plot(t3, data3[:,i,j], "x")  # python offline
 
     # plot start and end position of segments
     axs[0][0].plot(np.array(segments["t"]), np.array(segments["cpx"]), "x")
@@ -210,7 +214,7 @@ def main():
     axs[0][1].plot(np.array(segments["t"]+segments["dt"]), np.array(segments["npy"]), "x")
     axs[0][2].plot(np.array(segments["t"]+segments["dt"]), np.array(segments["npz"]), "x")
         
-    fig.legend(["trajectory c++ controller", "trajectory c++ offline", "trajectory pyhton"])
+    fig.legend(["trajectory c++ controller", "trajectory c++ offline", "trajectory pyhton", "start state", "end state"])
     fig.set_tight_layout(True)
     plt.show()
 

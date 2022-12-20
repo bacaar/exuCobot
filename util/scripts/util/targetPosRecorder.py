@@ -27,11 +27,11 @@ def targetPoseCallback(data):
 rospy.init_node('testing2', anonymous=True)
 
 # subscriber for external forces
-rospy.Subscriber("/my_cartesian_impedance_controller/setDesiredPose", PoseStamped, targetPoseCallback)
+rospy.Subscriber("/my_cartesian_velocity_controller/setTargetPose", PoseStamped, targetPoseCallback)
 
 # record for amount of seconds
-duration = 1.7   # seconds
-print("Recording rostopic /my_cartesian_impedance_controller/setDesiredPose for {} seconds\n".format(duration))
+duration = 0.2   # seconds
+print("Recording rostopic /my_cartesian_velocity_controller/setDesiredPose for {} seconds\n".format(duration))
 rospy.sleep(duration)
 
 # for better handling

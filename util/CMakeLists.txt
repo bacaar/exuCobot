@@ -54,6 +54,7 @@ add_message_files(
   kinematicState.msg
   kinematicState3d.msg
   kinematicState3dStamped.msg
+  segmentCommand.msg
 )
 
 ## Generate services in the 'srv' folder
