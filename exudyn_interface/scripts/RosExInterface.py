@@ -134,105 +134,111 @@ def externalEffortCallback(data):
                 extEfforts[i] = 0
         # TODO effort trafo with rot matrix
 
-def getGlobalStartPos():
-    return globalStartPos
+class RosInterface:
 
-def RosExInit():
+    def getGlobalStartPos(self):
+        return globalStartPos
 
-    global pub
-    global pubF
-    global globalStartPosSub
+    def getExtEfforts(self):
+        return extEfforts
 
-    # init ros
-    rospy.init_node('ExudynExample3_1', anonymous=True)
+    def RosExInit(self):
 
-    # publisher for pendulum poses (=endeffector positions)
-    if impedanceController:
-        pub = rospy.Publisher('/my_cartesian_impedance_controller/setTargetPose', PoseStamped, queue_size=1000)
-        pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
-    else:
-        pub = rospy.Publisher('/my_cartesian_velocity_controller/setTargetPose', segmentCommand, queue_size=1000)
-        pubF = rospy.Publisher('/my_cartesian_velocity_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
+        global pub
+        global pubF
+        global globalStartPosSub
 
-    # subscriber for external forces
-    rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalEffortCallback)
+        # init ros
+        rospy.init_node('ExudynExample3_1', anonymous=True)
 
-    # subscriber for current pose
-    if impedanceController:
-        globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
-    else:
-        globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+        # publisher for pendulum poses (=endeffector positions)
+        if impedanceController:
+            pub = rospy.Publisher('/my_cartesian_impedance_controller/setTargetPose', PoseStamped, queue_size=1000)
+            pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
+        else:
+            pub = rospy.Publisher('/my_cartesian_velocity_controller/setTargetPose', segmentCommand, queue_size=1000)
+            pubF = rospy.Publisher('/my_cartesian_velocity_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
 
-    # open and initialize log file (csv)
-    global logFile
-    if impedanceController:
-        logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynIC.csv", "w")
-    else:
-        logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynVC.csv", "w")
-    logFile.write("rt,dt,px,py,pz,vx,vy,vz,ax,ay,az\n")
+        # subscriber for external forces
+        rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalEffortCallback)
 
+        # subscriber for current pose
+        if impedanceController:
+            globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+        else:
+            globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, currentPoseCallback)
 
-def calibrate():
-    # wait for global start position
-    print("Waiting for global start position")
-    t0 = rospy.Time.now()
-
-    while not globalStartPosSet:
-        if rospy.Time.now() - t0 > rospy.Duration(2):
-            print("ERROR: Did not get any robot position after 2 seconds of waiting")
-            return False
-
-    globalStartPosSub.unregister()  # we don't need current pose anymore
-
-    # wait for calibration to finish
-    print("Waiting for effort calibration")
-    while not effortsCalibrated:
-        pass
-
-    print("Everything ready to go, start using robot now")
+        # open and initialize log file (csv)
+        global logFile
+        if impedanceController:
+            logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynIC.csv", "w")
+        else:
+            logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynVC.csv", "w")
+        logFile.write("rt,dt,px,py,pz,vx,vy,vz,ax,ay,az\n")
 
 
-def publish(pos, vel, acc, angleX, tExu):
+    def calibrate(self):
+        # wait for global start position
+        print("Waiting for global start position")
+        t0 = rospy.Time.now()
 
-    global lastStepTime
+        while not globalStartPosSet:
+            if rospy.Time.now() - t0 > rospy.Duration(2):
+                print("ERROR: Did not get any robot position after 2 seconds of waiting")
+                return False
 
-    # compose message and publish
-    tRos = rospy.Time.now()
-    segmentDuration = tExu - lastStepTime     # time from last position to this position
-    #print(segment_duration.to_sec(), "\t", t - lastStepTime)
-    lastStepTime = tExu
+        globalStartPosSub.unregister()  # we don't need current pose anymore
 
-    if impedanceController:
-        msg = createPoseStampedMsg(pos, (angleX, 0, 0), tRos)
-    else:
-        msg = segmentCommand()
-        msg.x.pos = pos[0]
-        msg.y.pos = pos[1]
-        msg.z.pos = pos[2]
+        # wait for calibration to finish
+        print("Waiting for effort calibration")
+        while not effortsCalibrated:
+            pass
 
-        msg.x.vel = vel[0]
-        msg.y.vel = vel[1]
-        msg.z.vel = vel[2]
-
-        msg.x.acc = acc[0]
-        msg.y.acc = acc[1]
-        msg.z.acc = acc[2]
-
-        msg.dt = segmentDuration
-
-    pub.publish(msg)
-
-    # publish current external force
-    msgF = WrenchStamped()
-    msgF.header.stamp = tRos
-    msgF.wrench.force.x = extEfforts[0]
-    msgF.wrench.force.y = extEfforts[1]
-    msgF.wrench.force.z = extEfforts[2]
-    pubF.publish(msgF)
-
-    logFile.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(tRos.to_sec(), segmentDuration, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], acc[0], acc[1], acc[2]))
+        print("Everything ready to go, start using robot now")
+        return True
 
 
-def cleanUp():
-    global logFile
-    logFile.close()
+    def publish(self, pos, vel, acc, angleX, tExu):
+
+        global lastStepTime
+
+        # compose message and publish
+        tRos = rospy.Time.now()
+        segmentDuration = tExu - lastStepTime     # time from last position to this position
+        #print(segment_duration.to_sec(), "\t", t - lastStepTime)
+        lastStepTime = tExu
+
+        if impedanceController:
+            msg = createPoseStampedMsg(pos, (angleX, 0, 0), tRos)
+        else:
+            msg = segmentCommand()
+            msg.x.pos = pos[0]
+            msg.y.pos = pos[1]
+            msg.z.pos = pos[2]
+
+            msg.x.vel = vel[0]
+            msg.y.vel = vel[1]
+            msg.z.vel = vel[2]
+
+            msg.x.acc = acc[0]
+            msg.y.acc = acc[1]
+            msg.z.acc = acc[2]
+
+            msg.dt = segmentDuration
+
+        pub.publish(msg)
+
+        # publish current external force
+        msgF = WrenchStamped()
+        msgF.header.stamp = tRos
+        msgF.wrench.force.x = extEfforts[0]
+        msgF.wrench.force.y = extEfforts[1]
+        msgF.wrench.force.z = extEfforts[2]
+        pubF.publish(msgF)
+
+        logFile.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(tRos.to_sec(), segmentDuration, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], acc[0], acc[1], acc[2]))
+
+
+    def cleanUp(self):
+        global logFile
+        logFile.close()

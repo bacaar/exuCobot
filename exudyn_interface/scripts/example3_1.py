@@ -28,15 +28,17 @@ for _ in range(2):
     f = f[0:f.rfind("/")]
 sys.path.append(f)  # append [...]/exuCobot directory to system path
 
-from exudyn_interface.scripts.RosExInterface import *
+from exudyn_interface.scripts.RosExInterface import RosInterface
 
 invisible = {'show': False, 'drawSize': -1, 'color': [-1]*4}
 
 def main():
 
-    print("impedance: ", impedanceController)
+    #TODO print("impedance: ", impedanceController)
 
-    RosExInit()
+    rosInterface = RosInterface()
+
+    rosInterface.RosExInit()
 
     print("Calibrating. Do not touch robot")
 
@@ -139,9 +141,9 @@ def main():
     #d[0,0] = 1 # constrained directions
     #d[1,1] = 1
     #d[2,2] = 1
-    d[3,3] = 0.5
-    d[4,4] = 0.5
-    d[5,5] = 0.5
+    d[3,3] = 1#0.5
+    d[4,4] = 1#0.5
+    d[5,5] = 1#0.5
 
     mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mGround, mPendulumTip],
                                         stiffness=k,
@@ -150,15 +152,15 @@ def main():
 
     # external applied forces
     def UFloadX(mbs, t, load):
-        #return -extEfforts[0]   # somehow x in robot coordinate system is opposite to exudyn?
+        #return -rosInterface.getExtEfforts()[0]   # somehow x in robot coordinate system is opposite to exudyn?
         return 0
 
     def UFloadY(mbs, t, load):
-        return extEfforts[1]
+        return rosInterface.getExtEfforts()[1]
         # return 0
 
     def UFloadZ(mbs, t, load):
-        return extEfforts[2]
+        return rosInterface.getExtEfforts()[2]
 
     mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=0))
     mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=1))
@@ -224,7 +226,7 @@ def main():
             # in first iteration, calculate posOffset and T
             if firstPose:
 
-                gsp = getGlobalStartPos()
+                gsp = rosInterface.getGlobalStartPos()
                 print("calculating offset")
                 print("globalStartPos = ", gsp)
                 print("exu pos = ", pos)
@@ -249,7 +251,7 @@ def main():
 
             #print(angleX, type(angleX))
 
-            publish(posGlobal, vel, acc, angleX, t)
+            rosInterface.publish(posGlobal, vel, acc, angleX, t)
 
         xPublishCounter += 1
 
@@ -261,7 +263,7 @@ def main():
 
     mbs.SetPreStepUserFunction(PreStepUserFunction)
 
-    if not calibrate(): # robot - exudyn calibration
+    if not rosInterface.calibrate(): # robot - exudyn calibration
         return
 
     # assemble multi body system with all previous specified properties and components
@@ -301,6 +303,8 @@ def main():
     #SC.WaitForRenderEngineStopFlag()
     exu.StopRenderer() #safely close rendering window!
 
+    rosInterface.cleanUp()
+
 
 if __name__ == "__main__":
   
@@ -308,4 +312,3 @@ if __name__ == "__main__":
         impedanceController = True
 
     main()
-    cleanUp()
