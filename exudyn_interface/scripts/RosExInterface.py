@@ -21,7 +21,7 @@ from util.msg import segmentCommand
 class RosInterface:
 
     ## constructor
-    def __init__(self):
+    def __init__(self, useImpedanceController):
 
         # initialize some variables
 
@@ -37,7 +37,7 @@ class RosInterface:
         # measured force and torque by robot are not equal zero at rest, so store first measured force and torque (assumption: at rest) and substract them of every other one measured
         self.effortsOffset = np.zeros(shape=(6, 1))
         self.effortsThreshold = np.zeros(shape=(6, 1))
-        self.effortsThresholdFactor = 10  # factor for scaling threshold
+        self.effortsThresholdFactor = 2  # factor for scaling threshold
 
         # start position of robot in robot base frame in meters
         self.globalStartPos = np.array([0.4, 0, 0.2])    # default, but not precise enough
@@ -47,7 +47,7 @@ class RosInterface:
         self.firstPose = True                # flag to determine first step; needed to calculate posOffset
         #self.T = np.eye(4)                   # for full coordinate transformation; currently not used
 
-        self.impedanceController = False  # default
+        self.impedanceController = useImpedanceController
 
         self.lastStepTime = 0    # last step time (exudyn time)
 
@@ -82,21 +82,17 @@ class RosInterface:
         
         self.logFile.write("rt,dt,px,py,pz,vx,vy,vz,ax,ay,az\n")
 
-
-    ## destructor
-    def __del__(self):
-        self.logFile.close()
-
-
-    def calibrate(self):
+        # calibrate robot
+        print("Calibrating. Do not touch robot")
+        
         # wait for global start position
         print("Waiting for global start position")
         t0 = rospy.Time.now()
 
         while not self.globalStartPosSet:
-            if rospy.Time.now() - t0 > rospy.Duration(2):
-                print("ERROR: Did not get any robot position after 2 seconds of waiting")
-                return False
+            if rospy.Time.now() - t0 > rospy.Duration(5):
+                print("ERROR: Did not get any robot position after 5 seconds of waiting")
+                exit(-1)
 
         self.globalStartPosSub.unregister()  # we don't need current pose anymore
 
@@ -105,8 +101,13 @@ class RosInterface:
         while not self.effortsCalibrated:
             pass
 
+        print("Efforts calibrated")
         print("Everything ready to go, start using robot now")
-        return True
+
+
+    ## destructor
+    def __del__(self):
+        self.logFile.close()
 
 
     def publish(self, posExu, vel, acc, angleX, tExu):
@@ -168,6 +169,7 @@ class RosInterface:
 
         self.logFile.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(tRos.to_sec(), segmentDuration, posExu[0], posExu[1], posExu[2], vel[0], vel[1], vel[2], acc[0], acc[1], acc[2]))
 
+
     ## callbacks
     def currentPoseCallback(self, data):
         """
@@ -179,7 +181,7 @@ class RosInterface:
             self.globalStartPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
             self.globalStartPosSet = True
             # TODO Logger
-            print("Global start pos set to ", self.globalStartPos)
+            print("Global start pos set")
 
 
     def externalEffortCallback(self, data):
@@ -212,7 +214,7 @@ class RosInterface:
                     self.effortsOffset[i] = np.mean(self.calibrationValues[:,i])
 
                     # use peak to peak value as threshold
-                    self.effortsThreshold[i] = np.abs(np.max(self.calibrationValues[:,i]) - np.min(self.calibrationValues[:,i]))*2#*effortsThresholdFactor
+                    self.effortsThreshold[i] = np.abs(np.max(self.calibrationValues[:,i]) - np.min(self.calibrationValues[:,i]))*self.effortsThresholdFactor
 
                 self.effortsCalibrated = True
 

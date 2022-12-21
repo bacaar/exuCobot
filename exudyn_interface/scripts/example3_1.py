@@ -32,13 +32,9 @@ from exudyn_interface.scripts.RosExInterface import RosInterface
 
 invisible = {'show': False, 'drawSize': -1, 'color': [-1]*4}
 
-def main():
+def main(useImpedanceController):
 
-    #TODO print("impedance: ", impedanceController)
-
-    rosInterface = RosInterface()
-
-    print("Calibrating. Do not touch robot")
+    rosInterface = RosInterface(useImpedanceController)
 
     # init exudyn
     SC = exu.SystemContainer()
@@ -213,31 +209,6 @@ def main():
             acc = np.array(acc_)
             rot = np.array(rot_)
 
-            """
-            # in first iteration, calculate posOffset and T
-            if firstPose:
-
-                gsp = rosInterface.globalStartPos
-                print("calculating offset")
-                print("globalStartPos = ", gsp)
-                print("exu pos = ", pos)
-                posOffset = gsp - pos
-                # full coordinate transformation
-                posOffset = np.expand_dims(posOffset, axis=1)
-                # TODO: don't forget rotation
-                #T = np.concatenate((trafoMat, posOffset), axis=1)
-                #T = np.concatenate((T, np.array([[0, 0, 0, 1]])), axis=0)
-                firstPose = False
-
-            # initilaize container
-            posGlobal = [0, 0, 0]
-
-            # as for now no rotation is required, it is faster to compute coordinates without matrix multiplication
-            posGlobal[0] = pos[0] + posOffset[0][0]
-            posGlobal[1] = pos[1] + posOffset[1][0]
-            posGlobal[2] = pos[2] + posOffset[2][0]
-            """
-
             # calculate angle
             angleX = float(round(180+np.rad2deg(rot[0]), 4))
 
@@ -254,9 +225,6 @@ def main():
         return True
 
     mbs.SetPreStepUserFunction(PreStepUserFunction)
-
-    if not rosInterface.calibrate(): # robot - exudyn calibration
-        return
 
     # assemble multi body system with all previous specified properties and components
     mbs.Assemble()
@@ -298,7 +266,8 @@ def main():
 
 if __name__ == "__main__":
   
+    useImpedanceController = False
     if len(sys.argv) >= 2 and sys.argv[1] == '-i':
-        impedanceController = True
+        useImpedanceController = True
 
-    main()
+    main(useImpedanceController)
