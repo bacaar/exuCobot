@@ -146,15 +146,15 @@ def main(useImpedanceController):
 
     # external applied forces
     def UFloadX(mbs, t, load):
-        return rosInterface.extEfforts[0]
+        return rosInterface.getExternalEfforts()[0]
         #return 0
 
     def UFloadY(mbs, t, load):
-        return rosInterface.extEfforts[1]
+        return rosInterface.getExternalEfforts()[1]
         # return 0
 
     def UFloadZ(mbs, t, load):
-        return rosInterface.extEfforts[2]
+        return rosInterface.getExternalEfforts()[2]
 
     mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=0))
     mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=1))
