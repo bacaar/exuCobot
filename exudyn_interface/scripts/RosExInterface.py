@@ -4,7 +4,7 @@
 Author: Aaron Bacher
 Date: 20.12.2022
 
-Interface between Exudyn and ROS (Robot)
+Ros (Robot) Interface for Exudyn
 """
 
 import numpy as np
@@ -42,6 +42,10 @@ class RosInterface:
         # start position of robot in robot base frame in meters
         self.globalStartPos = np.array([0.4, 0, 0.2])    # default, but not precise enough
         self.globalStartPosSet = False
+
+        self.posOffset = np.array([0, 0, 0]) # offset between user-interact position in simulation and robot world space 
+        self.firstPose = True                # flag to determine first step; needed to calculate posOffset
+        #self.T = np.eye(4)                   # for full coordinate transformation; currently not used
 
         self.impedanceController = False  # default
 
@@ -105,7 +109,28 @@ class RosInterface:
         return True
 
 
-    def publish(self, pos, vel, acc, angleX, tExu):
+    def publish(self, posExu, vel, acc, angleX, tExu):
+
+        # in first iteration, offset between exudyn local position and robot global position has to be determined
+        if self.firstPose:
+
+            self.posOffset = self.globalStartPos - posExu
+            self.posOffset = np.expand_dims(self.posOffset, axis=1)
+
+            # full coordinate transformation
+            # TODO: don't forget rotation
+            #T = np.concatenate((trafoMat, posOffset), axis=1)
+            #T = np.concatenate((T, np.array([[0, 0, 0, 1]])), axis=0)
+            self.firstPose = False
+
+        # local exudyn position has to be transformed to global robot position
+        # initialize container
+        pos = [0, 0, 0]
+
+        # as for now no rotation is required, it is faster to compute coordinates without matrix multiplication
+        pos[0] = posExu[0] + self.posOffset[0][0]
+        pos[1] = posExu[1] + self.posOffset[1][0]
+        pos[2] = posExu[2] + self.posOffset[2][0]
 
         # compose message and publish
         tRos = rospy.Time.now()
@@ -141,7 +166,7 @@ class RosInterface:
         msgF.wrench.force.z = self.extEfforts[2]
         self.pubF.publish(msgF)
 
-        self.logFile.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(tRos.to_sec(), segmentDuration, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], acc[0], acc[1], acc[2]))
+        self.logFile.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(tRos.to_sec(), segmentDuration, posExu[0], posExu[1], posExu[2], vel[0], vel[1], vel[2], acc[0], acc[1], acc[2]))
 
     ## callbacks
     def currentPoseCallback(self, data):

@@ -191,20 +191,12 @@ def main():
     # store sensor value of each step in mbs variable, so that is accessible from user function
     mbs.variables['rotation'] = sensorRot
 
-    # initialisation of some variables
-    posOffset = np.array([0, 0, 0]) # offset between user-interact position in simulation and robot world space 
-    firstPose = True                # flag to determine first step; needed to to calculate posOffset
-    T = np.eye(4)                   # for full coordinate transformation
-
     # publishing each and every step is too much, this slows the connection down
     # thus publish every xth pose, only
     xPublish = 6
     xPublishCounter = 0
 
     def PreStepUserFunction(mbs, t):
-        nonlocal firstPose
-        nonlocal posOffset
-        nonlocal T
         nonlocal xPublishCounter
 
         if xPublishCounter == 0:
@@ -221,6 +213,7 @@ def main():
             acc = np.array(acc_)
             rot = np.array(rot_)
 
+            """
             # in first iteration, calculate posOffset and T
             if firstPose:
 
@@ -243,13 +236,14 @@ def main():
             posGlobal[0] = pos[0] + posOffset[0][0]
             posGlobal[1] = pos[1] + posOffset[1][0]
             posGlobal[2] = pos[2] + posOffset[2][0]
+            """
 
             # calculate angle
             angleX = float(round(180+np.rad2deg(rot[0]), 4))
 
             #print(angleX, type(angleX))
 
-            rosInterface.publish(posGlobal, vel, acc, angleX, t)
+            rosInterface.publish(pos, vel, acc, angleX, t)
 
         xPublishCounter += 1
 
