@@ -38,8 +38,6 @@ def main():
 
     rosInterface = RosInterface()
 
-    rosInterface.RosExInit()
-
     print("Calibrating. Do not touch robot")
 
     # init exudyn
@@ -152,15 +150,15 @@ def main():
 
     # external applied forces
     def UFloadX(mbs, t, load):
-        #return -rosInterface.getExtEfforts()[0]   # somehow x in robot coordinate system is opposite to exudyn?
+        #return -rosInterface.extEfforts[0]   # somehow x in robot coordinate system is opposite to exudyn?
         return 0
 
     def UFloadY(mbs, t, load):
-        return rosInterface.getExtEfforts()[1]
+        return rosInterface.extEfforts[1]
         # return 0
 
     def UFloadZ(mbs, t, load):
-        return rosInterface.getExtEfforts()[2]
+        return rosInterface.extEfforts[2]
 
     mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=0))
     mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=1))
@@ -226,7 +224,7 @@ def main():
             # in first iteration, calculate posOffset and T
             if firstPose:
 
-                gsp = rosInterface.getGlobalStartPos()
+                gsp = rosInterface.globalStartPos
                 print("calculating offset")
                 print("globalStartPos = ", gsp)
                 print("exu pos = ", pos)
@@ -302,8 +300,6 @@ def main():
     exu.SolveDynamic(mbs, simulationSettings)
     #SC.WaitForRenderEngineStopFlag()
     exu.StopRenderer() #safely close rendering window!
-
-    rosInterface.cleanUp()
 
 
 if __name__ == "__main__":

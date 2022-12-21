@@ -18,163 +18,70 @@ import os
 from util.scripts.util.common import createPoseStampedMsg
 from util.msg import segmentCommand
 
-# force calibration
-effortsCalibrated = False
-nDesiredCalibrationValues = 100    # external efforts are sent with 30Hz from the robot, so calibration progress takes nCalibrationValues/30 seconds to finish
-calibrationValues = np.zeros(shape=(nDesiredCalibrationValues, 6))
-nGotCalibrationValues = 0   # iteration variable
-
-# global variable for external forces and moments (combined => efforts)
-extEfforts = np.zeros(shape=(6, 1))
-
-# measured force and torque by robot are not equal zero at rest, so store first measured force and torque (assumption: at rest) and substract them of every other one measured
-effortsOffset = np.zeros(shape=(6, 1))
-effortsThreshold = np.zeros(shape=(6, 1))
-effortsThresholdFactor = 10  # factor for scaling threshold
-
-# start position of robot in robot base frame in meters
-globalStartPos = np.array([0.4, 0, 0.2])    # default, but not precise enough
-globalStartPosSet = False
-globalStartPosSub = None
-
-impedanceController = False  # default
-
-pub = None
-pubF = None
-
-lastStepTime = 0    # last step time (exudyn time)
-
-logFile = None
-
-def currentPoseCallback(data):
-    """
-    callback function to set global robot position at beginning of program
-    -> globalStartPos
-    """
-
-    global globalStartPosSet
-    global globalStartPos
-    if not globalStartPosSet:
-        globalStartPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
-        globalStartPosSet = True
-        # TODO Logger
-        print("Global start pos set to ", globalStartPos)
-
-
-def externalEffortCallback(data):
-    """
-    callback function for external forces and torques, applied by the user on the robot
-    for simplicity reasons, forces and torques are denoted as efforts here
-
-    every time new external efforts are registered by the robot(which happens continuously), 
-    they are published and received by this callback function. Here they are written into 
-    a global variable, in order to be processed by exudyn
-
-    :param geometry_msgs.msg.WrenchStamped data: received message
-    """
-
-    global effortsCalibrated
-    global effortsOffset
-    global effortsThreshold
-    global nGotCalibrationValues
-
-    # before operation, calibrate forces
-    if not effortsCalibrated:
-        if nGotCalibrationValues < nDesiredCalibrationValues:
-
-            calibrationValues[nGotCalibrationValues] = np.array([data.wrench.force.x,
-                                                                 data.wrench.force.y,
-                                                                 data.wrench.force.z,
-                                                                 data.wrench.torque.x,
-                                                                 data.wrench.torque.y,
-                                                                 data.wrench.torque.z])
-            nGotCalibrationValues += 1
-        else:
-            for i in range(6):
-                
-                # use mean value as offset
-                effortsOffset[i] = np.mean(calibrationValues[:,i])
-
-                # use peak to peak value as threshold
-                effortsThreshold[i] = np.abs(np.max(calibrationValues[:,i]) - np.min(calibrationValues[:,i]))*2#*effortsThresholdFactor
-
-            effortsCalibrated = True
-
-            #for i in range(6):
-            #    print("effort offset: ", effortsOffset[i])
-            #    print("effort threshold: ", effortsThreshold[i])
-
-            # TODO Logger
-            # print("Effort calibration done")
-
-    # operating mode
-    else:
-        
-        efforts = np.zeros(shape=(6,))
-
-        # get forces and substract offset
-        efforts[0] = data.wrench.force.x - effortsOffset[0]
-        efforts[1] = data.wrench.force.y - effortsOffset[1]
-        efforts[2] = data.wrench.force.z - effortsOffset[2]
-
-        # get torques and substract offset
-        efforts[3] = data.wrench.torque.x - effortsOffset[3]
-        efforts[4] = data.wrench.torque.y - effortsOffset[4]
-        efforts[5] = data.wrench.torque.z - effortsOffset[5]
-
-        # additional to force offset, there is also some noise on force/torque measurement
-
-        effortNames = ["fx", "fy", "fz", "mx", "my", "mz"]
-
-        for i in range(6):
-            if abs(efforts[i]) > effortsThreshold[i]:
-                extEfforts[i] = efforts[i]
-                #print("effort", effortNames[i], "=", extEfforts[i])
-            else:
-                extEfforts[i] = 0
-        # TODO effort trafo with rot matrix
-
 class RosInterface:
 
-    def getGlobalStartPos(self):
-        return globalStartPos
+    ## constructor
+    def __init__(self):
 
-    def getExtEfforts(self):
-        return extEfforts
+        # initialize some variables
 
-    def RosExInit(self):
+        # force calibration
+        self.effortsCalibrated = False
+        self.nDesiredCalibrationValues = 100    # external efforts are sent with 30Hz from the robot, so calibration progress takes nCalibrationValues/30 seconds to finish
+        self.calibrationValues = np.zeros(shape=(self.nDesiredCalibrationValues, 6))
+        self.nGotCalibrationValues = 0   # iteration variable
 
-        global pub
-        global pubF
-        global globalStartPosSub
+        # global variable for external forces and moments (combined => efforts)
+        self.extEfforts = np.zeros(shape=(6, 1))
+
+        # measured force and torque by robot are not equal zero at rest, so store first measured force and torque (assumption: at rest) and substract them of every other one measured
+        self.effortsOffset = np.zeros(shape=(6, 1))
+        self.effortsThreshold = np.zeros(shape=(6, 1))
+        self.effortsThresholdFactor = 10  # factor for scaling threshold
+
+        # start position of robot in robot base frame in meters
+        self.globalStartPos = np.array([0.4, 0, 0.2])    # default, but not precise enough
+        self.globalStartPosSet = False
+
+        self.impedanceController = False  # default
+
+        self.lastStepTime = 0    # last step time (exudyn time)
+
+        self.logFile = None
 
         # init ros
         rospy.init_node('ExudynExample3_1', anonymous=True)
 
-        # publisher for pendulum poses (=endeffector positions)
-        if impedanceController:
-            pub = rospy.Publisher('/my_cartesian_impedance_controller/setTargetPose', PoseStamped, queue_size=1000)
-            pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
+        if self.impedanceController:
+            # publisher for pendulum poses (=endeffector positions)
+            self.pub = rospy.Publisher('/my_cartesian_impedance_controller/setTargetPose', PoseStamped, queue_size=1000)
+            self.pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
+
+            # subscriber for current pose
+            self.globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, self.currentPoseCallback)
+
+            # open and init log file (csv)
+            self.logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynIC.csv", "w")
         else:
-            pub = rospy.Publisher('/my_cartesian_velocity_controller/setTargetPose', segmentCommand, queue_size=1000)
-            pubF = rospy.Publisher('/my_cartesian_velocity_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
+            # publisher for pendulum poses (=endeffector positions)
+            self.pub = rospy.Publisher('/my_cartesian_velocity_controller/setTargetPose', segmentCommand, queue_size=1000)
+            self.pubF = rospy.Publisher('/my_cartesian_velocity_controller/analysis/getExternalForce', WrenchStamped, queue_size=10)
+
+            # subscriber for current pose
+            self.globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, self.currentPoseCallback)
+
+            # open and init log file (csv)
+            self.logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynVC.csv", "w")
 
         # subscriber for external forces
-        rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalEffortCallback)
+        rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, self.externalEffortCallback)
+        
+        self.logFile.write("rt,dt,px,py,pz,vx,vy,vz,ax,ay,az\n")
 
-        # subscriber for current pose
-        if impedanceController:
-            globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
-        else:
-            globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, currentPoseCallback)
 
-        # open and initialize log file (csv)
-        global logFile
-        if impedanceController:
-            logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynIC.csv", "w")
-        else:
-            logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynVC.csv", "w")
-        logFile.write("rt,dt,px,py,pz,vx,vy,vz,ax,ay,az\n")
+    ## destructor
+    def __del__(self):
+        self.logFile.close()
 
 
     def calibrate(self):
@@ -182,16 +89,16 @@ class RosInterface:
         print("Waiting for global start position")
         t0 = rospy.Time.now()
 
-        while not globalStartPosSet:
+        while not self.globalStartPosSet:
             if rospy.Time.now() - t0 > rospy.Duration(2):
                 print("ERROR: Did not get any robot position after 2 seconds of waiting")
                 return False
 
-        globalStartPosSub.unregister()  # we don't need current pose anymore
+        self.globalStartPosSub.unregister()  # we don't need current pose anymore
 
         # wait for calibration to finish
         print("Waiting for effort calibration")
-        while not effortsCalibrated:
+        while not self.effortsCalibrated:
             pass
 
         print("Everything ready to go, start using robot now")
@@ -200,15 +107,13 @@ class RosInterface:
 
     def publish(self, pos, vel, acc, angleX, tExu):
 
-        global lastStepTime
-
         # compose message and publish
         tRos = rospy.Time.now()
-        segmentDuration = tExu - lastStepTime     # time from last position to this position
-        #print(segment_duration.to_sec(), "\t", t - lastStepTime)
-        lastStepTime = tExu
+        segmentDuration = tExu - self.lastStepTime     # time from last position to this position
+        #print(segment_duration.to_sec(), "\t", t - self.lastStepTime)
+        self.lastStepTime = tExu
 
-        if impedanceController:
+        if self.impedanceController:
             msg = createPoseStampedMsg(pos, (angleX, 0, 0), tRos)
         else:
             msg = segmentCommand()
@@ -226,19 +131,96 @@ class RosInterface:
 
             msg.dt = segmentDuration
 
-        pub.publish(msg)
+        self.pub.publish(msg)
 
         # publish current external force
         msgF = WrenchStamped()
         msgF.header.stamp = tRos
-        msgF.wrench.force.x = extEfforts[0]
-        msgF.wrench.force.y = extEfforts[1]
-        msgF.wrench.force.z = extEfforts[2]
-        pubF.publish(msgF)
+        msgF.wrench.force.x = self.extEfforts[0]
+        msgF.wrench.force.y = self.extEfforts[1]
+        msgF.wrench.force.z = self.extEfforts[2]
+        self.pubF.publish(msgF)
 
-        logFile.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(tRos.to_sec(), segmentDuration, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], acc[0], acc[1], acc[2]))
+        self.logFile.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(tRos.to_sec(), segmentDuration, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], acc[0], acc[1], acc[2]))
+
+    ## callbacks
+    def currentPoseCallback(self, data):
+        """
+        callback function to set global robot position at beginning of program
+        -> globalStartPos
+        """
+
+        if not self.globalStartPosSet:
+            self.globalStartPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+            self.globalStartPosSet = True
+            # TODO Logger
+            print("Global start pos set to ", self.globalStartPos)
 
 
-    def cleanUp(self):
-        global logFile
-        logFile.close()
+    def externalEffortCallback(self, data):
+        """
+        callback function for external forces and torques, applied by the user on the robot
+        for simplicity reasons, forces and torques are denoted as efforts here
+
+        every time new external efforts are registered by the robot(which happens continuously), 
+        they are published and received by this callback function. Here they are written into 
+        a global variable, in order to be processed by exudyn
+
+        :param geometry_msgs.msg.WrenchStamped data: received message
+        """
+
+        # before operation, calibrate forces
+        if not self.effortsCalibrated:
+            if self.nGotCalibrationValues < self.nDesiredCalibrationValues:
+
+                self.calibrationValues[self.nGotCalibrationValues] = np.array([data.wrench.force.x,
+                                                                               data.wrench.force.y,
+                                                                               data.wrench.force.z,
+                                                                               data.wrench.torque.x,
+                                                                               data.wrench.torque.y,
+                                                                               data.wrench.torque.z])
+                self.nGotCalibrationValues += 1
+            else:
+                for i in range(6):
+                    
+                    # use mean value as offset
+                    self.effortsOffset[i] = np.mean(self.calibrationValues[:,i])
+
+                    # use peak to peak value as threshold
+                    self.effortsThreshold[i] = np.abs(np.max(self.calibrationValues[:,i]) - np.min(self.calibrationValues[:,i]))*2#*effortsThresholdFactor
+
+                self.effortsCalibrated = True
+
+                #for i in range(6):
+                #    print("effort offset: ", effortsOffset[i])
+                #    print("effort threshold: ", effortsThreshold[i])
+
+                # TODO Logger
+                # print("Effort calibration done")
+
+        # operating mode
+        else:
+            
+            efforts = np.zeros(shape=(6,))
+
+            # get forces and substract offset
+            efforts[0] = data.wrench.force.x - self.effortsOffset[0]
+            efforts[1] = data.wrench.force.y - self.effortsOffset[1]
+            efforts[2] = data.wrench.force.z - self.effortsOffset[2]
+
+            # get torques and substract offset
+            efforts[3] = data.wrench.torque.x - self.effortsOffset[3]
+            efforts[4] = data.wrench.torque.y - self.effortsOffset[4]
+            efforts[5] = data.wrench.torque.z - self.effortsOffset[5]
+
+            # additional to force offset, there is also some noise on force/torque measurement
+
+            effortNames = ["fx", "fy", "fz", "mx", "my", "mz"]
+
+            for i in range(6):
+                if abs(efforts[i]) > self.effortsThreshold[i]:
+                    self.extEfforts[i] = efforts[i]
+                    #print("effort", effortNames[i], "=", extEfforts[i])
+                else:
+                    self.extEfforts[i] = 0
+            # TODO effort trafo with rot matrix
