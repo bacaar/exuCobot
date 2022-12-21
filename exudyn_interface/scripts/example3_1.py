@@ -146,8 +146,8 @@ def main(useImpedanceController):
 
     # external applied forces
     def UFloadX(mbs, t, load):
-        #return -rosInterface.extEfforts[0]   # somehow x in robot coordinate system is opposite to exudyn?
-        return 0
+        return rosInterface.extEfforts[0]
+        #return 0
 
     def UFloadY(mbs, t, load):
         return rosInterface.extEfforts[1]

@@ -18,6 +18,12 @@ import os
 from util.scripts.util.common import createPoseStampedMsg
 from util.msg import segmentCommand
 
+import tf2_geometry_msgs
+import tf2_ros
+import tf
+from scipy.spatial.transform import Rotation
+
+
 class RosInterface:
 
     ## constructor
@@ -81,6 +87,14 @@ class RosInterface:
         rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, self.externalEffortCallback)
         
         self.logFile.write("rt,dt,px,py,pz,vx,vy,vz,ax,ay,az\n")
+
+        # setup transform listener for transformation from endeffector to world frame
+        #tf2_ros::Buffer tf_buffer;
+        #tf2_ros::TransformListener tf2_listener(tf_buffer);
+        self.tfBuffer = tf2_ros.Buffer()
+        #self.tfListener = tf2_ros.TransformListener(self.tfBuffer)
+        self.tfListener = tf.TransformListener()
+        self.kToWorldFrame = tf2_geometry_msgs.PoseStamped
 
         # calibrate robot
         print("Calibrating. Do not touch robot")
@@ -196,58 +210,81 @@ class RosInterface:
         :param geometry_msgs.msg.WrenchStamped data: received message
         """
 
-        # before operation, calibrate forces
-        if not self.effortsCalibrated:
-            if self.nGotCalibrationValues < self.nDesiredCalibrationValues:
+        # for some reason, at the first few (3-4) calls of this callback-method, the frames panda_link0 is not known to tf
+        # thus whole function is under try-statement, just skip those first calls
+        try:
+            # transform forces and torques from endeffector frame (flange) (=panda_hand) into world frame (panda_link0)
 
-                self.calibrationValues[self.nGotCalibrationValues] = np.array([data.wrench.force.x,
-                                                                               data.wrench.force.y,
-                                                                               data.wrench.force.z,
-                                                                               data.wrench.torque.x,
-                                                                               data.wrench.torque.y,
-                                                                               data.wrench.torque.z])
-                self.nGotCalibrationValues += 1
-            else:
-                for i in range(6):
-                    
-                    # use mean value as offset
-                    self.effortsOffset[i] = np.mean(self.calibrationValues[:,i])
+            #                                            child          parent      use latest update
+            (_,rot) = self.tfListener.lookupTransform('/panda_hand', '/panda_link0', rospy.Time(0))
 
-                    # use peak to peak value as threshold
-                    self.effortsThreshold[i] = np.abs(np.max(self.calibrationValues[:,i]) - np.min(self.calibrationValues[:,i]))*self.effortsThresholdFactor
+            R = np.array(Rotation.from_quat(rot).as_matrix())
 
-                self.effortsCalibrated = True
+            # K frame
+            forceK = np.array([data.wrench.force.x, data.wrench.force.y, data.wrench.force.z])
+            torqueK = np.array([data.wrench.torque.x, data.wrench.torque.y, data.wrench.torque.z])
 
-                #for i in range(6):
-                #    print("effort offset: ", effortsOffset[i])
-                #    print("effort threshold: ", effortsThreshold[i])
+            # world frame
+            forceW = R @ forceK
+            torqueW = R @ torqueK
 
-                # TODO Logger
-                # print("Effort calibration done")
+            # as robot measures efforts it needs to compensate external force, negative efforts are the ones applied (TODO lookup if correct)
+            forceW *= -1
+            torqueW *= -1
 
-        # operating mode
-        else:
-            
-            efforts = np.zeros(shape=(6,))
+            # before operation, calibrate forces
+            if not self.effortsCalibrated:
 
-            # get forces and substract offset
-            efforts[0] = data.wrench.force.x - self.effortsOffset[0]
-            efforts[1] = data.wrench.force.y - self.effortsOffset[1]
-            efforts[2] = data.wrench.force.z - self.effortsOffset[2]
+                # collecting values
+                if self.nGotCalibrationValues < self.nDesiredCalibrationValues:
 
-            # get torques and substract offset
-            efforts[3] = data.wrench.torque.x - self.effortsOffset[3]
-            efforts[4] = data.wrench.torque.y - self.effortsOffset[4]
-            efforts[5] = data.wrench.torque.z - self.effortsOffset[5]
+                    self.calibrationValues[self.nGotCalibrationValues] = np.array([forceW[0],
+                                                                                   forceW[1],
+                                                                                   forceW[2],
+                                                                                   torqueW[0],
+                                                                                   torqueW[1],
+                                                                                   torqueW[2]])
+                    self.nGotCalibrationValues += 1
 
-            # additional to force offset, there is also some noise on force/torque measurement
-
-            effortNames = ["fx", "fy", "fz", "mx", "my", "mz"]
-
-            for i in range(6):
-                if abs(efforts[i]) > self.effortsThreshold[i]:
-                    self.extEfforts[i] = efforts[i]
-                    #print("effort", effortNames[i], "=", extEfforts[i])
+                # evaluating values
                 else:
-                    self.extEfforts[i] = 0
-            # TODO effort trafo with rot matrix
+                    for i in range(6):
+                        
+                        # use mean value as offset
+                        self.effortsOffset[i] = np.mean(self.calibrationValues[:,i])
+
+                        # use peak to peak value as threshold
+                        self.effortsThreshold[i] = np.abs(np.max(self.calibrationValues[:,i]) - np.min(self.calibrationValues[:,i]))*self.effortsThresholdFactor
+
+                    self.effortsCalibrated = True
+
+            # operating mode
+            else:
+                
+                efforts = np.zeros(shape=(6,))
+
+                # get forces and substract offset
+                efforts[0] = forceW[0] - self.effortsOffset[0]
+                efforts[1] = forceW[1] - self.effortsOffset[1]
+                efforts[2] = forceW[2] - self.effortsOffset[2]
+
+                # get torques and substract offset
+                efforts[3] = torqueW[0] - self.effortsOffset[3]
+                efforts[4] = torqueW[1] - self.effortsOffset[4]
+                efforts[5] = torqueW[2] - self.effortsOffset[5]
+
+                # additional to force offset, there is also some noise on force/torque measurement which have to be eliminated with threshold
+
+                effortNames = ["fx", "fy", "fz", "mx", "my", "mz"]
+
+                for i in range(6):
+                    if abs(efforts[i]) > self.effortsThreshold[i]:
+                        self.extEfforts[i] = efforts[i]
+                        #print("effort", effortNames[i], "=", extEfforts[i])
+                    else:
+                        self.extEfforts[i] = 0
+                # TODO effort trafo with rot matrix
+        
+        except Exception as e:
+            #print(e)
+            pass
