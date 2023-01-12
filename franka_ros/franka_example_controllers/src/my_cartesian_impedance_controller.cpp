@@ -157,7 +157,7 @@ namespace franka_example_controllers {
         targetLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/targetIC.csv", std::ios::out);
         currentPositionFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/currentPositionIC.csv", std::ios::out);
 
-        if(!targetLogFile_.is_open()) { std::cerr << "WARNING: Could not create open target log file!\n"; }
+        if(!targetLogFile_.is_open()) { std::cerr << "WARNING: Could not create/open target log file!\n"; }
         else {
             targetLogFile_ << "rt,t,px,py,pz,dt\n";
         }
