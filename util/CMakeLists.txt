@@ -173,6 +173,7 @@ catkin_install_python(
   scripts/util/trajectoryDifferentiator.py
   scripts/util/poseObserver.py
   scripts/util/kinematicStateObserver.py
+  scripts/util/universalRecorder.py
         DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

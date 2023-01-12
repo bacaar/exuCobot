@@ -22,7 +22,7 @@ import math
 # circle and square are centered around same point and have same outer dimensions
 xc = 0.5
 yc = 0.0
-r = 0.2		# radius for circle, half side length of square
+r = 0.15		# radius for circle, half side length of square
 
 # for square contour calculation:
 # we don't have access to current position of robot (else it would be easier to just change direction when certain position in x or y are reached) so we have to do it with time.
@@ -35,7 +35,7 @@ squareStepSize = lTrajectory / (2*np.pi)	# size of one step in trajectory, in or
 def trajectoryCircle(t):
 	x = xc + r * np.cos(t)
 	y = yc + r * np.sin(t)
-	z = 0.3
+	z = 0.2
 
 	return (x, y, z)
 
@@ -60,7 +60,7 @@ def trajectorySquare(t_):
 		x = xc + r
 		y = yc - r + squareStepSize * (t-7*2*np.pi/8)
 
-	z = 0.3
+	z = 0.2
 
 	return (x, y, z)
 
@@ -74,8 +74,8 @@ def trajectoryStepResponse(t_):
 		z = 0.2
 	else:
 		x = 0.5
-		y = 0.3
-		z = 0.35
+		y = 0.1
+		z = 0.2
 
 	return (x, y, z)
 
@@ -86,7 +86,8 @@ def main(usePoseController, trajectory, tPose=-1):
 	if usePoseController:
 		pub = rospy.Publisher('/my_cartesian_pose_controller/setDesiredPose', PoseStamped, queue_size=10)
 	else:
-		pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=10)
+		#pub = rospy.Publisher('/my_cartesian_impedance_controller/setDesiredPose', PoseStamped, queue_size=10)
+		pub = rospy.Publisher('/my_cartesian_impedance_controller/setTargetPose', PoseStamped, queue_size=10)
 
 	# init rospy, init some variables
 	rospy.init_node('newPoses', anonymous=True)
