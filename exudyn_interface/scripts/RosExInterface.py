@@ -210,7 +210,7 @@ class RosInterface:
             (_,rot) = self.__tfListener.lookupTransform('/panda_K', '/panda_link0', rospy.Time(0))
 
             R = np.array(Rotation.from_quat(rot).as_matrix())
-            print("Transformation matrix (rot 3x3) determinant: ", np.linalg.det(R))
+            #print("Transformation matrix (rot 3x3) determinant: ", np.linalg.det(R))
 
             # K frame
             forceK = np.array([data.wrench.force.x, data.wrench.force.y, data.wrench.force.z])
