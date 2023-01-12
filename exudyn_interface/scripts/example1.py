@@ -95,7 +95,7 @@ def externalForceCallback(data):
 
     # additional to force offset, there is also some noise on force/torque measurement
     # thus neglect everything which is smaller than 0.5N
-    threshold = 1
+    threshold = 3
 
     if abs(fy) >= threshold:
         extEfforts[0] = fy
