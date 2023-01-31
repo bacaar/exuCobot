@@ -43,7 +43,7 @@ class RosInterface:
         # measured force and torque by robot are not equal zero at rest, so store first measured force and torque (assumption: at rest) and substract them of every other one measured
         self.__effortsOffset = np.zeros(shape=(6, 1))
         self.__effortsThreshold = np.zeros(shape=(6, 1))
-        self.__effortsThresholdFactor = 2  # factor for scaling threshold
+        self.__effortsThresholdFactor = 10  # factor for scaling threshold
 
         # start position of robot in robot base frame in meters
         self.__globalStartPos = np.array([0.4, 0, 0.2])    # default, but not precise enough
@@ -246,7 +246,7 @@ class RosInterface:
                         self.__effortsOffset[i] = np.mean(self.__calibrationValues[:,i])
 
                         # use peak to peak value as threshold
-                        self.__effortsThreshold[i] = np.abs(np.max(self.__calibrationValues[:,i]) - np.min(self.__calibrationValues[:,i]))*self.__effortsThresholdFactor
+                        self.__effortsThreshold[i] = (np.max(self.__calibrationValues[:,i]) - np.min(self.__calibrationValues[:,i]))*self.__effortsThresholdFactor
 
                     self.__effortsCalibrated = True
 
