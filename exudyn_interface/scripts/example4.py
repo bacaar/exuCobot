@@ -73,8 +73,16 @@ def main(useImpedanceController):
                                     color=(1,0,0,1),
                                     nTiles=64)
 
+    graphicsHand = GraphicsDataOrthoCube(xMin=-0.04, xMax=0.04,
+                                         yMin=0, yMax=0.15,
+                                         zMin=-0.3, zMax=0,
+                                         color=[0.7, 0.5, 0.3, 1])
+
     inertiaPendulum = InertiaCuboid(density=rho,
                                     sideLengths=(b, b, l))
+
+    intertiaHand = InertiaCuboid(density=0.001,
+                                 sideLengths=(0.08, 0.015, 0.03))
 
     inertiaPendulum.Translated([0,0,-l/2])
 
@@ -102,6 +110,16 @@ def main(useImpedanceController):
                               gravity = [0, 0, 0], 
                               graphicsDataList = [graphics2b])
 
+    [nHand, bHand]=AddRigidBody(mainSys = mbs, 
+                                inertia = intertiaHand, 
+                                nodeType = str(exu.NodeType.RotationEulerParameters), 
+                                position = [origin[0], origin[1], origin[2]-l], 
+                                rotationMatrix = np.eye(3), 
+                                angularVelocity = np.zeros(3),
+                                velocity= [0,0,0],
+                                gravity = [0, 0, 0], 
+                                graphicsDataList = [graphicsHand])
+
 
     # create markers:
     # mGround lies on the ground where the pendulum is connected
@@ -117,6 +135,8 @@ def main(useImpedanceController):
     mPendulumTip = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bPendulum, localPosition=[0., 0., -l]))
     mTip = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bTip))
 
+    mHand = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bHand, localPosition=[0,0,0]))
+
     # a generic joint to allow rotation around x, y and z
     mbs.AddObject(GenericJoint(markerNumbers=[mGround, mPendulumTop],
                             constrainedAxes=[1,1,1,0,0,0],
@@ -126,6 +146,11 @@ def main(useImpedanceController):
     mbs.AddObject(GenericJoint(markerNumbers=[mPendulumTip, mTip],
                                constrainedAxes=[1,1,1,1,1,1],
                                visualization=VObjectJointGeneric(axesRadius=0.01, axesLength=0.01)))   # just very small visualization so you don't see it
+
+    k = 1e6
+    oHandConstraint = mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mGround, mHand],
+                                                          stiffness=np.eye(6)*k,
+                                                          damping=np.eye(6)*k*5e-3))
     
     # gravitational force
     mbs.AddLoad(Force(markerNumber=mPendulumMid, loadVector=[0, 0, -inertiaPendulum.mass*g]))
@@ -230,7 +255,9 @@ def main(useImpedanceController):
         # else if vr client, update hand position
         else:
             # TODO update hand position
-            pass
+            # TODO marker an Tracker position -> spring damper zu hand-Objekt
+            mbs.SetObjectParameter(oHandConstraint, "offset", [np.sin(t)*0.1,0,0,0,0,0])
+            
 
         # prestep-userfunction has to return true, else simulation stops
         return True

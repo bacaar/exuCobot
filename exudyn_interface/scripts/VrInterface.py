@@ -19,13 +19,12 @@ class VrInterface:
         self.__globalStartPos = np.array([0.0, 0.0, 0.0])
         self.__globalStartPosSet = False
 
-        rospy.init_node('ExudynVrInterface', anonymous=True)
-
-        # subscriber for current pose. Needed for localizing current end-effector position in vr-space
-        if self.__impedanceController:
-            globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, self.__currentPoseCallback)
-        else:
-            globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, self.__currentPoseCallback)
+        #rospy.init_node('ExudynVrInterface', anonymous=True)
+        ## subscriber for current pose. Needed for localizing current end-effector position in vr-space
+        #if self.__impedanceController:
+        #    globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, self.__currentPoseCallback)
+        #else:
+        #    globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, self.__currentPoseCallback)
 
         # TODO: check if controller available
         # TODO: if yes, set origin relative to controller and robot configuration
