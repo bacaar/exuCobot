@@ -19,23 +19,28 @@ from geometry_msgs.msg import PoseStamped, WrenchStamped
 import sys
 import os
 
-f = os.path.dirname(os.path.abspath(__file__))
-# go two directories up
-for _ in range(2):
-    f = f[0:f.rfind("/")]
-sys.path.append(f)  # append [...]/exuCobot directory to system path
+CLIENT_NR = 2   # 1 = Robot client
+                # 2 = VR client
 
-from exudyn_interface.scripts.RobotVrInterface import RobotInterface
+assert CLIENT_NR == 1 or CLIENT_NR == 2, "Robot/Vr Client undefined"
 
-invisible = {'show': False, 'drawSize': -1, 'color': [-1]*4}
+if CLIENT_NR == 1:
+    from RobotInterface import RobotInterface
+if CLIENT_NR == 2:
+    from VrInterface import VrInterface
 
 def main(useImpedanceController):
 
-    rosInterface = RobotInterface(useImpedanceController)
+    if CLIENT_NR == 1:
+        rosInterface = RobotInterface(useImpedanceController)
+    else:
+        vrInterface = VrInterface(useImpedanceController)
 
     # init exudyn
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
+
+    origin = np.array([-2, 1, 1])
 
     tRes = 0.001    # step size in s
     tEnd = 10000    # simulation time in s
@@ -55,8 +60,8 @@ def main(useImpedanceController):
 
     background = GraphicsDataCheckerBoard(point=[0,-l/2,-b/2], color=[0.7]*3+[1], alternatingColor=[0.8]*3+[1])
 
-    bGround = mbs.AddObject(ObjectGround(referencePosition=[0, 0, 0]))#,
-                                         #visualization=VObjectGround(graphicsData=[background])))
+    bGround = mbs.AddObject(ObjectGround(referencePosition=origin,
+                                         visualization=VObjectGround(graphicsData=[background])))
 
     graphics2a = GraphicsDataOrthoCube(xMin=-b/2, xMax=b/2,
                                        yMin=-b/2, yMax=b/2,
@@ -80,7 +85,7 @@ def main(useImpedanceController):
     [nPendulum, bPendulum]=AddRigidBody(mainSys = mbs, 
                                         inertia = inertiaPendulum, 
                                         nodeType = str(exu.NodeType.RotationEulerParameters), 
-                                        position = [0, 0, 0], 
+                                        position = origin, 
                                         rotationMatrix = np.eye(3), 
                                         angularVelocity = np.zeros(3),
                                         velocity=np.zeros(3),
@@ -90,10 +95,10 @@ def main(useImpedanceController):
     [nTip, bTip]=AddRigidBody(mainSys = mbs, 
                               inertia = inertiaPendulumTip, 
                               nodeType = str(exu.NodeType.RotationEulerParameters), 
-                              position = [0, 0, -l], 
+                              position = [origin[0], origin[1], origin[2]-l], 
                               rotationMatrix = np.eye(3), 
                               angularVelocity = np.zeros(3),
-                              velocity= [0,0,0],
+                              velocity= [0,1,0],
                               gravity = [0, 0, 0], 
                               graphicsDataList = [graphics2b])
 
@@ -139,30 +144,31 @@ def main(useImpedanceController):
     mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mGround, mPendulumTip],
                                         stiffness=k,
                                         damping=d,
-                                        visualization=invisible))
+                                        visualization={'show': False, 'drawSize': -1, 'color': [-1]*4}))
 
-    # external applied forces
-    def UFloadX(mbs, t, load):
-        return rosInterface.getExternalEfforts()[0]
-        #return 0
+    if CLIENT_NR == 1:
+        # external applied forces
+        def UFloadX(mbs, t, load):
+            return rosInterface.getExternalEfforts()[0]
+            #return 0
 
-    def UFloadY(mbs, t, load):
-        return rosInterface.getExternalEfforts()[1]
-        # return 0
+        def UFloadY(mbs, t, load):
+            return rosInterface.getExternalEfforts()[1]
+            # return 0
 
-    def UFloadZ(mbs, t, load):
-        return rosInterface.getExternalEfforts()[2]
+        def UFloadZ(mbs, t, load):
+            return rosInterface.getExternalEfforts()[2]
 
-    mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=0))
-    mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=1))
-    mFz = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=2))
-    
-    mbs.AddLoad(LoadCoordinate(markerNumber=mFx,
-                               loadUserFunction=UFloadX))
-    mbs.AddLoad(LoadCoordinate(markerNumber=mFy,
-                               loadUserFunction=UFloadY))
-    mbs.AddLoad(LoadCoordinate(markerNumber=mFz,
-                               loadUserFunction=UFloadZ))
+        mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=0))
+        mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=1))
+        mFz = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=2))
+        
+        mbs.AddLoad(LoadCoordinate(markerNumber=mFx,
+                                loadUserFunction=UFloadX))
+        mbs.AddLoad(LoadCoordinate(markerNumber=mFy,
+                                loadUserFunction=UFloadY))
+        mbs.AddLoad(LoadCoordinate(markerNumber=mFz,
+                                loadUserFunction=UFloadZ))
 
     # sensor for position of endpoint of pendulum
     sensorPos = mbs.AddSensor(SensorBody(bodyNumber=bTip,
@@ -177,7 +183,7 @@ def main(useImpedanceController):
     mbs.variables['vel'] = sensorVel
     mbs.variables['acc'] = sensorAcc
 
-    # sensor for rotation (orientation) of endpoint of pendulum
+# sensor for rotation (orientation) of endpoint of pendulum
     sensorRot = mbs.AddSensor(SensorBody(bodyNumber=bTip,
                                          outputVariableType=exu.OutputVariableType.Rotation))
 
@@ -186,37 +192,45 @@ def main(useImpedanceController):
 
     # publishing each and every step is too much, this slows the connection down
     # thus publish every xth pose, only
-    xPublish = 6
-    xPublishCounter = 0
+    if CLIENT_NR == 1:
+        xPublish = 6
+        xPublishCounter = 0
 
     def PreStepUserFunction(mbs, t):
-        nonlocal xPublishCounter
 
-        if xPublishCounter == 0:
-            # read current kinematic state and orientation
-            pos_ = mbs.GetSensorValues(mbs.variables['pos'])
-            vel_ = mbs.GetSensorValues(mbs.variables['vel'])
-            acc_ = mbs.GetSensorValues(mbs.variables['acc'])
+        # if robot client, send positions to robot
+        if CLIENT_NR == 1:
+            nonlocal xPublishCounter
+            if xPublishCounter == 0:
+                # read current kinematic state and orientation
+                pos_ = mbs.GetSensorValues(mbs.variables['pos'])
+                vel_ = mbs.GetSensorValues(mbs.variables['vel'])
+                acc_ = mbs.GetSensorValues(mbs.variables['acc'])
 
-            rot_ = mbs.GetSensorValues(mbs.variables['rotation'])
-            
-            # convert data to numpy arrays
-            pos = np.array(pos_)
-            vel = np.array(vel_)
-            acc = np.array(acc_)
-            rot = np.array(rot_)
+                rot_ = mbs.GetSensorValues(mbs.variables['rotation'])
+                
+                # convert data to numpy arrays
+                pos = np.array(pos_)
+                vel = np.array(vel_)
+                acc = np.array(acc_)
+                rot = np.array(rot_)
 
-            # calculate angle
-            angleX = float(round(180+np.rad2deg(rot[0]), 4))
+                # calculate angle
+                angleX = float(round(180+np.rad2deg(rot[0]), 4))
 
-            #print(angleX, type(angleX))
+                #print(angleX, type(angleX))
 
-            rosInterface.publish(pos, vel, acc, angleX, t)
+                rosInterface.publish(pos, vel, acc, angleX, t)
 
-        xPublishCounter += 1
+            xPublishCounter += 1
 
-        if xPublishCounter >= xPublish:
-            xPublishCounter = 0
+            if xPublishCounter >= xPublish:
+                xPublishCounter = 0
+
+        # else if vr client, update hand position
+        else:
+            # TODO update hand position
+            pass
 
         # prestep-userfunction has to return true, else simulation stops
         return True
@@ -249,9 +263,13 @@ def main(useImpedanceController):
     SC.visualizationSettings.openGL.initialCenterPoint = [0., -l/2, 0.] # screen coordinates, not model coordinates
     SC.visualizationSettings.openGL.initialZoom = 0.5
 
+    
+
     #SC.visualizationSettings.window.renderWindowSize = [1920, 1080]
-    SC.visualizationSettings.window.renderWindowSize = [960, 640]
+    #SC.visualizationSettings.window.renderWindowSize = [960, 640]
     #SC.visualizationSettings.window.renderWindowSize = [480, 320]
+
+    vrInterface.setSettings(SC)
 
     # exudyn magic
     exu.StartRenderer()

@@ -10,6 +10,7 @@ Ros (Robot) Interface for Exudyn
 import numpy as np
 
 import rospy
+
 from geometry_msgs.msg import PoseStamped, WrenchStamped
 
 from util.msg import segmentCommand
@@ -98,7 +99,7 @@ class RobotInterface:
         self.__logFile = None
 
         # init ros
-        rospy.init_node('ExudynExample3_1', anonymous=True)
+        rospy.init_node('ExudynRobotInterface', anonymous=True)
 
         if self.__impedanceController:
             # publisher for pendulum poses (=endeffector positions)
