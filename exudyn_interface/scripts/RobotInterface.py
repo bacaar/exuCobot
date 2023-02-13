@@ -12,7 +12,7 @@ import numpy as np
 import rospy
 
 from geometry_msgs.msg import PoseStamped, WrenchStamped
-
+from std_msgs.msg import Float64MultiArray
 from util.msg import segmentCommand
 
 import tf
@@ -101,29 +101,33 @@ class RobotInterface:
         # init ros
         rospy.init_node('ExudynRobotInterface', anonymous=True)
 
+        # depending on used controller, different topics have to be used
         if self.__impedanceController:
-            # publisher for pendulum poses (=endeffector positions)
-            self.__pub = rospy.Publisher('/my_cartesian_impedance_controller/setTargetPose', PoseStamped, queue_size=1000)
-            self.__pubF = rospy.Publisher('/my_cartesian_impedance_controller/analysis/getRegisteredForce', WrenchStamped, queue_size=10)
-
-            # subscriber for current pose
-            globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, self.__currentPoseCallback)
-
-            # open and init log file (csv)
-            self.__logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynIC.csv", "w")
+            topicBase = '/my_cartesian_impedance_controller'
+            brief = "IC"
+            classToUse = PoseStamped
         else:
-            # publisher for pendulum poses (=endeffector positions)
-            self.__pub = rospy.Publisher('/my_cartesian_velocity_controller/setTargetPose', segmentCommand, queue_size=1000)
-            self.__pubF = rospy.Publisher('/my_cartesian_velocity_controller/analysis/getRegisteredForce', WrenchStamped, queue_size=10)
+            topicBase = '/my_cartesian_velocity_controller'
+            brief = "VC"
+            classToUse = segmentCommand
 
-            # subscriber for current pose
-            globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, self.__currentPoseCallback)
+        # publisher for pendulum poses (=endeffector positions)
+        self.__pub = rospy.Publisher(topicBase + '/setTargetPose', classToUse, queue_size=1000)
 
-            # open and init log file (csv)
-            self.__logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudynVC.csv", "w")
+        # publisher for system data
+        self.__pubS = rospy.Publisher(topicBase + '/SystemState', Float64MultiArray, queue_size=1)
+        
+        # publisher for filtered force
+        self.__pubF = rospy.Publisher(topicBase + '/analysis/getRegisteredForce', WrenchStamped, queue_size=10)
+
+        # subscriber for current pose
+        globalStartPosSub = rospy.Subscriber(topicBase + "/getCurrentPose", PoseStamped, self.__currentPoseCallback)
 
         # subscriber for external forces
         rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, self.__externalEffortCallback)
+
+        # open and init log file (csv)
+        self.__logFile = open("/home/robocup/catkinAaron/src/exuCobot/log/exudyn" + brief + ".csv", "w")
         
         self.__logFile.write("rt,dt,px,py,pz,vx,vy,vz,ax,ay,az\n")
 
@@ -160,6 +164,29 @@ class RobotInterface:
     # getter
     def getExternalEfforts(self):
         return self.__extEfforts
+
+
+    def publishSystem(self, systemData): 
+        #dataList = []   
+        msg = Float64MultiArray()
+        
+        #msg.layout.dim = 5 
+        #for item in systemData: 
+        #    dataList += [item]
+
+
+        """for i in len(systemData): 
+            dataList += []
+            for j in len(systemData[i]): 
+                dataList[i] +=  [float(systemData[i][j])]"""
+        # print(dataList)
+        # dataList = [[1,2,3], [4,5,7], [8,9,10]]
+        # dataList=[[float(dataList[j][i]) for i in range(len(dataList[j]))] for j in range(len(dataList))]
+        #print(dataList)
+        msg.data = systemData # dataList
+        self.__pubS.publish(msg)
+
+
 
 
     def publish(self, posExu, vel, acc, angleX, tExu):
@@ -246,10 +273,10 @@ class RobotInterface:
             # transform forces and torques from K frame (endeffector, flange) (=panda_hand) into world frame (panda_link0)
 
             #                                            child          parent      use latest update
-            (_,rot) = self.__tfListener.lookupTransform('/panda_K', '/panda_link0', rospy.Time(0))
+            (_,rot) = self.__tfListener.lookupTransform('/panda_link0', '/panda_K', rospy.Time(0))
 
             R = np.array(Rotation.from_quat(rot).as_matrix())
-            #print("Transformation matrix (rot 3x3) determinant: ", np.linalg.det(R))
+            # print("Transformation matrix (rot 3x3) determinant: ", R)
 
             # K frame
             forceK = np.array([data.wrench.force.x, data.wrench.force.y, data.wrench.force.z])

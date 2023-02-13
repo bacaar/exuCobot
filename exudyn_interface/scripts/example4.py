@@ -14,7 +14,11 @@ from exudyn.utilities import *
 import numpy as np
 print("Using Numpy version ", np.__version__)
 
+from scipy.spatial.transform import Rotation   
+
 from geometry_msgs.msg import PoseStamped, WrenchStamped
+
+from time import time
 
 import sys
 import os
@@ -39,6 +43,35 @@ def main(useImpedanceController):
     # init exudyn
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
+
+    # find controller to render model at that location
+
+    t0 = time()
+    dt = 3
+    renderState = None
+
+    vrInterface.setSettings(SC)
+
+    while(time()-t0 < dt):
+        rs = SC.GetRenderState()
+        try:
+            if rs['openVR']['controllerPoses']:
+                renderState = rs
+                break
+        except:
+            pass
+
+
+    if renderState is not None:
+        T = renderState['openVR']['controllerPoses'][0]
+        t = T[3][:3] - origin
+        R = T[:3,:3]
+        r =  Rotation.from_matrix(R)
+        angles = r.as_euler("xyz",degrees=False)
+        #mbs.SetObjectParameter(oHandConstraint, "offset", [t[0],t[1],t[2],0,0,0])
+        #mbs.SetObjectParameter(oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
+    else:
+        pass
 
     origin = np.array([-2, 1, 1])
 
@@ -208,7 +241,7 @@ def main(useImpedanceController):
     mbs.variables['vel'] = sensorVel
     mbs.variables['acc'] = sensorAcc
 
-# sensor for rotation (orientation) of endpoint of pendulum
+    # sensor for rotation (orientation) of endpoint of pendulum
     sensorRot = mbs.AddSensor(SensorBody(bodyNumber=bTip,
                                          outputVariableType=exu.OutputVariableType.Rotation))
 
@@ -256,7 +289,27 @@ def main(useImpedanceController):
         else:
             # TODO update hand position
             # TODO marker an Tracker position -> spring damper zu hand-Objekt
-            mbs.SetObjectParameter(oHandConstraint, "offset", [np.sin(t)*0.1,0,0,0,0,0])
+
+            renderState = SC.GetRenderState()
+            if renderState['openVR']['trackerPoses']:
+                T = renderState['openVR']['trackerPoses'][0]
+                t = T[3][:3] - origin
+                R = T[:3,:3]
+                r =  Rotation.from_matrix(R)
+                angles = r.as_euler("xyz",degrees=False)
+                mbs.SetObjectParameter(oHandConstraint, "offset", [t[0],t[1],t[2],0,0,0])
+                #mbs.SetObjectParameter(oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
+            else:
+                pass
+
+            #mbs.SetObjectParameter(oHandConstraint, "offset", [np.sin(t)*0.1,0,0,0,0,0])
+
+            data = vrInterface.getCurrentSystemState()
+
+            buf = mbs.systemData.GetSystemState()
+
+            if data is not None:
+                mbs.systemData.SetSystemState(data)
             
 
         # prestep-userfunction has to return true, else simulation stops

@@ -10,6 +10,7 @@ import numpy as np
 import rospy
 
 from geometry_msgs.msg import PoseStamped, WrenchStamped
+from std_msgs.msg import Float64MultiArray
 
 class VrInterface:
 
@@ -19,16 +20,25 @@ class VrInterface:
         self.__globalStartPos = np.array([0.0, 0.0, 0.0])
         self.__globalStartPosSet = False
 
-        #rospy.init_node('ExudynVrInterface', anonymous=True)
-        ## subscriber for current pose. Needed for localizing current end-effector position in vr-space
-        #if self.__impedanceController:
-        #    globalStartPosSub = rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, self.__currentPoseCallback)
-        #else:
-        #    globalStartPosSub = rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, self.__currentPoseCallback)
+        self.__systemStateData = None
+
+        rospy.init_node('ExudynVrInterface', anonymous=True)
+        # subscriber for current pose. Needed for localizing current end-effector position in vr-space
+        if self.__impedanceController:
+            topicBase = "/my_cartesian_impedance_controller"
+        else:
+            topicBase = "/my_cartesian_velocity_controller"
+
+        self.__systemStateSub = rospy.Subscriber(topicBase + "/SystemState", Float64MultiArray, self.__systemStateCallback)
+        globalStartPosSub = rospy.Subscriber(topicBase + "/getCurrentPose", PoseStamped, self.__currentPoseCallback)
 
         # TODO: check if controller available
         # TODO: if yes, set origin relative to controller and robot configuration
         # TODO: check if tracker (for hand rendering) available
+        pass
+
+    def __del__(self):
+        #self.__systemStateSub.unregister()
         pass
 
     # set visualisation settings for VR
@@ -43,6 +53,10 @@ class VrInterface:
         SC.visualizationSettings.general.graphicsUpdateInterval = 0.005
 
 
+    def getCurrentSystemState(self):
+        return self.__systemStateData
+
+
     ## callbacks
     def __currentPoseCallback(self, data):
         """
@@ -55,3 +69,32 @@ class VrInterface:
             self.__globalStartPosSet = True
             # TODO Logger
             print("Global start pos set")
+
+
+    def __systemStateCallback(self, systemState):
+        """
+        callback function to get SystemData of RobotClient
+        splits 1d array into multiple ones.
+
+        Example structure for systemData if it would consist out of vector [x1, x2, x3] and [y1, y2]:
+        [3, x1, x2, x3, 2, y1, y2]
+        so every vector begins with its length
+        """
+
+        # amount of arrays in systemData. Default = 5
+        nArrays = 5
+
+        buf = [[] for i in range(nArrays)]
+        
+        currentList = 0
+        index = 0
+        
+        for i in range(nArrays):
+            currentListLength = int(systemState.data[index])
+            for _ in range(currentListLength):
+                index += 1
+                buf[currentList].append(systemState.data[index])
+            currentList += 1
+            index +=1
+
+        self.__systemStateData = buf
