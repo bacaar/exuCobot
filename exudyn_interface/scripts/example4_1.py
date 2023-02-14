@@ -18,6 +18,8 @@ from scipy.spatial.transform import Rotation
 
 from geometry_msgs.msg import PoseStamped, WrenchStamped
 
+from RobotVrInterface import RobotVrInterface
+
 from time import time
 
 import sys
@@ -25,17 +27,7 @@ import os
 
 def main(client, useImpedanceController):
 
-    if client == 1:
-        from RobotInterface import RobotInterface
-    elif client == 2:
-        from VrInterface import VrInterface
-    else:
-        exit -1
-
-    if client == 1:
-        robotInterface = RobotInterface(useImpedanceController)
-    else:
-        vrInterface = VrInterface(useImpedanceController)
+    robotVrInterface = RobotVrInterface(client, useImpedanceController)
 
     # init exudyn
     SC = exu.SystemContainer()
@@ -204,15 +196,15 @@ def main(client, useImpedanceController):
     if client == 1:
         # external applied forces
         def UFloadX(mbs, t, load):
-            #return rosInterface.getExternalEfforts()[0]
+            #return robotVrInterface.getExternalEfforts()[0]
             return 0
 
         def UFloadY(mbs, t, load):
-            return robotInterface.getExternalEfforts()[1]
+            return robotVrInterface.getExternalEfforts()[1]
             # return 0
 
         def UFloadZ(mbs, t, load):
-            return robotInterface.getExternalEfforts()[2]
+            return robotVrInterface.getExternalEfforts()[2]
 
         mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=0))
         mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=1))
@@ -251,7 +243,7 @@ def main(client, useImpedanceController):
         # if robot client, send positions to robot
         if client == 1:
 
-            robotInterface.update(mbs, t)
+            robotVrInterface.update(mbs, t)
 
 
         # else if vr client, update hand position
@@ -269,7 +261,7 @@ def main(client, useImpedanceController):
             else:
                 pass
 
-            data = vrInterface.getCurrentSystemState()
+            data = robotVrInterface.getCurrentSystemState()
 
             if data is not None:
                 mbs.systemData.SetSystemState(data)
@@ -306,10 +298,7 @@ def main(client, useImpedanceController):
     SC.visualizationSettings.openGL.initialCenterPoint = [0., -l/2, 0.] # screen coordinates, not model coordinates
     SC.visualizationSettings.openGL.initialZoom = 0.5
 
-
-
-    if client == 2: 
-        vrInterface.setSettings(SC)
+    robotVrInterface.setSettings(SC)
 
     # exudyn magic
     exu.StartRenderer()
