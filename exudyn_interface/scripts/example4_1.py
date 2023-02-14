@@ -47,16 +47,16 @@ def main(client, useImpedanceController):
     dt = 3
     renderState = None
 
-    vrInterface.setSettings(SC)
-
-    while(time()-t0 < dt):
-        rs = SC.GetRenderState()
-        try:
-            if rs['openVR']['controllerPoses']:
-                renderState = rs
-                break
-        except:
-            pass
+    #vrInterface.setSettings(SC)
+    #
+    #while(time()-t0 < dt):
+    #    rs = SC.GetRenderState()
+    #    try:
+    #        if rs['openVR']['controllerPoses']:
+    #            renderState = rs
+    #            break
+    #    except:
+    #        pass
 
 
     if renderState is not None:
@@ -247,16 +247,24 @@ def main(client, useImpedanceController):
 
     # publishing each and every step is too much, this slows the connection down
     # thus publish every xth pose, only
+    # furthermore, as client 2 is only updating the graphics with f=60Hz, we don't have to update
+    # system state every 1ms, so with f=1000Hz. Instead f=60Hz equivalents to update every 1/60=17ms
     if client == 1:
-        xPublish = 6
-        xPublishCounter = 0
+        robotCommandSendInterval = 0.006    #s
+        lastRobotCommandSentTime = -robotCommandSendInterval
+
+        systemStateUpdateInterval = 0.017  #s
+        lastSystemStateUpdateTime = -systemStateUpdateInterval
+
 
     def PreStepUserFunction(mbs, t):
 
         # if robot client, send positions to robot
         if client == 1:
-            nonlocal xPublishCounter
-            if xPublishCounter == 0:
+            nonlocal lastSystemStateUpdateTime
+            nonlocal lastRobotCommandSentTime
+
+            if t - lastRobotCommandSentTime >= robotCommandSendInterval:
                 # read current kinematic state and orientation
                 pos_ = mbs.GetSensorValues(mbs.variables['pos'])
                 vel_ = mbs.GetSensorValues(mbs.variables['vel'])
@@ -276,21 +284,21 @@ def main(client, useImpedanceController):
                 #print(angleX, type(angleX))
 
                 rosInterface.publish(pos, vel, acc, angleX, t)
+                
+                lastRobotCommandSentTime = t
 
-            xPublishCounter += 1
+            if t - lastSystemStateUpdateTime >= systemStateUpdateInterval:
+                # publish system state vor VR_CLIENT 2
+                systemStateData = mbs.systemData.GetSystemState()
+                systemStateList1d = []
+                for array in systemStateData:
+                    systemStateList1d.append(float(len(array)))
+                    for i in range(len(array)):
+                        systemStateList1d.append(array[i])
 
-            if xPublishCounter >= xPublish:
-                xPublishCounter = 0
+                rosInterface.publishSystem(systemStateList1d)
+                lastSystemStateUpdateTime = t
 
-            # publish system state vor VR_CLIENT 2
-            systemStateData = mbs.systemData.GetSystemState()
-            systemStateList1d = []
-            for array in systemStateData:
-                systemStateList1d.append(float(len(array)))
-                for i in range(len(array)):
-                    systemStateList1d.append(array[i])
-
-            rosInterface.publishSystem(systemStateList1d)
 
         # else if vr client, update hand position
         else:

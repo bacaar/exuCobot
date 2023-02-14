@@ -50,7 +50,7 @@ class VrInterface:
         SC.visualizationSettings.interactive.openVR.showCompanionWindow = True
         SC.visualizationSettings.interactive.lockModelView = True #lock rotation/translation/zoom of model
         SC.visualizationSettings.interactive.openVR.logLevel = 3
-        SC.visualizationSettings.general.graphicsUpdateInterval = 0.005
+        SC.visualizationSettings.general.graphicsUpdateInterval = 0.017
 
 
     def getCurrentSystemState(self):
