@@ -245,7 +245,7 @@ def main(useImpedanceController):
 
                 #print(angleX, type(angleX))
 
-                rosInterface.publish(pos, vel, acc, angleX, t)
+                rosInterface.__publishRobotCommand(pos, vel, acc, angleX, t)
 
             xPublishCounter += 1
 
@@ -260,7 +260,7 @@ def main(useImpedanceController):
                 for i in range(len(array)):
                     systemStateList1d.append(array[i])
 
-            rosInterface.publishSystem(systemStateList1d)
+            rosInterface.__publishSystemState(systemStateList1d)
 
         # else if vr client, update hand position
         else:

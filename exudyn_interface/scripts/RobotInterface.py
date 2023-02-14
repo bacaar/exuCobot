@@ -94,6 +94,12 @@ class RobotInterface:
 
         self.__impedanceController = useImpedanceController
 
+        # timing variable to know when to send new command to robot or when to publish new mbs system state update
+        self.__robotCommandSendInterval = 0.006    #s
+        self.__lastRobotCommandSentTime = -self.__robotCommandSendInterval
+        self.__systemStateUpdateInterval = 0.017  #s
+        self.__lastSystemStateUpdateTime = -self.__systemStateUpdateInterval
+
         self.__lastStepTime = 0    # last step time (exudyn time)
 
         self.__logFile = None
@@ -165,8 +171,51 @@ class RobotInterface:
     def getExternalEfforts(self):
         return self.__extEfforts
 
+    
+    def update(self, mbs, t):
 
-    def publishSystem(self, systemData): 
+        # publishing each and every step is too much, this slows the connection down
+        # thus publish every xth pose, only
+        # furthermore, as vrInterface is only updating the graphics with f=60Hz, we don't have to update
+        # system state every 1ms, so with f=1000Hz. Instead f=60Hz equivalents to update every 1/60=17ms
+
+        if t - self.__lastRobotCommandSentTime >= self.__robotCommandSendInterval:
+            # read current kinematic state and orientation
+            pos_ = mbs.GetSensorValues(mbs.variables['pos'])
+            vel_ = mbs.GetSensorValues(mbs.variables['vel'])
+            acc_ = mbs.GetSensorValues(mbs.variables['acc'])
+
+            rot_ = mbs.GetSensorValues(mbs.variables['rotation'])
+            
+            # convert data to numpy arrays
+            pos = np.array(pos_)
+            vel = np.array(vel_)
+            acc = np.array(acc_)
+            rot = np.array(rot_)
+
+            # calculate angle
+            angleX = float(round(180+np.rad2deg(rot[0]), 4))
+
+            #print(angleX, type(angleX))
+
+            self.__publishRobotCommand(pos, vel, acc, angleX, t)
+            
+            lastRobotCommandSentTime = t
+
+        if t - self.__lastSystemStateUpdateTime >= self.__systemStateUpdateInterval:
+            # publish system state vor vrInterface
+            systemStateData = mbs.systemData.GetSystemState()
+            systemStateList1d = []
+            for array in systemStateData:
+                systemStateList1d.append(float(len(array)))
+                for i in range(len(array)):
+                    systemStateList1d.append(array[i])
+
+            self.__publishSystemState(systemStateList1d)
+            lastSystemStateUpdateTime = t
+
+
+    def __publishSystemState(self, systemData): 
         #dataList = []   
         msg = Float64MultiArray()
         
@@ -187,9 +236,7 @@ class RobotInterface:
         self.__pubS.publish(msg)
 
 
-
-
-    def publish(self, posExu, vel, acc, angleX, tExu):
+    def __publishRobotCommand(self, posExu, vel, acc, angleX, tExu):
 
         # in first iteration, offset between exudyn local position and robot global position has to be determined
         if self.__firstPose:

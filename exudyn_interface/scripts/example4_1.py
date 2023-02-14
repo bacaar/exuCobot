@@ -33,7 +33,7 @@ def main(client, useImpedanceController):
         exit -1
 
     if client == 1:
-        rosInterface = RobotInterface(useImpedanceController)
+        robotInterface = RobotInterface(useImpedanceController)
     else:
         vrInterface = VrInterface(useImpedanceController)
 
@@ -208,11 +208,11 @@ def main(client, useImpedanceController):
             return 0
 
         def UFloadY(mbs, t, load):
-            return rosInterface.getExternalEfforts()[1]
+            return robotInterface.getExternalEfforts()[1]
             # return 0
 
         def UFloadZ(mbs, t, load):
-            return rosInterface.getExternalEfforts()[2]
+            return robotInterface.getExternalEfforts()[2]
 
         mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=0))
         mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=1))
@@ -245,59 +245,13 @@ def main(client, useImpedanceController):
     # store sensor value of each step in mbs variable, so that is accessible from user function
     mbs.variables['rotation'] = sensorRot
 
-    # publishing each and every step is too much, this slows the connection down
-    # thus publish every xth pose, only
-    # furthermore, as client 2 is only updating the graphics with f=60Hz, we don't have to update
-    # system state every 1ms, so with f=1000Hz. Instead f=60Hz equivalents to update every 1/60=17ms
-    if client == 1:
-        robotCommandSendInterval = 0.006    #s
-        lastRobotCommandSentTime = -robotCommandSendInterval
-
-        systemStateUpdateInterval = 0.017  #s
-        lastSystemStateUpdateTime = -systemStateUpdateInterval
-
 
     def PreStepUserFunction(mbs, t):
 
         # if robot client, send positions to robot
         if client == 1:
-            nonlocal lastSystemStateUpdateTime
-            nonlocal lastRobotCommandSentTime
 
-            if t - lastRobotCommandSentTime >= robotCommandSendInterval:
-                # read current kinematic state and orientation
-                pos_ = mbs.GetSensorValues(mbs.variables['pos'])
-                vel_ = mbs.GetSensorValues(mbs.variables['vel'])
-                acc_ = mbs.GetSensorValues(mbs.variables['acc'])
-
-                rot_ = mbs.GetSensorValues(mbs.variables['rotation'])
-                
-                # convert data to numpy arrays
-                pos = np.array(pos_)
-                vel = np.array(vel_)
-                acc = np.array(acc_)
-                rot = np.array(rot_)
-
-                # calculate angle
-                angleX = float(round(180+np.rad2deg(rot[0]), 4))
-
-                #print(angleX, type(angleX))
-
-                rosInterface.publish(pos, vel, acc, angleX, t)
-                
-                lastRobotCommandSentTime = t
-
-            if t - lastSystemStateUpdateTime >= systemStateUpdateInterval:
-                # publish system state vor VR_CLIENT 2
-                systemStateData = mbs.systemData.GetSystemState()
-                systemStateList1d = []
-                for array in systemStateData:
-                    systemStateList1d.append(float(len(array)))
-                    for i in range(len(array)):
-                        systemStateList1d.append(array[i])
-
-                rosInterface.publishSystem(systemStateList1d)
-                lastSystemStateUpdateTime = t
+            robotInterface.update(mbs, t)
 
 
         # else if vr client, update hand position
@@ -315,11 +269,7 @@ def main(client, useImpedanceController):
             else:
                 pass
 
-            #mbs.SetObjectParameter(oHandConstraint, "offset", [np.sin(t)*0.1,0,0,0,0,0])
-
             data = vrInterface.getCurrentSystemState()
-
-            buf = mbs.systemData.GetSystemState()
 
             if data is not None:
                 mbs.systemData.SetSystemState(data)
@@ -356,11 +306,7 @@ def main(client, useImpedanceController):
     SC.visualizationSettings.openGL.initialCenterPoint = [0., -l/2, 0.] # screen coordinates, not model coordinates
     SC.visualizationSettings.openGL.initialZoom = 0.5
 
-    
 
-    #SC.visualizationSettings.window.renderWindowSize = [1920, 1080]
-    #SC.visualizationSettings.window.renderWindowSize = [960, 640]
-    #SC.visualizationSettings.window.renderWindowSize = [480, 320]
 
     if client == 2: 
         vrInterface.setSettings(SC)

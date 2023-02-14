@@ -41,6 +41,9 @@ class VrInterface:
         #self.__systemStateSub.unregister()
         pass
 
+    def update():
+        pass
+
     # set visualisation settings for VR
     def setSettings(self, SC):
         SC.visualizationSettings.general.drawCoordinateSystem = True

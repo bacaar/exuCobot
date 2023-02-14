@@ -278,7 +278,7 @@ def main(useImpedanceController):
 
                 #print(angleX, type(angleX))
 
-                rosInterface.publish(pos, vel, acc, angleX, t)
+                rosInterface.__publishRobotCommand(pos, vel, acc, angleX, t)
 
             xPublishCounter += 1
 
