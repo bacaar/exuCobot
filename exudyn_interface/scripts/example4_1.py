@@ -12,18 +12,10 @@ print("Using Exudyn version ", exu.__version__)
 from exudyn.utilities import *
 
 import numpy as np
-print("Using Numpy version ", np.__version__)
-
-from scipy.spatial.transform import Rotation
-
-from geometry_msgs.msg import PoseStamped, WrenchStamped
 
 from RobotVrInterface import RobotVrInterface
 
-from time import time
-
 import sys
-import os
 
 def main(client, useImpedanceController):
 
@@ -32,35 +24,6 @@ def main(client, useImpedanceController):
     mbs = SC.AddSystem()
 
     robotVrInterface = RobotVrInterface(mbs, client, useImpedanceController)
-    
-    # find controller to render model at that location
-
-    t0 = time()
-    dt = 3
-    renderState = None
-
-    #vrInterface.setSettings(SC)
-    #
-    #while(time()-t0 < dt):
-    #    rs = SC.GetRenderState()
-    #    try:
-    #        if rs['openVR']['controllerPoses']:
-    #            renderState = rs
-    #            break
-    #    except:
-    #        pass
-
-
-    if renderState is not None:
-        T = renderState['openVR']['controllerPoses'][0]
-        t = T[3][:3] - origin
-        R = T[:3,:3]
-        r =  Rotation.from_matrix(R)
-        angles = r.as_euler("xyz",degrees=False)
-        #mbs.SetObjectParameter(oHandConstraint, "offset", [t[0],t[1],t[2],0,0,0])
-        #mbs.SetObjectParameter(oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
-    else:
-        pass
 
     origin = np.array([-2, 1, 1])
 
