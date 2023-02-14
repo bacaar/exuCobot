@@ -14,10 +14,12 @@ from std_msgs.msg import Float64MultiArray
 import tf
 from scipy.spatial.transform import Rotation
 
+from exudyn.utilities import *
+
 class RobotVrInterface:
 
     # TODO: what if interfaceType==2 but robotInterface not available?
-    def __init__(self, interfaceType, useImpedanceController=False) -> None:
+    def __init__(self, mbs, interfaceType, useImpedanceController=False) -> None:
         """
         Initialization
 
@@ -31,20 +33,56 @@ class RobotVrInterface:
             self.__robotInterface = RobotInterface(useImpedanceController)
             self.__interfaceType = 1
         else:
-            self.__vrInterface = VrInterface(useImpedanceController)
+            self.__vrInterface = VrInterface(mbs, useImpedanceController)
             self.__interfaceType = 2
 
-    def update(self, mbs, t) -> None:
+    def setOrigin(self, origin):
+        if self.__interfaceType == 1:
+            pass
+        else:
+            self.__vrInterface.setOrigin(origin)
+
+    # actually only needed for vrInterface, but ODE coordinates must be consistent between vr and robot interface
+    def setHand(self, mbs, mGround):
+
+        graphicsHand = GraphicsDataOrthoCube(xMin=-0.04, xMax=0.04,
+                                         yMin=0, yMax=0.15,
+                                         zMin=-0.3, zMax=0,
+                                         color=[0.7, 0.5, 0.3, 1])
+
+        intertiaHand = InertiaCuboid(density=0.001,
+                                 sideLengths=(0.08, 0.015, 0.03))
+
+        [nHand, bHand]=AddRigidBody(mainSys = mbs, 
+                                    inertia = intertiaHand, 
+                                    nodeType = str(exu.NodeType.RotationEulerParameters), 
+                                    position = [0, 0, 0], #[self.__origin[0], self.__origin[1], self.__origin[2]-l], 
+                                    rotationMatrix = np.eye(3), 
+                                    angularVelocity = np.zeros(3),
+                                    velocity= [0,0,0],
+                                    gravity = [0, 0, 0], 
+                                    graphicsDataList = [graphicsHand])
+
+        mHand = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bHand, localPosition=[0,0,0]))
+
+        k = 1e6
+        self.__oHandConstraint = mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mGround, mHand],
+                                                            stiffness=np.eye(6)*k,
+                                                            damping=np.eye(6)*k*5e-3))
+
+        return mbs
+
+    def update(self, mbs, SC, t) -> None:
         if self.__interfaceType == 1:
             self.__robotInterface.update(mbs, t)
         else:
-            pass    # TODO
+            self.__vrInterface.update(mbs, SC)
 
     def getExternalEfforts(self):
         if self.__interfaceType == 1:
             return self.__robotInterface.getExternalEfforts()
         else:
-            return None
+            pass
 
     def getCurrentSystemState(self):
         if self.__interfaceType == 1:
@@ -105,7 +143,7 @@ def createPoseStampedMsg(coords, euler, time):
 
 class VrInterface:
 
-    def __init__(self, useImpedanceController) -> None:
+    def __init__(self, mbs, useImpedanceController) -> None:
 
         self.__impedanceController = useImpedanceController
         self.__globalStartPos = np.array([0.0, 0.0, 0.0])
@@ -132,8 +170,27 @@ class VrInterface:
         #self.__systemStateSub.unregister()
         pass
 
-    def update():
-        pass
+    def setOrigin(self, origin):
+        self.__origin = origin
+
+    def update(self, mbs, SC):
+        renderState = SC.GetRenderState()
+        if renderState['openVR']['trackerPoses']:
+            T = renderState['openVR']['trackerPoses'][0]
+            t = T[3][:3] - self.__origin
+            R = T[:3,:3]
+            r =  Rotation.from_matrix(R)
+            angles = r.as_euler("xyz",degrees=False)
+            mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],0,0,0])
+            #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
+        else:
+            pass
+
+        data = self.getCurrentSystemState()
+
+        if data is not None:
+            mbs.systemData.SetSystemState(data)
+
 
     # set visualisation settings for VR
     def setSettings(self, SC):

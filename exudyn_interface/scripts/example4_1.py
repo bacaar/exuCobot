@@ -27,11 +27,11 @@ import os
 
 def main(client, useImpedanceController):
 
-    robotVrInterface = RobotVrInterface(client, useImpedanceController)
-
     # init exudyn
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
+
+    robotVrInterface = RobotVrInterface(mbs, client, useImpedanceController)
     
     # find controller to render model at that location
 
@@ -64,6 +64,8 @@ def main(client, useImpedanceController):
 
     origin = np.array([-2, 1, 1])
 
+    robotVrInterface.setOrigin(origin)
+
     tRes = 0.001    # step size in s
     tEnd = 10000    # simulation time in s
 
@@ -95,16 +97,8 @@ def main(client, useImpedanceController):
                                     color=(1,0,0,1),
                                     nTiles=64)
 
-    graphicsHand = GraphicsDataOrthoCube(xMin=-0.04, xMax=0.04,
-                                         yMin=0, yMax=0.15,
-                                         zMin=-0.3, zMax=0,
-                                         color=[0.7, 0.5, 0.3, 1])
-
     inertiaPendulum = InertiaCuboid(density=rho,
                                     sideLengths=(b, b, l))
-
-    intertiaHand = InertiaCuboid(density=0.001,
-                                 sideLengths=(0.08, 0.015, 0.03))
 
     inertiaPendulum.Translated([0,0,-l/2])
 
@@ -132,16 +126,6 @@ def main(client, useImpedanceController):
                               gravity = [0, 0, 0], 
                               graphicsDataList = [graphics2b])
 
-    [nHand, bHand]=AddRigidBody(mainSys = mbs, 
-                                inertia = intertiaHand, 
-                                nodeType = str(exu.NodeType.RotationEulerParameters), 
-                                position = [origin[0], origin[1], origin[2]-l], 
-                                rotationMatrix = np.eye(3), 
-                                angularVelocity = np.zeros(3),
-                                velocity= [0,0,0],
-                                gravity = [0, 0, 0], 
-                                graphicsDataList = [graphicsHand])
-
 
     # create markers:
     # mGround lies on the ground where the pendulum is connected
@@ -157,8 +141,6 @@ def main(client, useImpedanceController):
     mPendulumTip = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bPendulum, localPosition=[0., 0., -l]))
     mTip = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bTip))
 
-    mHand = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bHand, localPosition=[0,0,0]))
-
     # a generic joint to allow rotation around x, y and z
     mbs.AddObject(GenericJoint(markerNumbers=[mGround, mPendulumTop],
                             constrainedAxes=[1,1,1,0,0,0],
@@ -168,11 +150,6 @@ def main(client, useImpedanceController):
     mbs.AddObject(GenericJoint(markerNumbers=[mPendulumTip, mTip],
                                constrainedAxes=[1,1,1,1,1,1],
                                visualization=VObjectJointGeneric(axesRadius=0.01, axesLength=0.01)))   # just very small visualization so you don't see it
-
-    k = 1e6
-    oHandConstraint = mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mGround, mHand],
-                                                          stiffness=np.eye(6)*k,
-                                                          damping=np.eye(6)*k*5e-3))
     
     # gravitational force
     mbs.AddLoad(Force(markerNumber=mPendulumMid, loadVector=[0, 0, -inertiaPendulum.mass*g]))
@@ -192,6 +169,8 @@ def main(client, useImpedanceController):
                                         stiffness=k,
                                         damping=d,
                                         visualization={'show': False, 'drawSize': -1, 'color': [-1]*4}))
+
+    mbs = robotVrInterface.setHand(mbs, mGround)
 
     if client == 1:
         # external applied forces
@@ -240,33 +219,8 @@ def main(client, useImpedanceController):
 
     def PreStepUserFunction(mbs, t):
 
-        # if robot client, send positions to robot
-        if client == 1:
-
-            robotVrInterface.update(mbs, t)
-
-
-        # else if vr client, update hand position
-        else:
-            
-            renderState = SC.GetRenderState()
-            if renderState['openVR']['trackerPoses']:
-                T = renderState['openVR']['trackerPoses'][0]
-                t = T[3][:3] - origin
-                R = T[:3,:3]
-                r =  Rotation.from_matrix(R)
-                angles = r.as_euler("xyz",degrees=False)
-                mbs.SetObjectParameter(oHandConstraint, "offset", [t[0],t[1],t[2],0,0,0])
-                #mbs.SetObjectParameter(oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
-            else:
-                pass
-
-            data = robotVrInterface.getCurrentSystemState()
-
-            if data is not None:
-                mbs.systemData.SetSystemState(data)
-
-        # prestep-userfunction has to return true, else simulation stops
+        robotVrInterface.update(mbs, SC, t)
+        
         return True
 
     mbs.SetPreStepUserFunction(PreStepUserFunction)
