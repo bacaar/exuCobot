@@ -198,7 +198,7 @@ class VrInterface:
                 T = renderState['openVR']['trackerPoses'][0]
                 R = T[:3,:3]
                 r =  Rotation.from_matrix(R)
-                angles_ = r.as_euler("xyz",degrees=True)
+                angles_ = r.as_euler("xyz",degrees=False)
 
                 #translation vector
                 t = self.__rotMatrix @ T[3][:3] - self.__origin
@@ -206,7 +206,8 @@ class VrInterface:
 
                 #print(angles)
 
-                mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],0,0,0])
+                mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], 0, 0])
+                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],np.sin(t),0,0])
                 #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
             except Exception as e:
                 #print(e)
