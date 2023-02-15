@@ -65,18 +65,25 @@ class RobotVrInterface:
 
         mHand = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bHand, localPosition=[0,0,0]))
 
-        k = 1e6
-        self.__oHandConstraint = mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mGround, mHand],
-                                                            stiffness=np.eye(6)*k,
-                                                            damping=np.eye(6)*k*5e-3))
+        k_trans = 1e3
+        k_rot = 10
+        K = np.diag(3 * [k_trans] + 3*[k_rot])
+        oHandConstraint = mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mGround, mHand],
+                                                              stiffness=K,
+                                                              damping=K*5e-3))
+
+        self.__vrInterface.setHand(oHandConstraint)
 
         return mbs
 
-    def update(self, mbs, SC, t) -> None:
+    def update(self, mbs, SC, t):
+        """
+        :return mbs
+        """
         if self.__interfaceType == 1:
-            self.__robotInterface.update(mbs, t)
+            return self.__robotInterface.update(mbs, t)
         else:
-            self.__vrInterface.update(mbs, SC)
+            return self.__vrInterface.update(mbs, SC)
 
     def getExternalEfforts(self):
         if self.__interfaceType == 1:
@@ -89,6 +96,12 @@ class RobotVrInterface:
             pass
         else:
             return self.__vrInterface.getCurrentSystemState()
+
+    def setRotationMatrix(self, matrix):
+        if self.__interfaceType == 1:
+            pass
+        else:
+            return self.__vrInterface.setRotationMatrix(matrix)
 
     def setSettings(self, SC):
         if self.__interfaceType == 1:
@@ -151,6 +164,8 @@ class VrInterface:
 
         self.__systemStateData = None
 
+        self.__rotMatrix = np.eye(3) # can be overwritten with setRotationMatrix()
+
         rospy.init_node('ExudynVrInterface', anonymous=True)
         # subscriber for current pose. Needed for localizing current end-effector position in vr-space
         if self.__impedanceController:
@@ -173,16 +188,29 @@ class VrInterface:
     def setOrigin(self, origin):
         self.__origin = origin
 
+    def setHand(self, oHandConstraint):
+        self.__oHandConstraint = oHandConstraint
+
     def update(self, mbs, SC):
         renderState = SC.GetRenderState()
         if renderState['openVR']['trackerPoses']:
-            T = renderState['openVR']['trackerPoses'][0]
-            t = T[3][:3] - self.__origin
-            R = T[:3,:3]
-            r =  Rotation.from_matrix(R)
-            angles = r.as_euler("xyz",degrees=False)
-            mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],0,0,0])
-            #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
+            try:
+                T = renderState['openVR']['trackerPoses'][0]
+                R = T[:3,:3]
+                r =  Rotation.from_matrix(R)
+                angles_ = r.as_euler("xyz",degrees=True)
+
+                #translation vector
+                t = self.__rotMatrix @ T[3][:3] - self.__origin
+                angles = np.around(self.__rotMatrix @ angles_, 2)
+
+                #print(angles)
+
+                mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],0,0,0])
+                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
+            except Exception as e:
+                #print(e)
+                pass
         else:
             pass
 
@@ -190,6 +218,12 @@ class VrInterface:
 
         if data is not None:
             mbs.systemData.SetSystemState(data)
+
+        return mbs
+
+
+    def setRotationMatrix(self, matrix):
+        self.__rotMatrix = matrix
 
 
     # set visualisation settings for VR
@@ -396,6 +430,7 @@ class RobotInterface:
 
         if t - self.__lastSystemStateUpdateTime >= self.__systemStateUpdateInterval:
             # publish system state vor vrInterface
+            # TODO belongs in __publishSystemState()
             systemStateData = mbs.systemData.GetSystemState()
             systemStateList1d = []
             for array in systemStateData:
@@ -405,6 +440,8 @@ class RobotInterface:
 
             self.__publishSystemState(systemStateList1d)
             lastSystemStateUpdateTime = t
+
+        return mbs
 
 
     def __publishSystemState(self, systemData): 

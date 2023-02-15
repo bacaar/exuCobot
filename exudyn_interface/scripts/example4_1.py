@@ -182,7 +182,7 @@ def main(client, useImpedanceController):
 
     def PreStepUserFunction(mbs, t):
 
-        robotVrInterface.update(mbs, SC, t)
+        mbs = robotVrInterface.update(mbs, SC, t)
         
         return True
 
@@ -215,27 +215,38 @@ def main(client, useImpedanceController):
     SC.visualizationSettings.openGL.initialCenterPoint = [0., -l/2, 0.] # screen coordinates, not model coordinates
     SC.visualizationSettings.openGL.initialZoom = 0.5
 
+    robotVrInterface.setRotationMatrix(viewMatrix)
     robotVrInterface.setSettings(SC)
 
     # exudyn magic
     exu.StartRenderer()
+    
     #mbs.WaitForUserToContinue() # space/q to start - q to end
+    
     exu.SolveDynamic(mbs, simulationSettings)
+    
     #SC.WaitForRenderEngineStopFlag()
+    
     exu.StopRenderer() #safely close rendering window!
 
 
 if __name__ == "__main__":
-  
-    if len(sys.argv) >= 3:
-        # check controller type
-        useImpedanceController = False
-        if sys.argv[2] == '-i':
-            useImpedanceController = True
-        
-        assert sys.argv[1] == "1" or sys.argv[1] == "2", "Unknown client type"
 
-        main(int(sys.argv[1]), useImpedanceController)
-    
+    if False:
+        # for debugging
+        main(2, True)
+
     else:
-        print("Usage: python3 " + sys.argv[0] + " [clientType] [controllerType]")
+  
+        if len(sys.argv) >= 3:
+            # check controller type
+            useImpedanceController = False
+            if sys.argv[2] == '-i':
+                useImpedanceController = True
+            
+            assert sys.argv[1] == "1" or sys.argv[1] == "2", "Unknown client type"
+
+            main(int(sys.argv[1]), useImpedanceController)
+        
+        else:
+            print("Usage: python3 " + sys.argv[0] + " [clientType] [controllerType]")
