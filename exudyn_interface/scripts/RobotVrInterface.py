@@ -119,26 +119,17 @@ class RobotVrInterface:
         else:
             self.__vrInterface.setSettings(SC)
 
-    def determineRobotStartPosition(self):
+    def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):
+        """
+        :param interactionPointOffset: offset from model origin to user interaction point in model
+        """
 
         ## coordinates of controller in vr frame
         # for the moment this is hardcoded
-        Rc = np.array([[1,0,0],
-                       [0,1,0],
-                       [0,0,1]])
-
-        tc = np.array([0,0,0])
         tc = np.array([1.37383771,  0.83587539-0.15,  0.5588876])
-        #tc = np.array([0,1,0])
 
-        ## transformation matrix from controller to robot base
-        Rr = np.array([[1,0,0],
-                       [0,1,0],
-                       [0,0,1]])
-
-        tr = np.array([0,0,0])
-        tr = np.array([0.86, -0.045, -0.43])#0.43, 0.045])
-
+        ## transformation matrix from controller to robot base in vr frame
+        trb = np.array([0.86, -0.045, -0.43])
 
         ## listen to topic to get current robot end effector pose
         print("Locating robot in VR space")
@@ -160,16 +151,12 @@ class RobotVrInterface:
                 print("ERROR: Did not get any robot position after 5 seconds of waiting")
                 exit(-1)
 
-        Re = np.array([[1,0,0],
-                       [0,1,0],
-                       [0,0,1]])
-
-        te = np.array([-eefPos[0],eefPos[2],eefPos[1]])
+        te = np.array([-eefPos[0], eefPos[2], eefPos[1]]) # transform robot coordinates to vr frame
 
         # subscriber isn't needed anymore
         eefPosSub.unregister()
 
-        return self.__rotationMatrix @ (Rc @ tc + Rr @ tr + Re @ te)
+        return self.__rotationMatrix @ (tc + trb + te - interactionPointOffset)
 
 
 def createPoseStampedMsg(coords, euler, time):

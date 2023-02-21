@@ -19,20 +19,7 @@ import sys
 
 def main(client, useImpedanceController):
 
-    # init exudyn
-    SC = exu.SystemContainer()
-    mbs = SC.AddSystem()
-
-    robotVrInterface = RobotVrInterface(mbs, client, useImpedanceController)
-
-    viewMatrix = np.eye(3)#  @ RotationMatrixZ(np.pi/2)@ RotationMatrixX(np.pi/2)
-    robotVrInterface.setRotationMatrix(viewMatrix)
-
-    #origin = np.array([-2, 1, 1])
-    origin = robotVrInterface.determineRobotStartPosition()
-
-    robotVrInterface.setOrigin(origin)
-
+    ## Simulation parameters
     tRes = 0.001    # step size in s
     tEnd = 10000    # simulation time in s
 
@@ -45,6 +32,22 @@ def main(client, useImpedanceController):
 
     massPendulumTip = 6
     rPendulumTip = 0.03      # radius of pendulum tip -> matches red user interaction sphere at robot (d=6cm)
+
+
+
+    # init exudyn
+    SC = exu.SystemContainer()
+    mbs = SC.AddSystem()
+
+    robotVrInterface = RobotVrInterface(mbs, client, useImpedanceController)
+
+    viewMatrix = np.eye(3)  @ RotationMatrixZ(np.pi/2)@ RotationMatrixX(np.pi/2)
+    robotVrInterface.setRotationMatrix(viewMatrix)
+
+    interactionPointOffset = np.array([0,-l,0])
+    origin = robotVrInterface.determineRobotStartPosition(interactionPointOffset)
+
+    robotVrInterface.setOrigin(origin)
 
     #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # parameter and ground with rectangle visualisation
