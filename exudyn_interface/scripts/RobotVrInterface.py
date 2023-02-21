@@ -36,6 +36,11 @@ class RobotVrInterface:
             self.__vrInterface = VrInterface(mbs, useImpedanceController)
             self.__interfaceType = 2
 
+        if useImpedanceController:
+            self.__topicBase = "/my_cartesian_impedance_controller"
+        else:
+            self.__topicBase = "/my_cartesian_velocity_controller"
+
         self.__rotationMatrix = np.eye(3)
 
     def setOrigin(self, origin):
@@ -132,34 +137,39 @@ class RobotVrInterface:
                        [0,0,1]])
 
         tr = np.array([0,0,0])
-        #tr = np.array([-0.86, 0.43, 0.045])
+        tr = np.array([0.86, -0.045, -0.43])#0.43, 0.045])
 
-        """
-        ## first, listen to topic to get current robot end effector pose
+
+        ## listen to topic to get current robot end effector pose
         print("Locating robot in VR space")
         t0 = rospy.Time.now()
 
-        robotStartPos = None
+        eefPos = None
 
         def poseCallback(data):
-            nonlocal robotStartPos
+            nonlocal eefPos
             
-            if robotStartPos is None:
-                robotStartPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+            if eefPos is None:
+                eefPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
-        robotStartPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, poseCallback)
+        eefPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, poseCallback)
 
         # wait 5 seconds to locate global start position
-        while robotStartPos is None:
+        while eefPos is None:
             if rospy.Time.now() - t0 > rospy.Duration(5):
                 print("ERROR: Did not get any robot position after 5 seconds of waiting")
                 exit(-1)
 
-        # subscriber isn't needed anymore
-        robotStartPosSub.unregister()
-        """
+        Re = np.array([[1,0,0],
+                       [0,1,0],
+                       [0,0,1]])
 
-        return self.__rotationMatrix @ (Rc @ tc + Rr @ tr)
+        te = np.array([-eefPos[0],eefPos[2],eefPos[1]])
+
+        # subscriber isn't needed anymore
+        eefPosSub.unregister()
+
+        return self.__rotationMatrix @ (Rc @ tc + Rr @ tr + Re @ te)
 
 
 def createPoseStampedMsg(coords, euler, time):

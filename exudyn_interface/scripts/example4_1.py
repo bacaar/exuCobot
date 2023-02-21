@@ -186,10 +186,10 @@ def main(client, useImpedanceController):
 
     def PreStepUserFunction(mbs, t):
 
-        try:
-            print(SC.GetRenderState()['openVR']['controllerPoses'])
-        except:
-            pass
+        #try:
+        #    print(SC.GetRenderState()['openVR']['controllerPoses'])
+        #except:
+        #    pass
 
         mbs = robotVrInterface.update(mbs, SC, t)
         
