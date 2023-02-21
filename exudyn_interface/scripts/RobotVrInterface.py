@@ -72,7 +72,9 @@ class RobotVrInterface:
                                                               stiffness=K,
                                                               damping=K*5e-3))
 
-        self.__vrInterface.setHand(oHandConstraint)
+        # store object index only for vrInterface, not needed at robotInterface
+        if self.__interfaceType == 2:
+            self.__vrInterface.setHand(oHandConstraint)
 
         return mbs
 
