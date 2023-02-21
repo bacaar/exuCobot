@@ -36,6 +36,8 @@ class RobotVrInterface:
             self.__vrInterface = VrInterface(mbs, useImpedanceController)
             self.__interfaceType = 2
 
+        self.__rotationMatrix = np.eye(3)
+
     def setOrigin(self, origin):
         if self.__interfaceType == 1:
             pass
@@ -100,6 +102,7 @@ class RobotVrInterface:
             return self.__vrInterface.getCurrentSystemState()
 
     def setRotationMatrix(self, matrix):
+        self.__rotationMatrix = matrix
         if self.__interfaceType == 1:
             pass
         else:
@@ -110,6 +113,53 @@ class RobotVrInterface:
             pass
         else:
             self.__vrInterface.setSettings(SC)
+
+    def determineRobotStartPosition(self):
+
+        ## coordinates of controller in vr frame
+        # for the moment this is hardcoded
+        Rc = np.array([[1,0,0],
+                       [0,1,0],
+                       [0,0,1]])
+
+        tc = np.array([0,0,0])
+        tc = np.array([1.37383771,  0.83587539-0.15,  0.5588876])
+        #tc = np.array([0,1,0])
+
+        ## transformation matrix from controller to robot base
+        Rr = np.array([[1,0,0],
+                       [0,1,0],
+                       [0,0,1]])
+
+        tr = np.array([0,0,0])
+        #tr = np.array([-0.86, 0.43, 0.045])
+
+        """
+        ## first, listen to topic to get current robot end effector pose
+        print("Locating robot in VR space")
+        t0 = rospy.Time.now()
+
+        robotStartPos = None
+
+        def poseCallback(data):
+            nonlocal robotStartPos
+            
+            if robotStartPos is None:
+                robotStartPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+
+        robotStartPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, poseCallback)
+
+        # wait 5 seconds to locate global start position
+        while robotStartPos is None:
+            if rospy.Time.now() - t0 > rospy.Duration(5):
+                print("ERROR: Did not get any robot position after 5 seconds of waiting")
+                exit(-1)
+
+        # subscriber isn't needed anymore
+        robotStartPosSub.unregister()
+        """
+
+        return self.__rotationMatrix @ (Rc @ tc + Rr @ tr)
 
 
 def createPoseStampedMsg(coords, euler, time):
@@ -162,7 +212,7 @@ class VrInterface:
 
         self.__impedanceController = useImpedanceController
         self.__globalStartPos = np.array([0.0, 0.0, 0.0])
-        self.__globalStartPosSet = False
+        #self.__globalStartPosSet = False
 
         self.__systemStateData = None
 
@@ -171,12 +221,12 @@ class VrInterface:
         rospy.init_node('ExudynVrInterface', anonymous=True)
         # subscriber for current pose. Needed for localizing current end-effector position in vr-space
         if self.__impedanceController:
-            topicBase = "/my_cartesian_impedance_controller"
+            self.__topicBase = "/my_cartesian_impedance_controller"
         else:
-            topicBase = "/my_cartesian_velocity_controller"
+            self.__topicBase = "/my_cartesian_velocity_controller"
 
-        self.__systemStateSub = rospy.Subscriber(topicBase + "/SystemState", Float64MultiArray, self.__systemStateCallback)
-        globalStartPosSub = rospy.Subscriber(topicBase + "/getCurrentPose", PoseStamped, self.__currentPoseCallback)
+        self.__systemStateSub = rospy.Subscriber(self.__topicBase + "/SystemState", Float64MultiArray, self.__systemStateCallback)
+        #globalStartPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, self.__currentPoseCallback)
 
         # TODO: check if controller available
         # TODO: if yes, set origin relative to controller and robot configuration
@@ -239,6 +289,7 @@ class VrInterface:
         SC.visualizationSettings.interactive.lockModelView = True #lock rotation/translation/zoom of model
         SC.visualizationSettings.interactive.openVR.logLevel = 3
         SC.visualizationSettings.general.graphicsUpdateInterval = 0.017
+        SC.visualizationSettings.general.drawWorldBasis = True
 
 
     def getCurrentSystemState(self):
@@ -246,17 +297,17 @@ class VrInterface:
 
 
     ## callbacks
-    def __currentPoseCallback(self, data):
-        """
-        callback function to set global robot position at beginning of program
-        -> globalStartPos
-        """
-
-        if not self.__globalStartPosSet:
-            self.__globalStartPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
-            self.__globalStartPosSet = True
-            # TODO Logger
-            print("Global start pos set")
+    #def __currentPoseCallback(self, data):
+    #    """
+    #    callback function to set global robot position at beginning of program
+    #    -> globalStartPos
+    #    """
+#
+    #    if not self.__globalStartPosSet:
+    #        self.__globalStartPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+    #        self.__globalStartPosSet = True
+    #        # TODO Logger
+    #        print("Global start pos set")
 
 
     def __systemStateCallback(self, systemState):

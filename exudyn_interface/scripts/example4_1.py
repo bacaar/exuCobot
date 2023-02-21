@@ -25,7 +25,11 @@ def main(client, useImpedanceController):
 
     robotVrInterface = RobotVrInterface(mbs, client, useImpedanceController)
 
-    origin = np.array([-2, 1, 1])
+    viewMatrix = np.eye(3)#  @ RotationMatrixZ(np.pi/2)@ RotationMatrixX(np.pi/2)
+    robotVrInterface.setRotationMatrix(viewMatrix)
+
+    #origin = np.array([-2, 1, 1])
+    origin = robotVrInterface.determineRobotStartPosition()
 
     robotVrInterface.setOrigin(origin)
 
@@ -182,6 +186,11 @@ def main(client, useImpedanceController):
 
     def PreStepUserFunction(mbs, t):
 
+        try:
+            print(SC.GetRenderState()['openVR']['controllerPoses'])
+        except:
+            pass
+
         mbs = robotVrInterface.update(mbs, SC, t)
         
         return True
@@ -208,14 +217,11 @@ def main(client, useImpedanceController):
     simulationSettings.solutionSettings.solutionInformation = "3D Pendulum"
     simulationSettings.solutionSettings.writeSolutionToFile = False
     
-
-    viewMatrix = np.eye(3)  @ RotationMatrixZ(np.pi/2)@ RotationMatrixX(np.pi/2)
     SC.visualizationSettings.general.autoFitScene = False
     SC.visualizationSettings.openGL.initialModelRotation = viewMatrix
     SC.visualizationSettings.openGL.initialCenterPoint = [0., -l/2, 0.] # screen coordinates, not model coordinates
     SC.visualizationSettings.openGL.initialZoom = 0.5
-
-    robotVrInterface.setRotationMatrix(viewMatrix)
+    
     robotVrInterface.setSettings(SC)
 
     # exudyn magic
