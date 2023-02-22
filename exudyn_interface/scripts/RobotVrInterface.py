@@ -41,8 +41,6 @@ class RobotVrInterface:
         else:
             self.__topicBase = "/my_cartesian_velocity_controller"
 
-        self.__rotationMatrix = np.eye(3)
-
     def setOrigin(self, origin):
         if self.__interfaceType == 1:
             pass
@@ -50,12 +48,12 @@ class RobotVrInterface:
             self.__vrInterface.setOrigin(origin)
 
     # actually only needed for vrInterface, but ODE coordinates must be consistent between vr and robot interface
-    def setHand(self, mbs, mGround):
+    def setHand(self, mbs):
 
         graphicsHand = GraphicsDataOrthoCube(xMin=-0.04, xMax=0.04,
-                                         yMin=0, yMax=0.15,
-                                         zMin=-0.3, zMax=0,
-                                         color=[0.7, 0.5, 0.3, 1])
+                                             yMin=0, yMax=0.15,
+                                             zMin=-0.3, zMax=0,
+                                             color=[0.7, 0.5, 0.3, 1])
 
         intertiaHand = InertiaCuboid(density=0.001,
                                  sideLengths=(0.08, 0.015, 0.03))
@@ -71,6 +69,10 @@ class RobotVrInterface:
                                     graphicsDataList = [graphicsHand])
 
         mHand = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bHand, localPosition=[0,0,0]))
+
+        # add additional ground object only for hand, so that hand is moving always in vr space and not model space
+        bGround = mbs.AddObject(ObjectGround(referencePosition=[0,0,0]))
+        mGround = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bGround, localPosition=[0, 0, 0.]))
 
         k_trans = 1e3
         k_rot = 10
@@ -92,7 +94,7 @@ class RobotVrInterface:
         if self.__interfaceType == 1:
             return self.__robotInterface.update(mbs, t)
         else:
-            return self.__vrInterface.update(mbs, SC)
+            return self.__vrInterface.update(mbs, SC, t)
 
     def getExternalEfforts(self):
         if self.__interfaceType == 1:
@@ -107,7 +109,6 @@ class RobotVrInterface:
             return self.__vrInterface.getCurrentSystemState()
 
     def setRotationMatrix(self, matrix):
-        self.__rotationMatrix = matrix
         if self.__interfaceType == 1:
             pass
         else:
@@ -124,39 +125,10 @@ class RobotVrInterface:
         :param interactionPointOffset: offset from model origin to user interaction point in model
         """
 
-        ## coordinates of controller in vr frame
-        # for the moment this is hardcoded
-        tc = np.array([1.37383771,  0.83587539-0.15,  0.5588876])
-
-        ## transformation matrix from controller to robot base in vr frame
-        trb = np.array([0.86, -0.045, -0.43])
-
-        ## listen to topic to get current robot end effector pose
-        print("Locating robot in VR space")
-        t0 = rospy.Time.now()
-
-        eefPos = None
-
-        def poseCallback(data):
-            nonlocal eefPos
-            
-            if eefPos is None:
-                eefPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
-
-        eefPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, poseCallback)
-
-        # wait 5 seconds to locate global start position
-        while eefPos is None:
-            if rospy.Time.now() - t0 > rospy.Duration(5):
-                print("ERROR: Did not get any robot position after 5 seconds of waiting")
-                exit(-1)
-
-        te = np.array([-eefPos[0], eefPos[2], eefPos[1]]) # transform robot coordinates to vr frame
-
-        # subscriber isn't needed anymore
-        eefPosSub.unregister()
-
-        return self.__rotationMatrix @ (tc + trb + te - interactionPointOffset)
+        if self.__interfaceType == 1:
+            return np.array([0, 0, 0])
+        else:
+            return self.__vrInterface.determineRobotStartPosition(interactionPointOffset)
 
 
 def createPoseStampedMsg(coords, euler, time):
@@ -213,7 +185,7 @@ class VrInterface:
 
         self.__systemStateData = None
 
-        self.__rotMatrix = np.eye(3) # can be overwritten with setRotationMatrix()
+        self.__rotationMatrix = np.eye(3) # can be overwritten with setRotationMatrix()
 
         rospy.init_node('ExudynVrInterface', anonymous=True)
         # subscriber for current pose. Needed for localizing current end-effector position in vr-space
@@ -240,7 +212,50 @@ class VrInterface:
     def setHand(self, oHandConstraint):
         self.__oHandConstraint = oHandConstraint
 
-    def update(self, mbs, SC):
+    def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):
+        """
+        :param interactionPointOffset: offset from model origin to user interaction point in model
+        """
+
+        ## coordinates of controller in vr frame
+        # for the moment this is hardcoded
+        tc = np.array([1.37383771,  0.83587539-0.15,  0.5588876])
+
+        ## transformation matrix from controller to robot base in vr frame
+        trb = np.array([0.86, -0.045, -0.43])
+
+        ## listen to topic to get current robot end effector pose
+        print("Locating robot in VR space")
+        t0 = rospy.Time.now()
+
+        eefPos = None
+
+        def poseCallback(data):
+            nonlocal eefPos
+            
+            if eefPos is None:
+                eefPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+
+        eefPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, poseCallback)
+
+        # wait 5 seconds to locate global start position
+        while eefPos is None:
+            if rospy.Time.now() - t0 > rospy.Duration(5):
+                print("ERROR: Did not get any robot position after 5 seconds of waiting")
+                exit(-1)
+
+        te = np.array([-eefPos[0], eefPos[2], eefPos[1]]) # transform robot coordinates to vr frame
+        # TODO: make this transformation variable
+
+        # subscriber isn't needed anymore
+        eefPosSub.unregister()
+
+        origin = self.__rotationMatrix @ (tc + trb + te - interactionPointOffset)
+        self.setOrigin(origin)
+
+        return origin
+
+    def update(self, mbs, SC, time):
         renderState = SC.GetRenderState()
         if renderState['openVR']['trackerPoses']:
             try:
@@ -249,21 +264,31 @@ class VrInterface:
                 r =  Rotation.from_matrix(R)
                 angles_ = r.as_euler("xyz",degrees=False)
 
-                #translation vector
-                t = self.__rotMatrix @ T[3][:3] - self.__origin
-                angles = np.around(self.__rotMatrix @ angles_, 2)
+                # position
+                t = self.__rotationMatrix @ T[3][:3]# - self.__origin
+                
+                # orientation
+                angles = np.around(self.__rotationMatrix @ angles_, 2)
+
+                print(T[3][:3])
+                print(t)
+                print()
 
                 #print(angles)
-
-                mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], 0, 0])
+                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [0,0,0, 0, 0, 0])
+                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [0.5*np.sin(time), 0, 0, 0, 0, 0])
+                mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2], 0, 0, 0])
+                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], 0, 0])
                 #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],np.sin(t),0,0])
                 #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
             except Exception as e:
-                #print(e)
-                pass
+                print(e)
+                #pass
         else:
             pass
 
+
+        ## get and apply Simulation update
         data = self.getCurrentSystemState()
 
         if data is not None:
@@ -273,7 +298,7 @@ class VrInterface:
 
 
     def setRotationMatrix(self, matrix):
-        self.__rotMatrix = matrix
+        self.__rotationMatrix = matrix
 
 
     # set visualisation settings for VR

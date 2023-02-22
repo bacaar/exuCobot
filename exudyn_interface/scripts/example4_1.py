@@ -41,13 +41,11 @@ def main(client, useImpedanceController):
 
     robotVrInterface = RobotVrInterface(mbs, client, useImpedanceController)
 
-    viewMatrix = np.eye(3)  @ RotationMatrixZ(np.pi/2)@ RotationMatrixX(np.pi/2)
+    viewMatrix = np.eye(3) @ RotationMatrixZ(np.pi) @ RotationMatrixX(np.pi/2)
     robotVrInterface.setRotationMatrix(viewMatrix)
 
     interactionPointOffset = np.array([0,-l,0])
     origin = robotVrInterface.determineRobotStartPosition(interactionPointOffset)
-
-    robotVrInterface.setOrigin(origin)
 
     #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # parameter and ground with rectangle visualisation
@@ -140,7 +138,7 @@ def main(client, useImpedanceController):
                                         damping=d,
                                         visualization={'show': False, 'drawSize': -1, 'color': [-1]*4}))
 
-    mbs = robotVrInterface.setHand(mbs, mGround)
+    mbs = robotVrInterface.setHand(mbs)
 
     if client == 1:
         # external applied forces
@@ -193,7 +191,6 @@ def main(client, useImpedanceController):
         #    print(SC.GetRenderState()['openVR']['controllerPoses'])
         #except:
         #    pass
-
         mbs = robotVrInterface.update(mbs, SC, t)
         
         return True
@@ -241,7 +238,7 @@ def main(client, useImpedanceController):
 
 if __name__ == "__main__":
 
-    if False:
+    if True:
         # for debugging
         main(2, True)
 
