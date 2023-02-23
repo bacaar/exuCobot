@@ -17,6 +17,7 @@ from scipy.spatial.transform import Rotation
 from exudyn.utilities import *
 
 VR_POS_CORRECTION = np.array([0, -0.3, 0])
+#VR_POS_CORRECTION = np.array([0, 0, 0])
 
 class RobotVrInterface:
 
@@ -56,41 +57,19 @@ class RobotVrInterface:
         y = 0.02    # hand length
         z = 0.15    # hand thickness
 
-        graphicsHand = GraphicsDataOrthoCube(xMin=-x/2, xMax=x/2,
-                                             yMin=-y, yMax=0,
+        graphicsHand = GraphicsDataOrthoCube(xMin=0, xMax=x,
+                                             yMin=0, yMax=y,
                                              zMin=0, zMax=z,
                                              color=[0.7, 0.5, 0.3, 1])
 
-        intertiaHand = InertiaCuboid(density=0.001,
-                                     sideLengths=(x, y, z))
+        # hand is not at marker, but below
+        handOffset = np.array([0, 0, 0])
 
-        [nHand, bHand]=AddRigidBody(mainSys = mbs, 
-                                    inertia = intertiaHand, 
-                                    nodeType = str(exu.NodeType.RotationEulerParameters), 
-                                    position = [0, 0, 0],
-                                    rotationMatrix = np.eye(3), 
-                                    angularVelocity = np.zeros(3),
-                                    velocity= [0,0,0],
-                                    gravity = [0, 0, 0], 
-                                    graphicsDataList = [graphicsHand])
-
-        mHand = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bHand, localPosition=[0,0,0]))
-
-        # add additional ground object only for hand, so that hand is moving always in vr space and not model space
-        bGround = mbs.AddObject(ObjectGround(referencePosition=self.__rotationMatrix @ VR_POS_CORRECTION))
-        mGround = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bGround, localPosition=[0, 0, 0.]))
-
-        k_trans = 1e3
-        k_rot = 10
-        K = np.diag(3 * [k_trans] + 3*[k_rot])
-        oHandConstraint = mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mGround, mHand],
-                                                              stiffness=K,
-                                                              damping=K*5e-3,
-                                                              visualization={'show': False, 'drawSize': -1, 'color': [-1]*4}))
+        oGroundHand = mbs.AddObject(ObjectGround(visualization=VObjectGround(graphicsData=[graphicsHand])))
 
         # store object index only for vrInterface, not needed at robotInterface
         if self.__interfaceType == 2:
-            self.__vrInterface.setHand(oHandConstraint)
+            self.__vrInterface.setHand(oGroundHand, handOffset)
 
         return mbs
 
@@ -250,8 +229,9 @@ class VrInterface:
         #self.__systemStateSub.unregister()
         pass
 
-    def setHand(self, oHandConstraint):
-        self.__oHandConstraint = oHandConstraint
+    def setHand(self, oHand, offset):
+        self.__oHand = oHand
+        self.__handOffset = offset
 
     def update(self, mbs, SC, time):
 
@@ -265,27 +245,30 @@ class VrInterface:
         renderState = SC.GetRenderState()
         if renderState['openVR']['trackerPoses']:
             try:
-                T = renderState['openVR']['trackerPoses'][0]
-                R = T[:3,:3]
-                r =  Rotation.from_matrix(R)
-                angles_ = r.as_euler("xyz",degrees=False)
+                # get Tracker Pose
+                T = renderState['openVR']['trackerPoses'][0].T
 
-                # position
-                t = self.__rotationMatrix @ T[3][:3]
-                
-                # orientation
-                angles = np.around(self.__rotationMatrix @ angles_, 2)
-                angles = angles_
+                # extract Orientation and Position from Tracker Pose
+                R = self.__rotationMatrix @ HT2rotationMatrix(T)
+                t = self.__rotationMatrix @ (HT2translation(T) + VR_POS_CORRECTION + R @ self.__handOffset)
 
-                #print(T[3][:3])
-                #print(t)
-                #print()
+                mbs.SetObjectParameter(self.__oHand, "referencePosition", t)
+                mbs.SetObjectParameter(self.__oHand, "referenceRotation", R)
+            except Exception as e:
+                print(e)
+                pass
 
-                #print(angles)
-                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2], 0, 0, 0])
-                mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], 0, 0])
-                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],np.sin(time),0,0])
-                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
+        elif renderState['openVR']['controllerPoses']:
+            try:
+                # get Tracker Pose
+                T = renderState['openVR']['controllerPoses'][0].T
+
+                # extract Orientation and Position from Tracker Pose
+                R = self.__rotationMatrix @ HT2rotationMatrix(T)
+                t = self.__rotationMatrix @ (HT2translation(T) + VR_POS_CORRECTION + R @ self.__handOffset)
+
+                mbs.SetObjectParameter(self.__oHand, "referencePosition", t)
+                mbs.SetObjectParameter(self.__oHand, "referenceRotation", R)
             except Exception as e:
                 #print(e)
                 pass

@@ -141,6 +141,7 @@ def main(client, useImpedanceController):
     mbs = robotVrInterface.setHand(mbs)
 
     if client == 1:
+
         # external applied forces
         def UFloadX(mbs, t, load):
             #return robotVrInterface.getExternalEfforts()[0]
@@ -157,6 +158,8 @@ def main(client, useImpedanceController):
         mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=1))
         mFz = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=2))
         
+        # TODO: das sollte auch als Vektor gehen
+
         mbs.AddLoad(LoadCoordinate(markerNumber=mFx,
                                 loadUserFunction=UFloadX))
         mbs.AddLoad(LoadCoordinate(markerNumber=mFy,
@@ -222,7 +225,7 @@ def main(client, useImpedanceController):
     SC.visualizationSettings.openGL.initialCenterPoint = [0., -l/2, 0.] # screen coordinates, not model coordinates
     SC.visualizationSettings.openGL.initialZoom = 0.5
     
-    robotVrInterface.setSettings(SC)
+    robotVrInterface.setSettings(SC)    # TODO: is everything above included?
 
     # exudyn magic
     exu.StartRenderer()
@@ -230,6 +233,7 @@ def main(client, useImpedanceController):
     #mbs.WaitForUserToContinue() # space/q to start - q to end
     
     exu.SolveDynamic(mbs, simulationSettings)
+    # TODO solutionViewer, also nicht simulieren
     
     #SC.WaitForRenderEngineStopFlag()
     
@@ -247,6 +251,9 @@ if __name__ == "__main__":
         if len(sys.argv) >= 3:
             # check controller type
             useImpedanceController = False
+
+            # TODO: -h dazugeben
+
             if sys.argv[2] == '-i':
                 useImpedanceController = True
             
