@@ -52,7 +52,7 @@ class RobotVrInterface:
         if self.__interfaceType == 1:
             return mbs
         else:
-            return self.__vrInterface.setHand(mbs)
+            return self.__vrInterface.createEnvironment(mbs)
 
     def update(self, mbs, SC, t):
         """
@@ -174,23 +174,6 @@ class VrInterface:
         #self.__systemStateSub.unregister()
         pass
 
-    def setHand(self, mbs):
-
-        x = 0.08    # hand width
-        y = 0.02    # hand length
-        z = 0.15    # hand thickness
-
-        graphicsHand = GraphicsDataOrthoCube(xMin=0, xMax=x,
-                                             yMin=0, yMax=y,
-                                             zMin=0, zMax=z,
-                                             color=[0.7, 0.5, 0.3, 1])
-
-        oGroundHand = mbs.AddObject(ObjectGround(visualization=VObjectGround(graphicsData=[graphicsHand])))
-
-        self.__oHand = oGroundHand
-
-        return mbs
-
     def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):
         """
         :param interactionPointOffset: offset from model origin to user interaction point in model
@@ -237,6 +220,43 @@ class VrInterface:
         self.__robotBase = self.__rotationMatrix @ (tc + trb)
 
         return origin
+
+    def createEnvironment(self, mbs):
+
+        ## get single values of VR_POS_COrrection
+        dx, dy, dz = self.__rotationMatrix @ VR_POS_CORRECTION
+
+        ## create floor
+        plane = GraphicsDataQuad([[-4, 0, 0+dz],[ 1, 0, 0+dz],[ 1, 2, 0+dz],[-4, 2, 0+dz]],
+                                 color4darkgrey, 
+                                 nTiles=5,
+                                 nTilesY=2,
+                                 alternatingColor=color4lightgrey)
+        mbs.AddObject(ObjectGround(referencePosition=[0,0,0],
+                                   visualization=VObjectGround(graphicsData=[plane])))
+
+        ## create table
+
+        graphicsTable = GraphicsDataOrthoCube(xMin=-0.3, xMax=0.9,
+                                              yMin=-0.4, yMax=0.4,
+                                              zMin=-0.78, zMax=0,
+                                              color=[0.7, 0.5, 0.3, 1])
+        mbs.AddObject(ObjectGround(referencePosition=self.__robotBase,
+                                   visualization=VObjectGround(graphicsData=[graphicsTable])))
+
+        ## create Hand
+        x = 0.08    # hand width
+        y = 0.02    # hand length
+        z = 0.15    # hand thickness
+
+        graphicsHand = GraphicsDataOrthoCube(xMin=0, xMax=x,
+                                             yMin=0, yMax=y,
+                                             zMin=0, zMax=z,
+                                             color=[0.7, 0.5, 0.3, 1])
+
+        self.__oHand = mbs.AddObject(ObjectGround(visualization=VObjectGround(graphicsData=[graphicsHand])))
+
+        return mbs
 
     def update(self, mbs, SC, time):
 
