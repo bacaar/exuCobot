@@ -233,7 +233,7 @@ def main(client, useImpedanceController):
     #mbs.WaitForUserToContinue() # space/q to start - q to end
     
     exu.SolveDynamic(mbs, simulationSettings)
-    # TODO solutionViewer, also nicht simulieren
+    # TODO nur Daten aus solutionViewer auslesen und viewer aktualisieren? oder im solutionViewer aktualisier? auf jeden Fall nicht simulieren
     
     #SC.WaitForRenderEngineStopFlag()
     

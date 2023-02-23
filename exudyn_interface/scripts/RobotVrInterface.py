@@ -46,10 +46,6 @@ class RobotVrInterface:
 
         self.__rotationMatrix = np.eye(3)
 
-    # set sim model origin in vr frame
-    def setOrigin(self, origin):
-        self.__origin = origin
-
     # actually only needed for vrInterface, but ODE coordinates must be consistent between vr and robot interface
     def setHand(self, mbs):
 
@@ -97,46 +93,10 @@ class RobotVrInterface:
         :param interactionPointOffset: offset from model origin to user interaction point in model
         """
 
-        ## coordinates of controller in vr frame
-        # for the moment this is hardcoded
-        tc = np.array([1.38006377,  0.84095681,  0.2752991])
-        tc = tc + VR_POS_CORRECTION             
-
-        ## transformation matrix from controller to robot base in vr frame
-        trb = np.array([0.86, -0.045, -0.43])
-
-        ## listen to topic to get current robot end effector pose
-        print("Locating robot in VR space")
-        t0 = rospy.Time.now()
-
-        eefPos = None
-
-        def poseCallback(data):
-            nonlocal eefPos
-            
-            if eefPos is None:
-                eefPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
-
-        eefPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, poseCallback)
-
-        # wait 5 seconds to locate global start position
-        while eefPos is None:
-            if rospy.Time.now() - t0 > rospy.Duration(5):
-                print("ERROR: Did not get any robot position after 5 seconds of waiting")
-                exit(-1)
-
-        R = np.array([[-1, 0, 0],
-                      [ 0, 0, 1],
-                      [ 0, 1, 0]])
-        te = R @ eefPos
-
-        # subscriber isn't needed anymore
-        eefPosSub.unregister()
-
-        origin = self.__rotationMatrix @ (tc + trb + te - interactionPointOffset)
-        self.setOrigin(origin)
-
-        return origin
+        if self.__interfaceType == 1:
+            return np.array([0,0,0])
+        else:
+            return self.__vrInterface.determineRobotStartPosition(interactionPointOffset)
 
 
 def createPoseStampedMsg(coords, euler, time):
@@ -230,6 +190,53 @@ class VrInterface:
         self.__oHand = oGroundHand
 
         return mbs
+
+    def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):
+        """
+        :param interactionPointOffset: offset from model origin to user interaction point in model
+        """
+
+        ## coordinates of controller in vr frame
+        # for the moment this is hardcoded
+        tc = np.array([1.38006377,  0.84095681,  0.2752991])
+        tc = tc + VR_POS_CORRECTION             
+
+        ## transformation matrix from controller to robot base in vr frame
+        trb = np.array([0.86, -0.045, -0.43])
+
+        ## listen to topic to get current robot end effector pose
+        print("Locating robot in VR space")
+        t0 = rospy.Time.now()
+
+        eefPos = None
+
+        def poseCallback(data):
+            nonlocal eefPos
+            
+            if eefPos is None:
+                eefPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+
+        eefPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, poseCallback)
+
+        # wait 5 seconds to locate global start position
+        while eefPos is None:
+            if rospy.Time.now() - t0 > rospy.Duration(5):
+                print("ERROR: Did not get any robot position after 5 seconds of waiting")
+                exit(-1)
+
+        R = np.array([[-1, 0, 0],
+                      [ 0, 0, 1],
+                      [ 0, 1, 0]])
+        te = R @ eefPos
+
+        # subscriber isn't needed anymore
+        eefPosSub.unregister()
+
+        origin = self.__rotationMatrix @ (tc + trb + te - interactionPointOffset)
+
+        self.__robotBase = self.__rotationMatrix @ (tc + trb)
+
+        return origin
 
     def update(self, mbs, SC, time):
 
