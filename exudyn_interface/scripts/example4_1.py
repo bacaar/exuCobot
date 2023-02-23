@@ -48,12 +48,8 @@ def main(client, useImpedanceController):
     origin = robotVrInterface.determineRobotStartPosition(interactionPointOffset)
 
     #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # parameter and ground with rectangle visualisation
 
-    background = GraphicsDataCheckerBoard(point=[0,-l/2,-b/2], color=[0.7]*3+[1], alternatingColor=[0.8]*3+[1])
-
-    bGround = mbs.AddObject(ObjectGround(referencePosition=origin,
-                                         visualization=VObjectGround(graphicsData=[background])))
+    bGround = mbs.AddObject(ObjectGround(referencePosition=origin))
 
     graphics2a = GraphicsDataOrthoCube(xMin=-b/2, xMax=b/2,
                                        yMin=-b/2, yMax=b/2,
@@ -242,7 +238,7 @@ def main(client, useImpedanceController):
 
 if __name__ == "__main__":
 
-    if False:
+    if True:
         # for debugging
         main(2, False)
 

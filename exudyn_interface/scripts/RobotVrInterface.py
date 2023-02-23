@@ -223,24 +223,55 @@ class VrInterface:
 
     def createEnvironment(self, mbs):
 
-        ## get single values of VR_POS_COrrection
-        dx, dy, dz = self.__rotationMatrix @ VR_POS_CORRECTION
+        ## get VR_POS_CORRECTION in vr coordinates
+        corr = self.__rotationMatrix @ VR_POS_CORRECTION
 
         ## create floor
-        plane = GraphicsDataQuad([[-4, 0, 0+dz],[ 1, 0, 0+dz],[ 1, 2, 0+dz],[-4, 2, 0+dz]],
+        cornerPoints = np.array([[-2., 0., 0.],[ 1., 0., 0.],[ 1., 2., 0.],[-2., 2., 0.]])
+        for i in range(4):
+            cornerPoints[i] += corr
+
+        nTilesX = int(abs(cornerPoints[0][0]-cornerPoints[1][0]))
+        nTilesY = int(abs(cornerPoints[0][1]-cornerPoints[2][1]))
+
+        plane = GraphicsDataQuad(cornerPoints,
                                  color4darkgrey, 
-                                 nTiles=5,
-                                 nTilesY=2,
+                                 nTiles=nTilesX,
+                                 nTilesY=nTilesY,
                                  alternatingColor=color4lightgrey)
         mbs.AddObject(ObjectGround(referencePosition=[0,0,0],
                                    visualization=VObjectGround(graphicsData=[plane])))
 
-        ## create table
+        ## create abyss
+        depth = np.array([0., 0., -20.])
+        for i in range(4):
+            j = i+1
+            if j == 4:
+                j = 0
 
+            if i%2==0:
+                nTilesX = int(abs(cornerPoints[i][0]-cornerPoints[j][0]))
+            else:
+                nTilesX = int(abs(cornerPoints[i][1]-cornerPoints[j][1]))
+            nTilesY = int(abs(depth[2]))
+
+            print(nTilesX)
+
+            abyssCorners = np.array([cornerPoints[i], cornerPoints[j], cornerPoints[j]+depth, cornerPoints[i]+depth])
+            plane = GraphicsDataQuad(abyssCorners,
+                                     color4darkgrey, 
+                                     nTiles=nTilesX,
+                                     nTilesY=nTilesY,
+                                     alternatingColor=color4lightgrey)
+            mbs.AddObject(ObjectGround(referencePosition=[0,0,0],
+                                       visualization=VObjectGround(graphicsData=[plane])))
+
+
+        ## create table
         graphicsTable = GraphicsDataOrthoCube(xMin=-0.3, xMax=0.9,
                                               yMin=-0.4, yMax=0.4,
                                               zMin=-0.78, zMax=0,
-                                              color=[0.7, 0.5, 0.3, 1])
+                                              color=[0.5, 0.4, 0.9, 1])
         mbs.AddObject(ObjectGround(referencePosition=self.__robotBase,
                                    visualization=VObjectGround(graphicsData=[graphicsTable])))
 
@@ -318,7 +349,7 @@ class VrInterface:
         SC.visualizationSettings.interactive.lockModelView = True #lock rotation/translation/zoom of model
         SC.visualizationSettings.interactive.openVR.logLevel = 3
         SC.visualizationSettings.general.graphicsUpdateInterval = 0.017
-        SC.visualizationSettings.general.drawWorldBasis = True
+        #SC.visualizationSettings.general.drawWorldBasis = True
 
 
     def getCurrentSystemState(self):
