@@ -53,25 +53,10 @@ class RobotVrInterface:
     # actually only needed for vrInterface, but ODE coordinates must be consistent between vr and robot interface
     def setHand(self, mbs):
 
-        x = 0.08    # hand width
-        y = 0.02    # hand length
-        z = 0.15    # hand thickness
-
-        graphicsHand = GraphicsDataOrthoCube(xMin=0, xMax=x,
-                                             yMin=0, yMax=y,
-                                             zMin=0, zMax=z,
-                                             color=[0.7, 0.5, 0.3, 1])
-
-        # hand is not at marker, but below
-        handOffset = np.array([0, 0, 0])
-
-        oGroundHand = mbs.AddObject(ObjectGround(visualization=VObjectGround(graphicsData=[graphicsHand])))
-
-        # store object index only for vrInterface, not needed at robotInterface
-        if self.__interfaceType == 2:
-            self.__vrInterface.setHand(oGroundHand, handOffset)
-
-        return mbs
+        if self.__interfaceType == 1:
+            return mbs
+        else:
+            return self.__vrInterface.setHand(mbs)
 
     def update(self, mbs, SC, t):
         """
@@ -229,9 +214,22 @@ class VrInterface:
         #self.__systemStateSub.unregister()
         pass
 
-    def setHand(self, oHand, offset):
-        self.__oHand = oHand
-        self.__handOffset = offset
+    def setHand(self, mbs):
+
+        x = 0.08    # hand width
+        y = 0.02    # hand length
+        z = 0.15    # hand thickness
+
+        graphicsHand = GraphicsDataOrthoCube(xMin=0, xMax=x,
+                                             yMin=0, yMax=y,
+                                             zMin=0, zMax=z,
+                                             color=[0.7, 0.5, 0.3, 1])
+
+        oGroundHand = mbs.AddObject(ObjectGround(visualization=VObjectGround(graphicsData=[graphicsHand])))
+
+        self.__oHand = oGroundHand
+
+        return mbs
 
     def update(self, mbs, SC, time):
 
@@ -250,12 +248,12 @@ class VrInterface:
 
                 # extract Orientation and Position from Tracker Pose
                 R = self.__rotationMatrix @ HT2rotationMatrix(T)
-                t = self.__rotationMatrix @ (HT2translation(T) + VR_POS_CORRECTION + R @ self.__handOffset)
+                t = self.__rotationMatrix @ (HT2translation(T) + VR_POS_CORRECTION)
 
                 mbs.SetObjectParameter(self.__oHand, "referencePosition", t)
                 mbs.SetObjectParameter(self.__oHand, "referenceRotation", R)
             except Exception as e:
-                print(e)
+                #print(e)
                 pass
 
         elif renderState['openVR']['controllerPoses']:
@@ -265,13 +263,14 @@ class VrInterface:
 
                 # extract Orientation and Position from Tracker Pose
                 R = self.__rotationMatrix @ HT2rotationMatrix(T)
-                t = self.__rotationMatrix @ (HT2translation(T) + VR_POS_CORRECTION + R @ self.__handOffset)
+                t = self.__rotationMatrix @ (HT2translation(T) + VR_POS_CORRECTION)
 
                 mbs.SetObjectParameter(self.__oHand, "referencePosition", t)
                 mbs.SetObjectParameter(self.__oHand, "referenceRotation", R)
             except Exception as e:
                 #print(e)
                 pass
+
         else:
             pass
 

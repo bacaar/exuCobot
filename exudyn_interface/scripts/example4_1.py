@@ -242,7 +242,7 @@ def main(client, useImpedanceController):
 
 if __name__ == "__main__":
 
-    if True:
+    if False:
         # for debugging
         main(2, False)
 
