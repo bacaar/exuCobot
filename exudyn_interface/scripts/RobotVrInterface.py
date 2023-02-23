@@ -394,7 +394,7 @@ class RobotInterface:
         self.__impedanceController = useImpedanceController
 
         # timing variable to know when to send new command to robot or when to publish new mbs system state update
-        self.__robotCommandSendInterval = 0.006    #s
+        self.__robotCommandSendInterval = 0.02 #0.006    #s
         self.__lastRobotCommandSentTime = -self.__robotCommandSendInterval
         self.__systemStateUpdateInterval = 0.017  #s
         self.__lastSystemStateUpdateTime = -self.__systemStateUpdateInterval
@@ -498,8 +498,7 @@ class RobotInterface:
             #print(angleX, type(angleX))
 
             self.__publishRobotCommand(pos, vel, acc, angleX, t)
-            
-            lastRobotCommandSentTime = t
+            self.__lastRobotCommandSentTime = t
 
         if t - self.__lastSystemStateUpdateTime >= self.__systemStateUpdateInterval:
             # publish system state vor vrInterface
@@ -512,7 +511,7 @@ class RobotInterface:
                     systemStateList1d.append(array[i])
 
             self.__publishSystemState(systemStateList1d)
-            lastSystemStateUpdateTime = t
+            self.__lastSystemStateUpdateTime = t
 
         return mbs
 
