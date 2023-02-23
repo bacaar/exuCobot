@@ -10,6 +10,7 @@ import rospy
 
 from geometry_msgs.msg import PoseStamped, WrenchStamped
 from std_msgs.msg import Float64MultiArray
+from util.msg import segmentCommand
 
 import tf
 from scipy.spatial.transform import Rotation
@@ -41,27 +42,31 @@ class RobotVrInterface:
         else:
             self.__topicBase = "/my_cartesian_velocity_controller"
 
+        self.__rotationMatrix = np.eye(3)
+
+    # set sim model origin in vr frame
     def setOrigin(self, origin):
-        if self.__interfaceType == 1:
-            pass
-        else:
-            self.__vrInterface.setOrigin(origin)
+        self.__origin = origin
 
     # actually only needed for vrInterface, but ODE coordinates must be consistent between vr and robot interface
     def setHand(self, mbs):
 
-        graphicsHand = GraphicsDataOrthoCube(xMin=-0.04, xMax=0.04,
-                                             yMin=0, yMax=0.15,
-                                             zMin=-0.3, zMax=0,
+        x = 0.08    # hand width
+        y = 0.02    # hand length
+        z = 0.15    # hand thickness
+
+        graphicsHand = GraphicsDataOrthoCube(xMin=-x/2, xMax=x/2,
+                                             yMin=-y, yMax=0,
+                                             zMin=0, zMax=z,
                                              color=[0.7, 0.5, 0.3, 1])
 
         intertiaHand = InertiaCuboid(density=0.001,
-                                 sideLengths=(0.08, 0.015, 0.03))
+                                     sideLengths=(x, y, z))
 
         [nHand, bHand]=AddRigidBody(mainSys = mbs, 
                                     inertia = intertiaHand, 
                                     nodeType = str(exu.NodeType.RotationEulerParameters), 
-                                    position = [0, 0, 0], #[self.__origin[0], self.__origin[1], self.__origin[2]-l], 
+                                    position = [0, 0, 0],
                                     rotationMatrix = np.eye(3), 
                                     angularVelocity = np.zeros(3),
                                     velocity= [0,0,0],
@@ -79,7 +84,8 @@ class RobotVrInterface:
         K = np.diag(3 * [k_trans] + 3*[k_rot])
         oHandConstraint = mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mGround, mHand],
                                                               stiffness=K,
-                                                              damping=K*5e-3))
+                                                              damping=K*5e-3,
+                                                              visualization={'show': False, 'drawSize': -1, 'color': [-1]*4}))
 
         # store object index only for vrInterface, not needed at robotInterface
         if self.__interfaceType == 2:
@@ -109,6 +115,7 @@ class RobotVrInterface:
             return self.__vrInterface.getCurrentSystemState()
 
     def setRotationMatrix(self, matrix):
+        self.__rotationMatrix = matrix
         if self.__interfaceType == 1:
             pass
         else:
@@ -125,10 +132,46 @@ class RobotVrInterface:
         :param interactionPointOffset: offset from model origin to user interaction point in model
         """
 
-        if self.__interfaceType == 1:
-            return np.array([0, 0, 0])
-        else:
-            return self.__vrInterface.determineRobotStartPosition(interactionPointOffset)
+        ## coordinates of controller in vr frame
+        # for the moment this is hardcoded
+        tc = np.array([1.38006377,  0.84095681-0.3,  0.2752991])
+                       
+
+        ## transformation matrix from controller to robot base in vr frame
+        trb = np.array([0.86, -0.045, -0.43])
+
+        ## listen to topic to get current robot end effector pose
+        print("Locating robot in VR space")
+        t0 = rospy.Time.now()
+
+        eefPos = None
+
+        def poseCallback(data):
+            nonlocal eefPos
+            
+            if eefPos is None:
+                eefPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+
+        eefPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, poseCallback)
+
+        # wait 5 seconds to locate global start position
+        while eefPos is None:
+            if rospy.Time.now() - t0 > rospy.Duration(5):
+                print("ERROR: Did not get any robot position after 5 seconds of waiting")
+                exit(-1)
+
+        R = np.array([[-1, 0, 0],
+                      [ 0, 0, 1],
+                      [ 0, 1, 0]])
+        te = R @ eefPos
+
+        # subscriber isn't needed anymore
+        eefPosSub.unregister()
+
+        origin = self.__rotationMatrix @ (tc + trb + te - interactionPointOffset)
+        self.setOrigin(origin)
+
+        return origin
 
 
 def createPoseStampedMsg(coords, euler, time):
@@ -206,56 +249,18 @@ class VrInterface:
         #self.__systemStateSub.unregister()
         pass
 
-    def setOrigin(self, origin):
-        self.__origin = origin
-
     def setHand(self, oHandConstraint):
         self.__oHandConstraint = oHandConstraint
 
-    def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):
-        """
-        :param interactionPointOffset: offset from model origin to user interaction point in model
-        """
-
-        ## coordinates of controller in vr frame
-        # for the moment this is hardcoded
-        tc = np.array([1.37383771,  0.83587539-0.15,  0.5588876])
-
-        ## transformation matrix from controller to robot base in vr frame
-        trb = np.array([0.86, -0.045, -0.43])
-
-        ## listen to topic to get current robot end effector pose
-        print("Locating robot in VR space")
-        t0 = rospy.Time.now()
-
-        eefPos = None
-
-        def poseCallback(data):
-            nonlocal eefPos
-            
-            if eefPos is None:
-                eefPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
-
-        eefPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, poseCallback)
-
-        # wait 5 seconds to locate global start position
-        while eefPos is None:
-            if rospy.Time.now() - t0 > rospy.Duration(5):
-                print("ERROR: Did not get any robot position after 5 seconds of waiting")
-                exit(-1)
-
-        te = np.array([-eefPos[0], eefPos[2], eefPos[1]]) # transform robot coordinates to vr frame
-        # TODO: make this transformation variable
-
-        # subscriber isn't needed anymore
-        eefPosSub.unregister()
-
-        origin = self.__rotationMatrix @ (tc + trb + te - interactionPointOffset)
-        self.setOrigin(origin)
-
-        return origin
-
     def update(self, mbs, SC, time):
+
+        ## get and apply simulation update from robot client
+        data = self.getCurrentSystemState()
+
+        if data is not None:
+            mbs.systemData.SetSystemState(data)
+
+        ## locate Tracker and move hand object there
         renderState = SC.GetRenderState()
         if renderState['openVR']['trackerPoses']:
             try:
@@ -265,34 +270,26 @@ class VrInterface:
                 angles_ = r.as_euler("xyz",degrees=False)
 
                 # position
-                t = self.__rotationMatrix @ T[3][:3]# - self.__origin
+                t = self.__rotationMatrix @ T[3][:3]
                 
                 # orientation
                 angles = np.around(self.__rotationMatrix @ angles_, 2)
+                angles = angles_
 
-                print(T[3][:3])
-                print(t)
-                print()
+                #print(T[3][:3])
+                #print(t)
+                #print()
 
                 #print(angles)
-                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [0,0,0, 0, 0, 0])
-                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [0.5*np.sin(time), 0, 0, 0, 0, 0])
                 mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2], 0, 0, 0])
                 #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], 0, 0])
-                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],np.sin(t),0,0])
+                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],np.sin(time),0,0])
                 #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
             except Exception as e:
-                print(e)
-                #pass
+                #print(e)
+                pass
         else:
             pass
-
-
-        ## get and apply Simulation update
-        data = self.getCurrentSystemState()
-
-        if data is not None:
-            mbs.systemData.SetSystemState(data)
 
         return mbs
 
