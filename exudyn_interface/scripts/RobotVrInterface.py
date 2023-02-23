@@ -10,12 +10,13 @@ import rospy
 
 from geometry_msgs.msg import PoseStamped, WrenchStamped
 from std_msgs.msg import Float64MultiArray
-from util.msg import segmentCommand
 
 import tf
 from scipy.spatial.transform import Rotation
 
 from exudyn.utilities import *
+
+VR_POS_CORRECTION = np.array([0, -0.3, 0])
 
 class RobotVrInterface:
 
@@ -76,7 +77,7 @@ class RobotVrInterface:
         mHand = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bHand, localPosition=[0,0,0]))
 
         # add additional ground object only for hand, so that hand is moving always in vr space and not model space
-        bGround = mbs.AddObject(ObjectGround(referencePosition=[0,0,0]))
+        bGround = mbs.AddObject(ObjectGround(referencePosition=self.__rotationMatrix @ VR_POS_CORRECTION))
         mGround = mbs.AddMarker(MarkerBodyRigid(bodyNumber=bGround, localPosition=[0, 0, 0.]))
 
         k_trans = 1e3
@@ -134,8 +135,8 @@ class RobotVrInterface:
 
         ## coordinates of controller in vr frame
         # for the moment this is hardcoded
-        tc = np.array([1.38006377,  0.84095681-0.3,  0.2752991])
-                       
+        tc = np.array([1.38006377,  0.84095681,  0.2752991])
+        tc = tc + VR_POS_CORRECTION             
 
         ## transformation matrix from controller to robot base in vr frame
         trb = np.array([0.86, -0.045, -0.43])
@@ -281,8 +282,8 @@ class VrInterface:
                 #print()
 
                 #print(angles)
-                mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2], 0, 0, 0])
-                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], 0, 0])
+                #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2], 0, 0, 0])
+                mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], 0, 0])
                 #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],np.sin(time),0,0])
                 #mbs.SetObjectParameter(self.__oHandConstraint, "offset", [t[0],t[1],t[2],angles[0], angles[1], angles[2]])
             except Exception as e:
@@ -410,14 +411,14 @@ class RobotInterface:
         if self.__impedanceController:
             topicBase = '/my_cartesian_impedance_controller'
             brief = "IC"
-            classToUse = PoseStamped
+            self.__commandClass = PoseStamped
         else:
             topicBase = '/my_cartesian_velocity_controller'
             brief = "VC"
-            classToUse = segmentCommand
+            self.__commandClass = segmentCommand
 
         # publisher for pendulum poses (=endeffector positions)
-        self.__pub = rospy.Publisher(topicBase + '/setTargetPose', classToUse, queue_size=1000)
+        self.__pub = rospy.Publisher(topicBase + '/setTargetPose', self.__commandClass, queue_size=1000)
 
         # publisher for system data
         self.__pubS = rospy.Publisher(topicBase + '/SystemState', Float64MultiArray, queue_size=1)
@@ -569,7 +570,7 @@ class RobotInterface:
         if self.__impedanceController:
             msg = createPoseStampedMsg(pos, (angleX, 0, 0), tRos)
         else:
-            msg = segmentCommand()
+            msg = self.__commandClass()
             msg.x.pos = pos[0]
             msg.y.pos = pos[1]
             msg.z.pos = pos[2]
