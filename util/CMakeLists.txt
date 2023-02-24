@@ -54,6 +54,7 @@ add_message_files(
   kinematicState.msg
   kinematicState3d.msg
   kinematicState3dStamped.msg
+  segmentCommand.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -172,6 +173,7 @@ catkin_install_python(
   scripts/util/trajectoryDifferentiator.py
   scripts/util/poseObserver.py
   scripts/util/kinematicStateObserver.py
+  scripts/util/universalRecorder.py
         DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

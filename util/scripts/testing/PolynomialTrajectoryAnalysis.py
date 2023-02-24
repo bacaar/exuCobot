@@ -45,6 +45,9 @@ def calcCoefs(s0, ds0, dds0, sT, dsT, ddsT, T, polyOrder):
         #solution = mInv @ vec
         return sol
 
+    if polyOrder == 4:
+        pass
+
     if polyOrder == 5:
 
         # boundary conditions: pos x2, vel x2, acc x2
@@ -98,7 +101,7 @@ def main():
     rospy.init_node('PolynomialTrajectoryTest', anonymous=True)
 
     if not useRealData:
-        """targetPos = np.array([0.15,
+        targetPos = np.array([0.15,
                         0.15,
                         0.16,
                         0.17,
@@ -106,8 +109,8 @@ def main():
                         0.18,
                         0.19,
                         0.19,
-                        0.18])"""
-        targetPos = np.array([-0.0312898949951993,0
+                        0.18])
+        """targetPos = np.array([-0.0312898949951993,0
                               -0.0312898949951993,
                               -0.031293220937771316,
                               -0.031337655689557375,
@@ -115,7 +118,7 @@ def main():
                               -0.0315806816957106,
                               -0.0317781882662852,
                               -0.03203152771955142,
-                              -0.03234145393735044])
+                              -0.03234145393735044])"""
 
     
     else:

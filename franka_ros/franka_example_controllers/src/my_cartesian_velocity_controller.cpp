@@ -878,6 +878,10 @@ namespace franka_example_controllers {
                                             {current_robot_state[12], current_robot_state[13], current_robot_state[14]});
 
         // distance must not be bigger than maximal distance which can be covered in one step (0.001s) with max velocity
+        // note: this condition turned out to be necessary when the controller breaks. E.g. when libfranka stops because
+        // of "libfranka: Move command aborted: motion aborted by reflex!", the robot would stop working, but this
+        // controller would carry on and spam error messages in console. So with this condition this controller stops as
+        // well.
         if (distance >= max_v_trans_ * 0.001) {
             std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
             #if ENABLE_LOGGING

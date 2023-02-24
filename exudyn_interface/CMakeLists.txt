@@ -164,6 +164,8 @@ catkin_install_python(
         PROGRAMS
         scripts/example1.py
         scripts/example2.py
+        scripts/example3_0.py
+        scripts/example3_1.py
         DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

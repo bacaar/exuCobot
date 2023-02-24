@@ -25,7 +25,7 @@ def main():
     trajectoryCreation = pd.read_csv(logPath + "trajectoryCreation.csv", header=0)
 
     # adapt time from exudyn to controller time
-    # not sure if this is correct so just leave it out for the moment
+    # TODO: not sure if this is correct
     tmin = min((commands["t"][0], currentPosition["t"][0], evaluatedTrajectory["t"][0], trajectoryCreation["t"][0]))
 
     exudyn["dt"][0] += tmin

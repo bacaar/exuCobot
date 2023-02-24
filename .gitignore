@@ -7,6 +7,8 @@ cmake-build-debug/
 
 # log files
 **/log/
+*.log
+*.csv
 
 # build and devel files
 **/build/

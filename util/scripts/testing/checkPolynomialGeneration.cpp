@@ -64,29 +64,12 @@ std::vector<double> calcCoefs(State startState, State endState, double T){
     return solution;
 }
 
-/*State evaluatePolynom(std::vector<double> &coef, double t){
-
-    double t2 = t * t;
-    double t3 = t2 * t;
-    double t4 = t3 * t;
-    double t5 = t4 * t;
-
-    State state;
-
-    state.pos  =    coef[0]*t5 +    coef[1]*t4 +   coef[2]*t3 +   coef[3]*t2 + coef[4]*t + coef[5];
-    state.vel  =  5*coef[0]*t4 +  4*coef[1]*t3 + 3*coef[2]*t2 + 2*coef[3]*t  + coef[4];
-    state.acc  = 20*coef[0]*t3 + 12*coef[1]*t2 + 6*coef[2]*t  + 2*coef[3];
-    state.jerk = 60*coef[0]*t2 + 24*coef[1]*t  + 6*coef[2];
-
-    return state;
-}*/
-
 
 int main(){
-    io::CSVReader<21> in("/home/aaron/catkin_ws/src/exucobot/log/trajectoryCreation.csv");
+    io::CSVReader<21> in("/home/robocup/catkinAaron/src/exuCobot/log/trajectoryCreationModified.csv");
 
     std::ofstream outfile;
-    outfile.open("/home/aaron/catkin_ws/src/exucobot/log/coefficientsCpp.csv");
+    outfile.open("/home/robocup/catkinAaron/src/exuCobot/log/coefficientsCppOffline.csv");
     if(outfile.is_open()){
         outfile << "t,coord,A,B,C,D,E,F,dt\n";
     }
@@ -122,4 +105,7 @@ int main(){
         }
         outfile << dt << std::endl;
     }
+    outfile.close();
+
+    return 0;
 }

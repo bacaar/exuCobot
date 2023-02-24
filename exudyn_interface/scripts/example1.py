@@ -34,9 +34,13 @@ from util.scripts.util.common import createPoseStampedMsg
 from util.msg import segmentCommand
 
 logFile = None
+impedanceController = False  # default
 
 # global variable for external forces and moments (combined => efforts)
 extEfforts = np.zeros(shape=(6, 1))
+
+# measured force and torque by robot are not equal zero at rest, so store first measured force and torque (assumption: at rest) and substract them of every other one measured
+forceOffset = np.zeros(shape=(6, 1))
 
 # start position of robot in robot base frame in meters
 globalStartPos = np.array([0.4, 0, 0.2])    # default, but not precise enough
@@ -66,22 +70,33 @@ def externalForceCallback(data):
     :param geometry_msgs.msg.WrenchStamped data: received message
     """
 
+    # first time: set force/torque offset
+    global forceOffset
+    if not np.any(forceOffset):
+        forceOffset[0] = data.wrench.force.x
+        forceOffset[1] = data.wrench.force.y
+        forceOffset[2] = data.wrench.force.z
+        forceOffset[3] = data.wrench.torque.x
+        forceOffset[4] = data.wrench.torque.y
+        forceOffset[5] = data.wrench.torque.z
+
     # get forces
-    fx = data.wrench.force.x
-    fy = data.wrench.force.y
-    fz = data.wrench.force.z
+    fx = data.wrench.force.x - forceOffset[0]
+    fy = data.wrench.force.y - forceOffset[1]
+    fz = data.wrench.force.z - forceOffset[2]
 
     # get moments
-    mx = data.wrench.torque.x
-    my = data.wrench.torque.y
-    mz = data.wrench.torque.z
+    mx = data.wrench.torque.x - forceOffset[3]
+    my = data.wrench.torque.y - forceOffset[4]
+    mz = data.wrench.torque.z - forceOffset[5]
 
     # save for later use
     global extEfforts
 
-    # sensor is not that precise, so everything below 5N has to be neglected because of sensornoise
-    # this threshold has been set empirically. For other configurations it might be different. TODO
-    threshold = 4
+    # additional to force offset, there is also some noise on force/torque measurement
+    # thus neglect everything which is smaller than 0.5N
+    threshold = 0
+
     if abs(fy) >= threshold:
         extEfforts[0] = fy
         print("fy = " + str(fy))
@@ -102,7 +117,9 @@ def externalForceCallback(data):
     extEfforts[5] = mx
 
 
-def main(impedanceController = False):
+def main():
+
+    print("impedance: ", impedanceController)
 
     # flag for activating testing mode
     # if True, friction is disabled, robot doesn't go to starting pose and simulation starts with initial velocity
@@ -443,11 +460,9 @@ def main(impedanceController = False):
 
 
 if __name__ == "__main__":
-
-    impedanceController = False  # default
   
     if len(sys.argv) >= 2 and sys.argv[1] == '-i':
         impedanceController = True
 
-    main(impedanceController)
+    main()
     logFile.close()

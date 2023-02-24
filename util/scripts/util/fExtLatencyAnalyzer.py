@@ -9,8 +9,10 @@ Script for analyzing where latency between force-input and motion comes from
 
 import rospy
 from geometry_msgs.msg import PoseStamped, WrenchStamped
+from util.msg import segmentCommand
 
 import numpy as np
+import pandas as pd
 
 import matplotlib.pyplot as plt
 from mpl_axes_aligner import align
@@ -22,6 +24,7 @@ targetPoseList = []
 currentPoseList = []
 
 scriptStartTime = None
+lastTime = 0    # needed for velocity controller as target there has no time stamp
 isRecording = False
 
 
@@ -58,6 +61,14 @@ def targetPoseCallback(data):
         targetPoseList.append([t, data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
 
+def targetPoseCallback2(data):
+    if isRecording:
+        global lastTime
+        t = lastTime + data.dt
+        lastTime = t
+        targetPoseList.append([t, data.x.pos, data.y.pos, data.z.pos])
+
+
 def currentPoseCallback(data):
     if isRecording:
         duration = data.header.stamp - scriptStartTime
@@ -74,16 +85,16 @@ def main():
     plotYOnly = True
 
     # duration of recording
-    duration = 20
+    duration = 10
 
     # setup subscribers
     rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)    # force published by franka controller
     rospy.Subscriber("/my_cartesian_impedance_controller/analysis/getExternalForce", WrenchStamped, externalForceCallback2)       # force received by exudyn
-    rospy.Subscriber("/my_cartesian_impedance_controller/setDesiredPose", PoseStamped, targetPoseCallback)
+    rospy.Subscriber("/my_cartesian_impedance_controller/setTargetPose", PoseStamped, targetPoseCallback)
     rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
-    rospy.Subscriber("/my_cartesian_pose_controller/analysis/getExternalForce", WrenchStamped, externalForceCallback2)       # force received by exudyn
-    rospy.Subscriber("/my_cartesian_pose_controller/setDesiredPose", PoseStamped, targetPoseCallback)
-    rospy.Subscriber("/my_cartesian_pose_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+    rospy.Subscriber("/my_cartesian_velocity_controller/analysis/getExternalForce", WrenchStamped, externalForceCallback2)       # force received by exudyn
+    rospy.Subscriber("/my_cartesian_velocity_controller/setTargetPose", segmentCommand, targetPoseCallback2)
+    rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, currentPoseCallback)
 
     # record data from topics for duration of time
     print("Starting recording for {} seconds".format(duration))
@@ -104,6 +115,26 @@ def main():
     forceInput2 = np.array(forceInputList2)
     targetPose = np.array(targetPoseList)
     currentPose = np.array(currentPoseList)
+
+    # assuming that the robot is not moving at the beginning of the recording, set first position == zero
+    targetPose[:,2] -= targetPose[0,2]
+    currentPose[:,2] -= currentPose[0,2]
+
+    # let all time vectors start at zero
+    forceInput[:,0] -= forceInput[0,0]
+    forceInput2[:,0] -= forceInput2[0,0]
+    targetPose[:,0] -= targetPose[0,0]
+    currentPose[:,0] -= currentPose[0,0]
+
+    df_f1 = pd.DataFrame(forceInput, columns=["t","x","y","z"])
+    df_f2 = pd.DataFrame(forceInput2, columns=["t","x","y","z"])
+    df_tp = pd.DataFrame(targetPose, columns=["t","x","y","z"])
+    df_cp = pd.DataFrame(currentPose, columns=["t","x","y","z"])
+
+    df_f1.to_csv("f1.csv")
+    df_f2.to_csv("f2.csv")
+    df_tp.to_csv("tp.csv")
+    df_cp.to_csv("cp.csv")
 
     # plot trajectories
     if plotYOnly:
@@ -127,7 +158,7 @@ def main():
         ax2 = ax.twinx()
         ax2.plot(forceInput[:, 0], forceInput[:, 2], "k", linewidth=0.5)
 
-        #ax2.plot(forceInput2[:, 0], forceInput2[:, 2], "r")
+        ax2.plot(forceInput2[:, 0], forceInput2[:, 2], "r")
         ax2.set_ylabel("force input in N")
 
         #ax2.legend(["published", "received"])
