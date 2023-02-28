@@ -255,24 +255,47 @@ class VrInterface:
         ## get VR_POS_CORRECTION in vr coordinates
         corr = self.__rotationMatrix @ VR_POS_CORRECTION
 
-        ## create floor
-        cornerPoints = np.array([[-2., 0., 0.],[ 1., 0., 0.],[ 1., 2., 0.],[-2., 2., 0.]])
+        ## create lamp
+        lamp = GraphicsDataSphere(color=color4yellow)
+        mbs.AddObject(ObjectGround(referencePosition=[-1,1.5,3],
+                                   visualization=VObjectGround(graphicsData=[lamp])))
+
+        ## create world borders
+
+        # decide wheter to create platform (ground with abyss) or room (floor with walls)
+        createRoom = True
+
+        # create room
+        if createRoom:
+            height = np.array([0., 0., 3.])
+            col1 = color4white
+            col2 = color4white
+            x, y, z = self.__robotBase
+            cornerPoints = np.array([[x-1, y-0.94, 0.],[ 1., y-0.94, 0.],[ 1., 2., 0.],[x-1, 2., 0.]])
+
+        # create abyss
+        else:
+            height = np.array([0., 0., -20.])
+            col1 = color4darkgrey
+            col2 = color4lightgrey
+            cornerPoints = np.array([[-2., 0., 0.],[ 1., 0., 0.],[ 1., 2., 0.],[-2., 2., 0.]])
+
         for i in range(4):
             cornerPoints[i] += corr
 
+        # create floor
         nTilesX = int(abs(cornerPoints[0][0]-cornerPoints[1][0]))
         nTilesY = int(abs(cornerPoints[0][1]-cornerPoints[2][1]))
 
         plane = GraphicsDataQuad(cornerPoints,
-                                 color4darkgrey, 
+                                 color4lightgrey, 
                                  nTiles=nTilesX,
                                  nTilesY=nTilesY,
                                  alternatingColor=color4lightgrey)
         mbs.AddObject(ObjectGround(referencePosition=[0,0,0],
                                    visualization=VObjectGround(graphicsData=[plane])))
-
-        ## create abyss
-        depth = np.array([0., 0., -20.])
+        
+        # create walls / abyss
         for i in range(4):
             j = i+1
             if j == 4:
@@ -282,16 +305,16 @@ class VrInterface:
                 nTilesX = int(abs(cornerPoints[i][0]-cornerPoints[j][0]))
             else:
                 nTilesX = int(abs(cornerPoints[i][1]-cornerPoints[j][1]))
-            nTilesY = int(abs(depth[2]))
+            nTilesY = int(abs(height[2]))
 
-            abyssCorners = np.array([cornerPoints[i], cornerPoints[j], cornerPoints[j]+depth, cornerPoints[i]+depth])
+            abyssCorners = np.array([cornerPoints[i], cornerPoints[j], cornerPoints[j]+height, cornerPoints[i]+height])
             plane = GraphicsDataQuad(abyssCorners,
-                                     color4darkgrey, 
-                                     nTiles=nTilesX,
-                                     nTilesY=nTilesY,
-                                     alternatingColor=color4lightgrey)
+                                    col1, 
+                                    nTiles=nTilesX,
+                                    nTilesY=nTilesY,
+                                    alternatingColor=col2)
             mbs.AddObject(ObjectGround(referencePosition=[0,0,0],
-                                       visualization=VObjectGround(graphicsData=[plane])))
+                                    visualization=VObjectGround(graphicsData=[plane])))
 
 
         ## create table
