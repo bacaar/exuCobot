@@ -374,6 +374,11 @@ class VrInterface:
         SC.visualizationSettings.general.graphicsUpdateInterval = 0.017
         #SC.visualizationSettings.general.drawWorldBasis = True
 
+        SC.visualizationSettings.openGL.enableLighting = True
+        SC.visualizationSettings.openGL.enableLight0 = True
+        SC.visualizationSettings.openGL.light0position = [-1,1.5,3,0]
+        SC.visualizationSettings.openGL.shadow = 0.5
+
 
     def getCurrentSystemState(self):
         return self.__systemStateData
