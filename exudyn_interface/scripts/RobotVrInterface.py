@@ -143,6 +143,35 @@ def createPoseStampedMsg(coords, euler, time):
     return msg
 
 
+def createTable(mbs, pos, dim, tableTopThickness, tableBaseThickness, tableTopColor, tableBaseColor):
+
+    tableBaseLength = dim[2]-tableTopThickness
+
+    # create table top
+    graphicsTableTop = GraphicsDataOrthoCube(xMin=0, xMax=dim[0],
+                                             yMin=0, yMax=dim[1],
+                                             zMin=tableBaseLength, zMax=dim[2],
+                                             color=tableTopColor)
+    mbs.AddObject(ObjectGround(referencePosition=pos,
+                               visualization=VObjectGround(graphicsData=[graphicsTableTop])))
+
+    # create table base
+    graphicsTableBase = GraphicsDataOrthoCube(xMin=0, xMax=tableBaseThickness,
+                                              yMin=0, yMax=tableBaseThickness,
+                                              zMin=0, zMax=tableBaseLength,
+                                              color=tableBaseColor)
+    mbs.AddObject(ObjectGround(referencePosition=pos,
+                               visualization=VObjectGround(graphicsData=[graphicsTableBase])))
+    mbs.AddObject(ObjectGround(referencePosition=pos+np.array([dim[0]-tableBaseThickness, 0, 0]),
+                               visualization=VObjectGround(graphicsData=[graphicsTableBase])))
+    mbs.AddObject(ObjectGround(referencePosition=pos+np.array([0, dim[1]-tableBaseThickness, 0]),
+                               visualization=VObjectGround(graphicsData=[graphicsTableBase])))
+    mbs.AddObject(ObjectGround(referencePosition=pos+np.array([dim[0]-tableBaseThickness, dim[1]-tableBaseThickness, 0]),
+                               visualization=VObjectGround(graphicsData=[graphicsTableBase])))
+
+    return mbs
+
+
 class VrInterface:
 
     def __init__(self, mbs, useImpedanceController) -> None:
@@ -219,7 +248,7 @@ class VrInterface:
 
         self.__robotBase = self.__rotationMatrix @ (tc + trb)
 
-        return origin
+        return origin    
 
     def createEnvironment(self, mbs):
 
@@ -255,8 +284,6 @@ class VrInterface:
                 nTilesX = int(abs(cornerPoints[i][1]-cornerPoints[j][1]))
             nTilesY = int(abs(depth[2]))
 
-            print(nTilesX)
-
             abyssCorners = np.array([cornerPoints[i], cornerPoints[j], cornerPoints[j]+depth, cornerPoints[i]+depth])
             plane = GraphicsDataQuad(abyssCorners,
                                      color4darkgrey, 
@@ -268,12 +295,8 @@ class VrInterface:
 
 
         ## create table
-        graphicsTable = GraphicsDataOrthoCube(xMin=-0.3, xMax=0.9,
-                                              yMin=-0.4, yMax=0.4,
-                                              zMin=-0.78, zMax=0,
-                                              color=[0.5, 0.4, 0.9, 1])
-        mbs.AddObject(ObjectGround(referencePosition=self.__robotBase,
-                                   visualization=VObjectGround(graphicsData=[graphicsTable])))
+        mbs = createTable(mbs, self.__robotBase+np.array([-0.3, -0.4, -0.78]), np.array([1.2, 0.8, 0.78]), 0.1, 0.08, [0.3, 0.3, 0.3, 1], [0.75, 0.75, 0.75, 1])
+        mbs = createTable(mbs, self.__robotBase+np.array([0.9, -0.94, -0.78]), np.array([2, 1, 0.72]), 0.025, 0.045, [1, 0.8, 0.4, 1], [0.75, 0.75, 0.75, 1])
 
         ## create Hand
         x = 0.08    # hand width
