@@ -238,24 +238,12 @@ def main(client, useImpedanceController):
 
 if __name__ == "__main__":
 
-    if True:
+    if False:
         # for debugging
         main(2, False)
 
     else:
-  
-        if len(sys.argv) >= 3:
-            # check controller type
-            useImpedanceController = False
+        from RobotVrInterface import handleArgv
+        client, useImpedance = handleArgv(sys.argv)
+        main(client, useImpedance)
 
-            # TODO: -h dazugeben
-
-            if sys.argv[2] == '-i':
-                useImpedanceController = True
-            
-            assert sys.argv[1] == "1" or sys.argv[1] == "2", "Unknown client type"
-
-            main(int(sys.argv[1]), useImpedanceController)
-        
-        else:
-            print("Usage: python3 " + sys.argv[0] + " [clientType] [controllerType]")

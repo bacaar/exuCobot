@@ -17,7 +17,46 @@ from scipy.spatial.transform import Rotation
 from exudyn.utilities import *
 
 VR_POS_CORRECTION = np.array([0, -0.2, 0])
-#VR_POS_CORRECTION = np.array([0, 0, 0])
+
+def handleArgv(argv):
+
+    # default values
+    client = None   # is mandatory to be specified in program arguments
+    useImpedanceController = False  # default: velocity controller
+
+    # just to be sure, that filename (argv[0]) can't trigger any option below
+    filename = argv[0]
+    argv = argv[1:]
+
+    def printUsage():
+        print("Usage: python3 " + filename + " [clientType vr/robot] [controllerType -v/-i]")
+
+    if "r" in argv or "robot" in argv:
+        client = 1
+    if "v" in argv or "vr" in argv:
+        if client == 1: # in case "r"/"robot" and "v"/"vr" are both in argv
+            printUsage()
+            exit(-1)
+        else:
+            client = 2
+    if "-i" in argv:
+        useImpedanceController = True
+    if "-v" in argv:
+        if useImpedanceController == True:  # in case -i and -v are both in argv
+            printUsage()
+            exit(-1)
+        else:
+            pass # velocity controller already in use by default
+    if "-h" in argv or "--help" in argv:
+        printUsage()
+        exit(0)
+
+    if client == None:
+        printUsage()
+        exit(-1)
+
+    return client, useImpedanceController
+    
 
 class RobotVrInterface:
 
