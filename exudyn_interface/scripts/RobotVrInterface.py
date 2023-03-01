@@ -16,7 +16,7 @@ from scipy.spatial.transform import Rotation
 
 from exudyn.utilities import *
 
-VR_POS_CORRECTION = np.array([0, -0.3, 0])
+VR_POS_CORRECTION = np.array([0, -0.2, 0])
 #VR_POS_CORRECTION = np.array([0, 0, 0])
 
 class RobotVrInterface:
@@ -329,7 +329,13 @@ class VrInterface:
         graphicsHand = GraphicsDataOrthoCube(xMin=0, xMax=x,
                                              yMin=0, yMax=y,
                                              zMin=0, zMax=z,
-                                             color=[0.7, 0.5, 0.3, 1])
+                                             color=[0.9,0.9,0.8,1])
+
+        graphicsHand = GraphicsDataFromSTLfile("hand_stl/Hand_R_centered_2.stl",    # TODO: this is not very flexible (does not work when file called from another directory)
+                                               color=[0.7, 0.5, 0.3, 1],
+                                               scale=0.001,
+                                               Aoff=np.eye(3) @ RotationMatrixZ(np.pi/8) @ RotationMatrixY(np.pi),
+                                               pOff=[0.06,0.02,-0.01])
 
         self.__oHand = mbs.AddObject(ObjectGround(visualization=VObjectGround(graphicsData=[graphicsHand])))
 
