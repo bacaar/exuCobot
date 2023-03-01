@@ -39,8 +39,6 @@ def main(client, useImpedanceController):
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
 
-    print("SC type: ", type(SC))
-
     robotVrInterface = RobotVrInterface(client, useImpedanceController)
 
     viewMatrix = np.eye(3) @ RotationMatrixZ(np.pi) @ RotationMatrixX(np.pi/2)

@@ -779,8 +779,6 @@ class RobotInterface:
             # calculate angle
             angleX = float(round(180+np.rad2deg(rot[0]), 4))
 
-            #print(angleX, type(angleX))
-
             self.__publishRobotCommand(pos, vel, acc, angleX, t)
             self.__lastRobotCommandSentTime = t
 
