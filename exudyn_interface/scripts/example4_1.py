@@ -39,7 +39,9 @@ def main(client, useImpedanceController):
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
 
-    robotVrInterface = RobotVrInterface(mbs, client, useImpedanceController)
+    print("SC type: ", type(SC))
+
+    robotVrInterface = RobotVrInterface(client, useImpedanceController)
 
     viewMatrix = np.eye(3) @ RotationMatrixZ(np.pi) @ RotationMatrixX(np.pi/2)
     robotVrInterface.setRotationMatrix(viewMatrix)
@@ -134,7 +136,7 @@ def main(client, useImpedanceController):
                                         damping=d,
                                         visualization={'show': False, 'drawSize': -1, 'color': [-1]*4}))
 
-    mbs = robotVrInterface.setHand(mbs)
+    mbs = robotVrInterface.createEnvironment(mbs)
 
     if client == 1:
 

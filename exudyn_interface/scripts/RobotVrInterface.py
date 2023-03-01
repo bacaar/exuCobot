@@ -19,6 +19,15 @@ from exudyn.utilities import *
 VR_POS_CORRECTION = np.array([0, -0.2, 0])
 
 def handleArgv(argv):
+    """
+    Function to parse program arguments
+
+    Args:
+        argv (list of strings): program arguments from sys.argv
+
+    Returns:
+        tuple (int, bool): parameters needed to initialize RobotVrInterface 
+    """
 
     # default values
     client = None   # is mandatory to be specified in program arguments
@@ -59,80 +68,140 @@ def handleArgv(argv):
     
 
 class RobotVrInterface:
+    """
+    client for accessing VR or robot from Python
+    holds interface to either robot or VR functionalities
+    thus does not anything by itself, just calls respective methods of robot or vr interfaces
+    """
 
-    # TODO: what if interfaceType==2 but robotInterface not available?
-    def __init__(self, mbs, interfaceType, useImpedanceController=False) -> None:
+    def __init__(self, clientType, useImpedanceController=False) -> None:
         """
-        Initialization
+        Initialization method for RobotVrInterface
 
-        :param int interfaceType: may be 1 if this instance should be the robot interface, 2 for the vr interface
-        :param bool useImpedanceController: must be true if running robot controller is impedance controller. Default false for velocity controller
+        Args:
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+            clientType (int): may be 1 if this instance should be the robot interface, 2 for the vr interface
+            useImpedanceController (bool, optional): flag to use impedance controller. Defaults to False (velocity controller).
         """
         
-        assert interfaceType == 1 or interfaceType == 2, "Undefined interface type"
+        # make sure client type is valid
+        assert clientType == 1 or clientType == 2, "Undefined interface type"
 
-        if interfaceType == 1:
+        # depending on client type, setup attributes
+        if clientType == 1:
             self.__robotInterface = RobotInterface(useImpedanceController)
-            self.__interfaceType = 1
+            self.__clientType = 1
         else:
-            self.__vrInterface = VrInterface(mbs, useImpedanceController)
-            self.__interfaceType = 2
+            self.__vrInterface = VrInterface(useImpedanceController)
+            self.__clientType = 2
 
+        # depending on used controller, set baseName for ros-topics
         if useImpedanceController:
             self.__topicBase = "/my_cartesian_impedance_controller"
         else:
             self.__topicBase = "/my_cartesian_velocity_controller"
 
-        self.__rotationMatrix = np.eye(3)
+        # just for the case that the rotation matrix isn't specified by the user aftewards, set it to identity-matrix as default
+        self.setRotationMatrix(np.eye(3))
 
-    # actually only needed for vrInterface, but ODE coordinates must be consistent between vr and robot interface
-    def setHand(self, mbs):
+    
+    def createEnvironment(self, mbs):
+        """
+        method to create environment (tables, floor, hand ecc.) in vr client
 
-        if self.__interfaceType == 1:
+        Args:
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+
+        Returns:
+            exudyn.exudynCPP.MainSystem: modified mbs must be returned
+        """
+
+        if self.__clientType == 1:
             return mbs
         else:
             return self.__vrInterface.createEnvironment(mbs)
 
+
     def update(self, mbs, SC, t):
         """
-        :return mbs
+        method to be called once per frame/control cyle in Exudyn PreStepUserFunction
+        needed by both interfaces
+
+        Args:
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+            SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
+            t (float): elapsed time since simulation start
+
+        Returns:
+            exudyn.exudynCPP.MainSystem: modified mbs must be returned
         """
-        if self.__interfaceType == 1:
+
+        if self.__clientType == 1:
             return self.__robotInterface.update(mbs, t)
         else:
-            return self.__vrInterface.update(mbs, SC, t)
+            return self.__vrInterface.update(mbs, SC)
+
 
     def getExternalEfforts(self):
-        if self.__interfaceType == 1:
+        """
+        getter-method for external efforts
+        to be called from loadUserFunctions in Exudyn Python-code
+        only needed by robot interface
+
+        Returns:
+            np.array[float64], shape=(6,): efforts [fx, fy, fz, mx, my, mz]
+        """
+
+        if self.__clientType == 1:
             return self.__robotInterface.getExternalEfforts()
         else:
             pass
 
-    def getCurrentSystemState(self):
-        if self.__interfaceType == 1:
-            pass
-        else:
-            return self.__vrInterface.getCurrentSystemState()
 
     def setRotationMatrix(self, matrix):
+        """
+        setter-method for rotation (view) matrix
+        if matrix != np.eye(3), must be called before determineRobotStartPosition(...)
+        only relevant for vr interface
+
+        Args:
+            matrix (np.array[float64] shape=(3,3)): rotation matrix
+        """
+
         self.__rotationMatrix = matrix
-        if self.__interfaceType == 1:
+        if self.__clientType == 1:
             pass
         else:
-            return self.__vrInterface.setRotationMatrix(matrix)
+            self.__vrInterface.setRotationMatrix(matrix)
+
 
     def setSettings(self, SC):
-        if self.__interfaceType == 1:
+        """
+        method to set specified visualization settings for vr-view
+
+        Args:
+            SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
+        """
+        if self.__clientType == 1:
             pass
         else:
             self.__vrInterface.setSettings(SC)
 
+
     def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):
         """
-        :param interactionPointOffset: offset from model origin to user interaction point in model
+        locates robot in space and returns sim-model origin in VR-space
+        controller-pos are hardcoded and must be adapted if robot/table is moved!
+
+        Args:
+            interactionPointOffset (np.array[float64], shape=(3,), optional): offset from model (not VR!) origin to user interaction point in model. Defaults to np.array([0,0,0]).
+
+        Returns:
+            np.array[float64], shape=(3,): origin of sim-model in VR-space
         """
 
-        if self.__interfaceType == 1:
+        if self.__clientType == 1:
+            # not relevant for robot interface
             return np.array([0,0,0])
         else:
             return self.__vrInterface.determineRobotStartPosition(interactionPointOffset)
@@ -142,12 +211,13 @@ def createPoseStampedMsg(coords, euler, time):
     """
     function to create and return a PoseStamped-ros-msg
 
-    :param coords: arbitrary container (tuple, list, np.array, ...) with x, y and z coordinates
-    :param euler: arbitrary container (tuple, list, np.array, ...) with euler angles (pitch, roll and yaw)
-    :param time: instance of ros class "Time" with time for message
+    Args:
+        coords (arbitrary container, shape=(3,)): x, y and z coordinates
+        euler (arbitrary container, shape=(3,)): euler angles (pitch, roll and yaw)
+        time (rospy.Time): time for message
 
-    :return: the message object
-    :rtype: geometry_msgs.msg.PoseStamped
+    Returns:
+        geometry_msgs.msg.PoseStamped: the message object
     """
 
     # create message
@@ -166,10 +236,6 @@ def createPoseStampedMsg(coords, euler, time):
     # create Quaternion out of Euler angles
     quaternion = tf.transformations.quaternion_from_euler(pitch, yaw, roll)
 
-    # only to be sure quaternion is correct
-    #norm = np.linalg.norm(quaternion)
-    #assert abs(1-norm) <= 0.01, "ERROR calculating Quaternion, norm is " + str(norm)
-
     # write orientation into message
     msg.pose.orientation.x = quaternion[0]
     msg.pose.orientation.y = quaternion[1]
@@ -183,7 +249,22 @@ def createPoseStampedMsg(coords, euler, time):
 
 
 def createTable(mbs, pos, dim, tableTopThickness, tableBaseThickness, tableTopColor, tableBaseColor):
+    """_summary_
 
+    Args:
+        mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+        pos (arbitrary container, shape=(3,)): one of the (bottom) corners of the table, seen as a unit (base and top together)
+        dim (arbitrary container, shape=(3,)): dimensions of the table, seen as a unit (base and top together)
+        tableTopThickness (float): thickness of table top (plate)
+        tableBaseThickness (float): thickness of table base (legs)
+        tableTopColor (arbitrary container, shape=(4,)): color of table top (plate)
+        tableBaseColor (arbitrary container, shape=(4,)): color of table base (legs)
+
+    Returns:
+        exudyn.exudynCPP.MainSystem: modified mbs
+    """
+
+    # determin base/leg lengths
     tableBaseLength = dim[2]-tableTopThickness
 
     # create table top
@@ -213,17 +294,23 @@ def createTable(mbs, pos, dim, tableTopThickness, tableBaseThickness, tableTopCo
 
 class VrInterface:
 
-    def __init__(self, mbs, useImpedanceController) -> None:
+    def __init__(self, useImpedanceController) -> None:
+        """
+        initialization method for VrInterface
 
+        Args:
+            useImpedanceController (bool): flag to wheter use impedance controller (true) or velocity controller (false)
+        """
+
+        # set some class attributes
         self.__impedanceController = useImpedanceController
         self.__globalStartPos = np.array([0.0, 0.0, 0.0])
-        #self.__globalStartPosSet = False
 
         self.__systemStateData = None
 
-        self.__rotationMatrix = np.eye(3) # can be overwritten with setRotationMatrix()
-
+        # init ROS node
         rospy.init_node('ExudynVrInterface', anonymous=True)
+        
         # subscriber for current pose. Needed for localizing current end-effector position in vr-space
         if self.__impedanceController:
             self.__topicBase = "/my_cartesian_impedance_controller"
@@ -231,20 +318,18 @@ class VrInterface:
             self.__topicBase = "/my_cartesian_velocity_controller"
 
         self.__systemStateSub = rospy.Subscriber(self.__topicBase + "/SystemState", Float64MultiArray, self.__systemStateCallback)
-        #globalStartPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, self.__currentPoseCallback)
 
-        # TODO: check if controller available
-        # TODO: if yes, set origin relative to controller and robot configuration
-        # TODO: check if tracker (for hand rendering) available
-        pass
-
-    def __del__(self):
-        #self.__systemStateSub.unregister()
-        pass
 
     def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):
         """
-        :param interactionPointOffset: offset from model origin to user interaction point in model
+        locates robot in space and returns sim-model origin in VR-space
+        controller-pos are hardcoded and must be adapted if robot/table is moved!
+
+        Args:
+            interactionPointOffset (np.array[float64], shape=(3,), optional): offset from model (not VR!) origin to user interaction point in model. Defaults to np.array([0,0,0]).
+
+        Returns:
+            np.array[float64], shape=(3,): origin of sim-model in VR-space
         """
 
         ## coordinates of controller in vr frame
@@ -253,7 +338,7 @@ class VrInterface:
         tc = tc + VR_POS_CORRECTION             
 
         ## transformation matrix from controller to robot base in vr frame
-        trb = np.array([0.86, -0.045, -0.43])
+        trb = np.array([0.86, -0.045, -0.43])   # =~ position of robot on table
 
         ## listen to topic to get current robot end effector pose
         print("Locating robot in VR space")
@@ -280,14 +365,14 @@ class VrInterface:
                       [ 0, 1, 0]])
         te = R @ eefPos
 
-        # subscriber isn't needed anymore
-        eefPosSub.unregister()
-
+        # combine everything
         origin = self.__rotationMatrix @ (tc + trb + te - interactionPointOffset)
 
+        # store robotBase-coordinates for further use
         self.__robotBase = self.__rotationMatrix @ (tc + trb)
 
-        return origin    
+        return origin
+     
 
     def createEnvironment(self, mbs):
 
@@ -380,7 +465,7 @@ class VrInterface:
 
         return mbs
 
-    def update(self, mbs, SC, time):
+    def update(self, mbs, SC):
 
         ## get and apply simulation update from robot client
         data = self.getCurrentSystemState()
@@ -605,6 +690,13 @@ class RobotInterface:
 
     # getter
     def getExternalEfforts(self):
+        """
+        getter-method for external efforts
+
+        Returns:
+            np.array[float64]: efforts [fx, fy, fz, mx, my, mz]
+        """
+
         return self.__extEfforts
 
     
@@ -700,7 +792,6 @@ class RobotInterface:
         # compose message and publish
         tRos = rospy.Time.now()
         segmentDuration = tExu - self.__lastStepTime     # time from last position to this position
-        #print(segment_duration.to_sec(), "\t", t - self.lastStepTime)
         self.__lastStepTime = tExu
 
         if self.__impedanceController:
@@ -761,7 +852,6 @@ class RobotInterface:
             (_,rot) = self.__tfListener.lookupTransform('/panda_link0', '/panda_K', rospy.Time(0))
 
             R = np.array(Rotation.from_quat(rot).as_matrix())
-            # print("Transformation matrix (rot 3x3) determinant: ", R)
 
             # K frame
             forceK = np.array([data.wrench.force.x, data.wrench.force.y, data.wrench.force.z])
@@ -771,7 +861,7 @@ class RobotInterface:
             forceW = R @ forceK
             torqueW = R @ torqueK
 
-            # as robot measures efforts it needs to compensate external force, negative efforts are the ones applied (TODO lookup if correct)
+            # as robot measures efforts it needs to compensate external force, negative efforts are the ones applied
             forceW *= -1
             torqueW *= -1
 
@@ -816,17 +906,12 @@ class RobotInterface:
                 efforts[4] = torqueW[1] - self.__effortsOffset[4]
                 efforts[5] = torqueW[2] - self.__effortsOffset[5]
 
-                # additional to force offset, there is also some noise on force/torque measurement which have to be eliminated with threshold
-
-                effortNames = ["fx", "fy", "fz", "mx", "my", "mz"]
-
+                # additional to force offset, there is also some noise on force/torque measurement which has to be eliminated with threshold
                 for i in range(6):
                     if abs(efforts[i]) > self.__effortsThreshold[i]:
                         self.__extEfforts[i] = efforts[i]
-                        #print("effort", effortNames[i], "=", extEfforts[i])
                     else:
                         self.__extEfforts[i] = 0
-                # TODO effort trafo with rot matrix
 
                 # publish registered external force
                 msgF = WrenchStamped()
@@ -837,5 +922,4 @@ class RobotInterface:
                 self.__pubF.publish(msgF)
         
         except Exception as e:
-            #print(e)
             pass
