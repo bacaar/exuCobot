@@ -16,7 +16,9 @@ from scipy.spatial.transform import Rotation
 
 from exudyn.utilities import *
 
+# define some global variables, needed in multiple places
 VR_POS_CORRECTION = np.array([0, -0.2, 0])
+VR_FPS = 60
 
 def handleArgv(argv):
     """
@@ -296,7 +298,7 @@ class VrInterface:
 
     def __init__(self, useImpedanceController) -> None:
         """
-        initialization method for VrInterface
+        constructor for VrInterface
 
         Args:
             useImpedanceController (bool): flag to wheter use impedance controller (true) or velocity controller (false)
@@ -375,6 +377,15 @@ class VrInterface:
      
 
     def createEnvironment(self, mbs):
+        """
+        method to create environment (tables, floor, hand ecc.)
+
+        Args:
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+
+        Returns:
+            exudyn.exudynCPP.MainSystem: modified mbs must be returned
+        """
 
         ## get VR_POS_CORRECTION in vr coordinates
         corr = self.__rotationMatrix @ VR_POS_CORRECTION
@@ -464,8 +475,21 @@ class VrInterface:
         self.__oHand = mbs.AddObject(ObjectGround(visualization=VObjectGround(graphicsData=[graphicsHand])))
 
         return mbs
+    
 
     def update(self, mbs, SC):
+        """
+        method to be called once per frame/control cyle in Exudyn PreStepUserFunction
+        moves hand object to correct position
+        loads current system State (received from robot client)
+
+        Args:
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+            SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
+
+        Returns:
+            exudyn.exudynCPP.MainSystem: modified mbs must be returned
+        """
 
         ## get and apply simulation update from robot client
         data = self.getCurrentSystemState()
@@ -512,21 +536,35 @@ class VrInterface:
 
 
     def setRotationMatrix(self, matrix):
+        """
+        setter-method for model-rotation / view matrix
+
+        Args:
+            matrix (np.ndarray[float64], shape=(3,3)): rotation matrix
+        """
+
         self.__rotationMatrix = matrix
 
 
-    # set visualisation settings for VR
     def setSettings(self, SC):
-        SC.visualizationSettings.general.drawCoordinateSystem = True
-        SC.visualizationSettings.window.startupTimeout = 100000 #wait ms for SteamVR
+        """
+        method to set specified visualization settings for vr-view
+
+        Args:
+            SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
+        """
+
+        SC.visualizationSettings.general.drawCoordinateSystem = False
+        SC.visualizationSettings.general.graphicsUpdateInterval = 1/VR_FPS # = 60 Hz
+
+        SC.visualizationSettings.window.startupTimeout = 100000 # wait ms for SteamVR
         SC.visualizationSettings.window.renderWindowSize= [1972, 2192]  # HMD render size
+
+        SC.visualizationSettings.interactive.lockModelView = True # lock rotation/translation/zoom of model
         SC.visualizationSettings.interactive.openVR.enable = True
         SC.visualizationSettings.interactive.openVR.showCompanionWindow = True
-        SC.visualizationSettings.interactive.lockModelView = True #lock rotation/translation/zoom of model
         SC.visualizationSettings.interactive.openVR.logLevel = 3
-        SC.visualizationSettings.general.graphicsUpdateInterval = 0.017
-        #SC.visualizationSettings.general.drawWorldBasis = True
-
+        
         SC.visualizationSettings.openGL.enableLighting = True
         SC.visualizationSettings.openGL.enableLight0 = True
         SC.visualizationSettings.openGL.light0position = [-1,1.5,3,0]
@@ -534,34 +572,29 @@ class VrInterface:
 
 
     def getCurrentSystemState(self):
+        """
+        getter-method: returns current system data (updated by __systemStateCallback(...))
+
+        Returns:
+            list: Exudyn system state
+        """
         return self.__systemStateData
-
-
-    ## callbacks
-    #def __currentPoseCallback(self, data):
-    #    """
-    #    callback function to set global robot position at beginning of program
-    #    -> globalStartPos
-    #    """
-#
-    #    if not self.__globalStartPosSet:
-    #        self.__globalStartPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
-    #        self.__globalStartPosSet = True
-    #        # TODO Logger
-    #        print("Global start pos set")
 
 
     def __systemStateCallback(self, systemState):
         """
-        callback function to get SystemData of RobotClient
+        callback method to get SystemData of robotClient
         splits 1d array into multiple ones.
 
-        Example structure for systemData if it would consist out of vector [x1, x2, x3] and [y1, y2]:
-        [3, x1, x2, x3, 2, y1, y2]
-        so every vector begins with its length
+        Args:
+            systemState (std_msgs.msg.Float64MultiArray): Exudyn systemData state
         """
 
-        # amount of arrays in systemData. Default = 5
+        # Example structure for systemData if it would consist out of vector [x1, x2, x3] and [y1, y2]:
+        # [3, x1, x2, x3, 2, y1, y2]
+        # so every vector begins with its length
+
+        # amount of arrays in systemData: 5
         nArrays = 5
 
         buf = [[] for i in range(nArrays)]
@@ -569,6 +602,7 @@ class VrInterface:
         currentList = 0
         index = 0
         
+        # iterate over message data and write it into buf
         for i in range(nArrays):
             currentListLength = int(systemState.data[index])
             for _ in range(currentListLength):
@@ -577,19 +611,25 @@ class VrInterface:
             currentList += 1
             index +=1
 
+        # store acquired data for later
         self.__systemStateData = buf
 
 
 class RobotInterface:
 
-    ## constructor
     def __init__(self, useImpedanceController):
+        """
+        constructor for RobotInterface
+
+        Args:
+            useImpedanceController (bool): flag to wheter use impedance controller (true) or velocity controller (false)
+        """
 
         # this import is only needed on robot interface side; thus it is imported in this init 
-        # function and not at the top of this file to not cause problem when using the VrInterface
+        # method and not at the top of this file to not cause problems when using the VrInterface
         from util.msg import segmentCommand
 
-        # initialize some variables
+        # initialize some attributes
 
         # force calibration
         self.__effortsCalibrated = False
@@ -611,21 +651,20 @@ class RobotInterface:
 
         self.__posOffset = np.array([0, 0, 0]) # offset between user-interact position in simulation and robot world space 
         self.__firstPose = True                # flag to determine first step; needed to calculate posOffset
-        #self.__T = np.eye(4)                   # for full coordinate transformation; currently not used
 
         self.__impedanceController = useImpedanceController
 
         # timing variable to know when to send new command to robot or when to publish new mbs system state update
         self.__robotCommandSendInterval = 0.02 #0.006    #s
         self.__lastRobotCommandSentTime = -self.__robotCommandSendInterval
-        self.__systemStateUpdateInterval = 0.017  #s
+        self.__systemStateUpdateInterval = 1/VR_FPS  #s
         self.__lastSystemStateUpdateTime = -self.__systemStateUpdateInterval
 
         self.__lastStepTime = 0    # last step time (exudyn time)
 
         self.__logFile = None
 
-        # init ros
+        # init ros node
         rospy.init_node('ExudynRobotInterface', anonymous=True)
 
         # depending on used controller, different topics have to be used
@@ -684,11 +723,15 @@ class RobotInterface:
         print("Everything ready to go, start using robot now")
 
 
-    ## destructor
     def __del__(self):
+        """
+        Destructor of RobotInterface
+        closes log file
+        """
+
         self.__logFile.close()
 
-    # getter
+
     def getExternalEfforts(self):
         """
         getter-method for external efforts
@@ -701,9 +744,21 @@ class RobotInterface:
 
     
     def update(self, mbs, t):
+        """
+        method to be called once per frame/control cyle in Exudyn PreStepUserFunction
+        reads sensor values, creates message out of them and sends corresponding order to robot
+        publishes current system state for vr client
 
-        # publishing each and every step is too much, this slows the connection down
-        # thus publish every xth pose, only
+        Args:
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+            t (float): elapsed time since simulation start
+
+        Returns:
+            exudyn.exudynCPP.MainSystem: modified mbs must be returned
+        """
+
+        # publishing each and every step is too much, this would slow down the connection
+        # thus: publish every few seconds, only
         # furthermore, as vrInterface is only updating the graphics with f=60Hz, we don't have to update
         # system state every 1ms, so with f=1000Hz. Instead f=60Hz equivalents to update every 1/60=17ms
 
@@ -745,28 +800,31 @@ class RobotInterface:
         return mbs
 
 
-    def __publishSystemState(self, systemData): 
-        #dataList = []   
+    def __publishSystemState(self, systemData):
+        """
+        Publish current system state to ros-topic
+
+        Args:
+            systemData (list): full Exudyn SystemState concatenated in 1d list
+        """
+
         msg = Float64MultiArray()
         
-        #msg.layout.dim = 5 
-        #for item in systemData: 
-        #    dataList += [item]
-
-
-        """for i in len(systemData): 
-            dataList += []
-            for j in len(systemData[i]): 
-                dataList[i] +=  [float(systemData[i][j])]"""
-        # print(dataList)
-        # dataList = [[1,2,3], [4,5,7], [8,9,10]]
-        # dataList=[[float(dataList[j][i]) for i in range(len(dataList[j]))] for j in range(len(dataList))]
-        #print(dataList)
         msg.data = systemData # dataList
         self.__pubS.publish(msg)
 
 
     def __publishRobotCommand(self, posExu, vel, acc, angleX, tExu):
+        """
+        method to publish new robot command to ros-topic
+
+        Args:
+            posExu (np.array[float64], shape=(3,)): Cartesian position of user interaction point in Exudyn
+            vel (np.array[float64], shape=(3,)): Cartesian velocity of user interaction point in Exudyn
+            acc (np.array[float64], shape=(3,)): Cartesian acceleration of user interaction point in Exudyn
+            angleX (float): rotation fo user interaction point around x-axis in Exudyn. Only used in impedance controller
+            tExu (float): time since simulation start
+        """
 
         # in first iteration, offset between exudyn local position and robot global position has to be determined
         if self.__firstPose:
@@ -774,10 +832,7 @@ class RobotInterface:
             self.__posOffset = self.__globalStartPos - posExu
             self.__posOffset = np.expand_dims(self.__posOffset, axis=1)
 
-            # full coordinate transformation
-            # TODO: don't forget rotation
-            #T = np.concatenate((trafoMat, posOffset), axis=1)
-            #T = np.concatenate((T, np.array([[0, 0, 0, 1]])), axis=0)
+            # rotation left aside for the moment
             self.__firstPose = False
 
         # local exudyn position has to be transformed to global robot position
@@ -820,8 +875,10 @@ class RobotInterface:
     ## callbacks
     def __currentPoseCallback(self, data):
         """
-        callback function to set global robot position at beginning of program
-        -> globalStartPos
+        callback method to set global robot position at beginning of program
+
+        Args:
+            data (geometry_msgs.msg.PoseStamped): current Cartesian pose of robot end-effector
         """
 
         if not self.__globalStartPosSet:
@@ -833,18 +890,19 @@ class RobotInterface:
 
     def __externalEffortCallback(self, data):
         """
-        callback function for external forces and torques, applied by the user on the robot
-        for simplicity reasons, forces and torques are denoted as efforts here
+        callback method for external forces and torques, applied by the user on the robot
+        for simplicity, forces and torques are denoted as efforts here
 
         every time new external efforts are registered by the robot(which happens continuously), 
         they are published and received by this callback function. Here they are written into 
-        a global variable, in order to be processed by exudyn
+        a global variable, in order to be processed by Exudyn later on
 
-        :param geometry_msgs.msg.WrenchStamped data: received message
+        Args:
+            data (geometry_msgs.msg.WrenchStamped): registered force and torques
         """
 
         # for some reason, at the first few (3-4) calls of this callback-method, the frames panda_link0 is not known to tf
-        # thus whole function is under try-statement, just skip those first calls
+        # thus whole function is under try-statement, just to skip those first calls
         try:
             # transform forces and torques from K frame (endeffector, flange) (=panda_hand) into world frame (panda_link0)
 
