@@ -33,8 +33,6 @@ def main(client, useImpedanceController):
     massPendulumTip = 6
     rPendulumTip = 0.03      # radius of pendulum tip -> matches red user interaction sphere at robot (d=6cm)
 
-
-
     # init exudyn
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
@@ -186,10 +184,6 @@ def main(client, useImpedanceController):
 
     def PreStepUserFunction(mbs, t):
 
-        #try:
-        #    print(SC.GetRenderState()['openVR']['controllerPoses'])
-        #except:
-        #    pass
         mbs = robotVrInterface.update(mbs, SC, t)
         
         return True
@@ -211,7 +205,6 @@ def main(client, useImpedanceController):
     simulationSettings.timeIntegration.generalizedAlpha.spectralRadius = 0.5
     simulationSettings.timeIntegration.generalizedAlpha.computeInitialAccelerations = False
     
-    simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
     simulationSettings.displayStatistics = True
     simulationSettings.solutionSettings.solutionInformation = "3D Pendulum"
     simulationSettings.solutionSettings.writeSolutionToFile = False
@@ -221,29 +214,25 @@ def main(client, useImpedanceController):
     SC.visualizationSettings.openGL.initialCenterPoint = [0., -l/2, 0.] # screen coordinates, not model coordinates
     SC.visualizationSettings.openGL.initialZoom = 0.5
     
-    robotVrInterface.setSettings(SC)    # TODO: is everything above included?
+    simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
+    robotVrInterface.setSettings(SC)
 
     # exudyn magic
     exu.StartRenderer()
     
-    #mbs.WaitForUserToContinue() # space/q to start - q to end
-    
     exu.SolveDynamic(mbs, simulationSettings)
     # TODO nur Daten aus solutionViewer auslesen und viewer aktualisieren? oder im solutionViewer aktualisier? auf jeden Fall nicht simulieren
-    
-    #SC.WaitForRenderEngineStopFlag()
     
     exu.StopRenderer() #safely close rendering window!
 
 
 if __name__ == "__main__":
 
-    if False:
-        # for debugging
+    if False:   # for debugging
         main(2, False)
 
     else:
-        from RobotVrInterface import handleArgv
-        client, useImpedance = handleArgv(sys.argv)
+        from RobotVrInterface import parseArgv
+        client, useImpedance = parseArgv(sys.argv)
         main(client, useImpedance)
 

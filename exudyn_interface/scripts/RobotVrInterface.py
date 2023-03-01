@@ -20,7 +20,7 @@ from exudyn.utilities import *
 VR_POS_CORRECTION = np.array([0, -0.2, 0])
 VR_FPS = 60
 
-def handleArgv(argv):
+def parseArgv(argv):
     """
     Function to parse program arguments
 
@@ -558,7 +558,7 @@ class VrInterface:
         SC.visualizationSettings.general.graphicsUpdateInterval = 1/VR_FPS # = 60 Hz
 
         SC.visualizationSettings.window.startupTimeout = 100000 # wait ms for SteamVR
-        SC.visualizationSettings.window.renderWindowSize= [1972, 2192]  # HMD render size
+        SC.visualizationSettings.window.renderWindowSize = [1972, 2192]  # HMD render size
 
         SC.visualizationSettings.interactive.lockModelView = True # lock rotation/translation/zoom of model
         SC.visualizationSettings.interactive.openVR.enable = True
