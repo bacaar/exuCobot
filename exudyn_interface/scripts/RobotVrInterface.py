@@ -407,6 +407,7 @@ class VrInterface:
             col1 = color4white
             col2 = color4white
             x, y, z = self.__robotBase
+            # x-... and y-... are distances from robot to room wall
             cornerPoints = np.array([[x-1, y-0.94, 0.],[ 1., y-0.94, 0.],[ 1., 2., 0.],[x-1, 2., 0.]])
 
         # create abyss
@@ -458,20 +459,12 @@ class VrInterface:
         mbs = createTable(mbs, self.__robotBase+np.array([0.9, -0.94, -0.78]), np.array([2, 1, 0.72]), 0.025, 0.045, [1, 0.8, 0.4, 1], [0.75, 0.75, 0.75, 1])
 
         ## create Hand
-        x = 0.08    # hand width
-        y = 0.02    # hand length
-        z = 0.15    # hand thickness
-
-        graphicsHand = GraphicsDataOrthoCube(xMin=0, xMax=x,
-                                             yMin=0, yMax=y,
-                                             zMin=0, zMax=z,
-                                             color=[0.9,0.9,0.8,1])
-
         graphicsHand = GraphicsDataFromSTLfile("hand_stl/Hand_R_centered_2.stl",    # TODO: this is not very flexible (does not work when file called from another directory)
-                                               color=[0.7, 0.5, 0.3, 1],
+                                               #color=[0.7, 0.5, 0.3, 1],   # brown
+                                               color=[0.95, 0.8, 0.8, 1],   # skin-color / pink
                                                scale=0.001,
                                                Aoff=np.eye(3) @ RotationMatrixZ(np.pi/8) @ RotationMatrixY(np.pi),
-                                               pOff=[0.06,0.02,-0.01])
+                                               pOff=[0.06, 0.02, 0.00])
 
         self.__oHand = mbs.AddObject(ObjectGround(visualization=VObjectGround(graphicsData=[graphicsHand])))
 
