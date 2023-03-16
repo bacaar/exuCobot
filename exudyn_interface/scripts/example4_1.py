@@ -39,7 +39,7 @@ def main(client, useImpedanceController):
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
 
-    robotVrInterface = RobotVrInterface(mbs, client, useImpedanceController)
+    robotVrInterface = RobotVrInterface(client, useImpedanceController)
 
     viewMatrix = np.eye(3) @ RotationMatrixZ(np.pi) @ RotationMatrixX(np.pi/2)
     robotVrInterface.setRotationMatrix(viewMatrix)
@@ -134,7 +134,7 @@ def main(client, useImpedanceController):
                                         damping=d,
                                         visualization={'show': False, 'drawSize': -1, 'color': [-1]*4}))
 
-    mbs = robotVrInterface.setHand(mbs)
+    mbs = robotVrInterface.createEnvironment(mbs)
 
     if client == 1:
 
@@ -238,24 +238,12 @@ def main(client, useImpedanceController):
 
 if __name__ == "__main__":
 
-    if True:
+    if False:
         # for debugging
         main(2, False)
 
     else:
-  
-        if len(sys.argv) >= 3:
-            # check controller type
-            useImpedanceController = False
+        from RobotVrInterface import handleArgv
+        client, useImpedance = handleArgv(sys.argv)
+        main(client, useImpedance)
 
-            # TODO: -h dazugeben
-
-            if sys.argv[2] == '-i':
-                useImpedanceController = True
-            
-            assert sys.argv[1] == "1" or sys.argv[1] == "2", "Unknown client type"
-
-            main(int(sys.argv[1]), useImpedanceController)
-        
-        else:
-            print("Usage: python3 " + sys.argv[0] + " [clientType] [controllerType]")
