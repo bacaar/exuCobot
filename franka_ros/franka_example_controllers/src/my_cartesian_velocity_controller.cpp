@@ -89,7 +89,6 @@ namespace franka_example_controllers {
         pub_current_state_ = node_handle.advertise<util::kinematicState3dStamped>("getCurrentState", 20);
 
         // initialize variables
-        //current_state_ = State3();    // for 3 dimensions a vector of size 4 (s, v, a, j)
         current_target_ = std::vector<double>(4, 0);    // (x, y, z, dt)
         position_buffer_ = std::vector<Command>(position_buffer_length_, {0, 0, 0, 0});
         position_buffer_index_reading_ = 0;
@@ -233,7 +232,6 @@ namespace franka_example_controllers {
             solution[3] = (-2*startState.vel - endState.vel)/T + 3*(-startState.pos + endState.pos)/T2;
             solution[4] = startState.vel;
             solution[5] = startState.pos;
-            //[ds0/T**2 + dsT/T**2 + 2*s0/T**3 - 2*sT/T**3], [-2*ds0/T - dsT/T - 3*s0/T**2 + 3*sT/T**2], [ds0], [s0]]
         }
 
         if(polynomialDegree_ == 5) {
@@ -449,10 +447,6 @@ namespace franka_example_controllers {
         lastLogTime = logTime_;
         #endif
 
-        //std::cout << period.toSec() << std::endl;
-
-        //std::cerr << "Update\t pos buffer write : " << position_buffer_index_writing_ << "\t read: " << position_buffer_index_reading_ << "\treserve: " << getPositionBufferReserve() << std::endl;
-
         static bool started = false;
         static int counter = 0;
 
@@ -469,8 +463,6 @@ namespace franka_example_controllers {
 
         if(started){
 
-            //generalLogFile_ << logTime_.toSec() << "\t" << segment_time_ << "\t" << current_robot_state[13] << std::endl;
-
             // if segment_duration_ has passed, calc new trajectory
             if(segment_time_ >= segment_duration_){
                 #if ENABLE_LOGGING
@@ -479,7 +471,6 @@ namespace franka_example_controllers {
 
                 if(getPositionBufferReserve() >= 1){
 
-                    //overdueTime_ += segment_time_ - segment_duration_;
                     overdueTime_ = segment_time_ - segment_duration_;
 
                     // when getting in here the first time, overdue time quite big (several seconds), depending on how long
@@ -504,10 +495,8 @@ namespace franka_example_controllers {
                     updateTrajectory();
 
                     // reset segment_time_ as new one starts now
-                    //segment_time_ = ros::Duration(0);
                     segment_time_ = overdueTime_;
                     #if ENABLE_LOGGING
-                    //generalLogFile_ << "setting segment_time_ to 0" << std::endl;
                     generalLogFile_ << "setting segment_time_ to " << segment_time_ << std::endl;
                     #endif
                 }
@@ -545,8 +534,6 @@ namespace franka_example_controllers {
                 current_state_.y = evaluatePolynomial(coefs_[1], segment_time_.toSec());
                 current_state_.z = evaluatePolynomial(coefs_[2], segment_time_.toSec());
 
-                //publishState(logTime_, current_state_);
-
                 // get current pose
                 std::array<double, 7> current_joint_positions= velocity_cartesian_handle_->getRobotState().q;
 
@@ -568,7 +555,7 @@ namespace franka_example_controllers {
 
                 if(exitIfTheoreticalValuesExceedLimits_) {
 
-                    // check if v, a and j are within absolute limits, else reduce them (especially velocity)
+                    // check if v, a and j are within absolute limits
 
                     // acceleration
                     double ax = current_state_.x.acc;
@@ -579,91 +566,34 @@ namespace franka_example_controllers {
                     double jx = current_state_.x.jerk;
                     double jy = current_state_.y.jerk;
                     double jz = current_state_.z.jerk;
+
                     double jAbs = sqrt(jx * jx + jy * jy + jz * jz);
-
-                    double factorJ = jAbs / max_j_trans_;
-
-                    if(factorJ > 1.0){
-                        #if ENABLE_LOGGING
-                        generalLogFile_ << "Jerk by factor " << factorJ << " too high. Adapting" << std::endl;
-                        #endif
-
-                        // update jerk
-                        jx /= factorJ;
-                        jy /= factorJ;
-                        jz /= factorJ;
-
-                        // calculate new velocity according to v = v0 + 1/2 * j1 * t²
-                        last_command_[0] += 0.5 * jx * pow(period.toSec(), 2);
-                        last_command_[1] += 0.5 * jy * pow(period.toSec(), 2);
-                        last_command_[2] += 0.5 * jz * pow(period.toSec(), 2);
-
-                        // calculate new acceleration according to a = a0 + j1 * t
-                        ax += jx * period.toSec();
-                        ay += jy * period.toSec();
-                        az += jz * period.toSec();
-                    }
-
                     double aAbs = sqrt(ax * ax + ay * ay + az * az);
-                    double factorA = aAbs / max_a_trans_;
-
-                    if(factorA > 1.0){
-                        #if ENABLE_LOGGING
-                        generalLogFile_ << "Acceleration by factor " << factorA << " too high. Adapting" << std::endl;
-                        #endif
-
-                        // update acceleration
-                        ax /= factorA;
-                        ay /= factorA;
-                        az /= factorA;
-
-                        // calculate new velocity according to v = v0 + a1 * t
-                        last_command_[0] += ax / factorA * period.toSec();
-                        last_command_[1] += ay / factorA * period.toSec();
-                        last_command_[2] += az / factorA * period.toSec();
-                    }
-
                     double vAbs = sqrt(vx * vx + vy * vy + vz * vz);
-                    double factorV = vAbs / max_v_trans_;
-
-                    if(factorV > 1.0){
-                        #if ENABLE_LOGGING
-                        generalLogFile_ << "Velocity by factor " << factorV << " too high. Adapting" << std::endl;
-                        #endif
-
-                        // update velocity (according to change since last command)
-                        vx = last_command_[0] + (vx - last_command_[0]) / factorV;
-                        vy = last_command_[1] + (vy - last_command_[1]) / factorV;
-                        vz = last_command_[2] + (vz - last_command_[2]) / factorV;
-                    }
-
-                    jAbs = sqrt(jx * jx + jy * jy + jz * jz);
-                    aAbs = sqrt(ax * ax + ay * ay + az * az);
-                    vAbs = sqrt(vx * vx + vy * vy + vz * vz);
                     bool quit = false;
 
                     // add small constant because of numerical inaccuracy
                     if (jAbs > max_j_trans_ + 0.0001) {
                         #if ENABLE_LOGGING
-                        std::cerr << "ERROR: Jerk too high: " << jAbs << std::endl;
                         generalLogFile_ << "ERROR: Jerk too high" << std::endl;
                         #endif
+                        std::cerr << "ERROR: Jerk too high: " << jAbs << std::endl;
                         quit = true;
                     }
 
                     if (aAbs > max_a_trans_ + 0.0001) {
                         #if ENABLE_LOGGING
-                        std::cerr << "ERROR: Acceleration too high: " << aAbs << std::endl;
                         generalLogFile_ << "ERROR: Acceleration too high" << std::endl;
                         #endif
+                        std::cerr << "ERROR: Acceleration too high: " << aAbs << std::endl;
                         quit = true;
                     }
 
                     if (vAbs > max_v_trans_ + 0.0001) {
                         #if ENABLE_LOGGING
-                        std::cerr << "ERROR: Velocity too high: " << vAbs << std::endl;
                         generalLogFile_ << "ERROR: Velocity too high" << std::endl;
                         #endif
+                        std::cerr << "ERROR: Velocity too high: " << vAbs << std::endl;
                         quit = true;
                     }
 
@@ -746,27 +676,6 @@ namespace franka_example_controllers {
         }
         #endif
 
-        //rostopic pub -1 /franka_control/error_recovery/goal franka_msgs/ErrorRecoveryActionGoal "{}"
-        //pub_error_recovery = node_handle.advertise<franka_msgs::ErrorRecoveryActionGoal>("{}", 20);
-
-        /*
-        // publish positions for python analytics
-        geometry_msgs::Vector3Stamped msgVec;
-        msgVec.header.stamp = logTime_;
-
-        // current commanded velocity
-        msgVec.vector.x = current_command_[0];
-        msgVec.vector.y = current_command_[1];
-        msgVec.vector.z = current_command_[2];
-        pub_commanded_velocity_.publish(msgVec);
-
-        // current position according to planned trajectory in cartesian space
-        msgVec.vector.x = current_state_.x.pos;
-        msgVec.vector.y = current_state_.y.pos;
-        msgVec.vector.z = current_state_.z.pos;
-        pub_current_trajectory_pos_.publish(msgVec);
-        */
-
         // current pos
         geometry_msgs::PoseStamped msgPose;
         msgPose.header.stamp = logTime_;
@@ -777,14 +686,6 @@ namespace franka_example_controllers {
     }
 
     void MyCartesianVelocityController::updateTargetPoseCallback(const util::segmentCommand &msg) {
-
-        // send it back immediately
-        /*geometry_msgs::PoseStamped msgnew;
-        msgnew.pose.position.x = msg.x;
-        msgnew.pose.position.y = msg.y;
-        msgnew.pose.position.z = msg.z;
-        msgnew.header.stamp = logTime_;
-        pub_current_target_confirmation_.publish(msgnew);*/
 
         if(position_buffer_index_writing_ == position_buffer_index_reading_){
             std::cerr << "ERROR: Position buffer full" << std::endl;
@@ -918,8 +819,6 @@ namespace franka_example_controllers {
             endState[c].acc = position_buffer_[i1][c].acc;
         }
 
-        //roundState3(startState, 6);
-        //roundState3(endState, 6);
         #if ENABLE_LOGGING
         trajectoryCreationFile2_ << startState.y.pos << ",\t" << endState.y.pos << ",\t";   // pos
         trajectoryCreationFile2_ << startState.y.vel << ",\t" << endState.y.vel << ",\t";   // vel

@@ -23,7 +23,7 @@
 
 #include "franka_example_controllers/Logger.h"
 
-#define ENABLE_LOGGING 1
+#define ENABLE_LOGGING 0
 
 struct Command{
     State3 state;
