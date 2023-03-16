@@ -148,6 +148,8 @@ def main(client, useImpedanceController):
         def UFloadZ(mbs, t, load):
             return robotVrInterface.getExternalEfforts()[2]
 
+        #mF = mbs.AddMarker(MarkerNodePosition(nodeNumber=nTip))
+
         mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=0))
         mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=1))
         mFz = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=2))

@@ -1,6 +1,7 @@
 """
 Author: Aaron Bacher
-Date: 14.02.2023
+Date of creation: 14.02.2023
+Last modified: 01.03.2023
 
 Combined Robot and VR Interface for Exudyn
 """
