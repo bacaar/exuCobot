@@ -778,13 +778,10 @@ namespace franka_example_controllers {
         // get current robot state
         std::array<double, 16> current_robot_state = velocity_cartesian_handle_->getRobotState().O_T_EE_d;
 
-        // when receiving first time a trajectory, coefficients are still all on zero at this point (and therefor current_state, too)
-        // therefore use current_robot_state as current_state
-        if (current_state_.x.pos == 0 && current_state_.y.pos == 0 && current_state_.z.pos == 0) {
-            current_state_.x.pos = current_robot_state[12];
-            current_state_.y.pos = current_robot_state[13];
-            current_state_.z.pos = current_robot_state[14];
-        }
+        // let trajectory start with calcualted velocity and acceleration, but with current (measured) position
+        current_state_.x.pos = current_robot_state[12];
+        current_state_.y.pos = current_robot_state[13];
+        current_state_.z.pos = current_robot_state[14];
 
         // startState equals current state, except .pos might be taken from robot end-effector position
         State3 startState = current_state_;
