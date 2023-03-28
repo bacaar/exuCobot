@@ -141,6 +141,8 @@ namespace franka_example_controllers {
         int position_buffer_index_reading_;                 // holds index from which to read next (read then increase)
         const int getPositionBufferReserve();               // returns amount of stored next positions
 
+        bool allow_drift_ = true;           // true: if robot drifts away from reference path because of latencies, it will not try to get back to it
+
         void publishState(ros::Time now, const State3 &state);  // method to publish current kinematic state to ROS topic
 
         std::vector<double> current_target_;    // only for analytics

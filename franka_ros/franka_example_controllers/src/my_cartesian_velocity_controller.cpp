@@ -534,7 +534,7 @@ namespace franka_example_controllers {
 
             // if within segment_duration, calc new state
             // can't be "else" to above statement, as it also has to be executed if trajectory has just been updated
-            if(segment_time_ <= segment_duration_) {
+            if(segment_time_ < segment_duration_) {
                 // calculate new positions, velocities and accelerations
                 #if ENABLE_LOGGING
                 generalLogFile_ << "evaluating trajectory" << std::endl;
@@ -543,21 +543,23 @@ namespace franka_example_controllers {
                 current_state_.y = evaluatePolynomial(coefs_[1], segment_time_.toSec());
                 current_state_.z = evaluatePolynomial(coefs_[2], segment_time_.toSec());
 
+                #if ENABLE_LOGGING
                 // get current pose
                 std::array<double, 7> current_joint_positions= velocity_cartesian_handle_->getRobotState().q;
-
-                #if ENABLE_LOGGING
                 logEvaluatedTrajectory();
                 logCurrentPosition(current_robot_state, current_joint_positions);
                 #endif
 
-                // compose new velocity
+                // extract new velocities
                 double vx = current_state_.x.vel;
                 double vy = current_state_.y.vel;
                 double vz = current_state_.z.vel;
 
+                // for now, any rotation is neglected
                 double wx, wy, wz;
-                wx = wy = wz = 0;
+                wx = 0;
+                wy = 0;
+                wz = 0;
 
                 // update command
                 current_command_ = {vx, vy, vz, wx, wy, wz};
@@ -644,7 +646,7 @@ namespace franka_example_controllers {
                     #endif
 
                     // velocity increasing or decreasing
-                    int sign = current_command_[i] > last_command_[i] ? 1 : -1;
+                    int sign = dv > 0 ? 1 : -1;     // dv can't be 0, as then above if-statement would not be fulfilled
 
                     // apply max velocity change but not more
                     current_command_[i] = last_command_[i] + max_dv * sign;
@@ -778,10 +780,13 @@ namespace franka_example_controllers {
         // get current robot state
         std::array<double, 16> current_robot_state = velocity_cartesian_handle_->getRobotState().O_T_EE_d;
 
-        // let trajectory start with calcualted velocity and acceleration, but with current (measured) position
-        current_state_.x.pos = current_robot_state[12];
-        current_state_.y.pos = current_robot_state[13];
-        current_state_.z.pos = current_robot_state[14];
+        // if dift is allowed or it is the first time a trajectory is generated, current_state_ must be set
+        if (allow_drift_ || (current_state_.x.pos == 0 && current_state_.y.pos == 0 && current_state_.z.pos == 0)) {
+            // let trajectory start with calcualted velocity and acceleration, but with current (measured) position
+            current_state_.x.pos = current_robot_state[12];
+            current_state_.y.pos = current_robot_state[13];
+            current_state_.z.pos = current_robot_state[14];
+        }
 
         // startState equals current state, except .pos might be taken from robot end-effector position
         State3 startState = current_state_;
