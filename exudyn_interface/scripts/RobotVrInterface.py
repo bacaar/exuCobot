@@ -158,7 +158,7 @@ class RobotVrInterface:
         if self.__clientType == 1:
             return self.__robotInterface.getExternalEfforts()
         else:
-            pass
+            return [0, 0, 0, 0, 0, 0]
 
 
     def setRotationMatrix(self, matrix):

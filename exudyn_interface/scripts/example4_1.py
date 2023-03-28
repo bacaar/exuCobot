@@ -137,31 +137,15 @@ def main(client, useImpedanceController):
     if client == 1:
 
         # external applied forces
-        def UFloadX(mbs, t, load):
-            #return robotVrInterface.getExternalEfforts()[0]
-            return 0
-
-        def UFloadY(mbs, t, load):
-            return robotVrInterface.getExternalEfforts()[1]
-            # return 0
-
-        def UFloadZ(mbs, t, load):
-            return robotVrInterface.getExternalEfforts()[2]
-
-        #mF = mbs.AddMarker(MarkerNodePosition(nodeNumber=nTip))
-
-        mFx = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=0))
-        mFy = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=1))
-        mFz = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nTip, coordinate=2))
+        def UFload(mbs, t, load):
+            f = robotVrInterface.getExternalEfforts()[:3]
+            f[0] = 0    # lock x direction
+            return f
         
-        # TODO: das sollte auch als Vektor gehen
-
-        mbs.AddLoad(LoadCoordinate(markerNumber=mFx,
-                                loadUserFunction=UFloadX))
-        mbs.AddLoad(LoadCoordinate(markerNumber=mFy,
-                                loadUserFunction=UFloadY))
-        mbs.AddLoad(LoadCoordinate(markerNumber=mFz,
-                                loadUserFunction=UFloadZ))
+        mF = mbs.AddMarker(MarkerNodeRigid(nodeNumber=nTip))
+        mbs.AddLoad(LoadForceVector(markerNumber=mF,
+                                    loadVector=[0, 0, 0],
+                                    loadVectorUserFunction=UFload))
 
     # sensor for position of endpoint of pendulum
     sensorPos = mbs.AddSensor(SensorBody(bodyNumber=bTip,
