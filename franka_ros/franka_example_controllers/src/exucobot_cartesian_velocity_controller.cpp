@@ -1,10 +1,11 @@
+// Aaron Bacher, March 2022 - March 2023
+// aaronbacher@gmx.de
+//
+// based on example code from Franka Emika
 // Copyright (c) 2017 Franka Emika GmbH
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
 
-// modified by Aaron Bacher, March 2022 - March 2023
-// aaronbacher@gmx.de
-
-#include <franka_example_controllers/my_cartesian_velocity_controller.h>
+#include <franka_example_controllers/exucobot_cartesian_velocity_controller.h>
 
 #include <array>
 #include <cmath>
@@ -22,18 +23,18 @@
 
 namespace franka_example_controllers {
 
-    bool MyCartesianVelocityController::init(hardware_interface::RobotHW *robot_hardware,
-                                             ros::NodeHandle &node_handle) {
+    bool ExuCobotCartesianVelocityController::init(hardware_interface::RobotHW *robot_hardware,
+                                                   ros::NodeHandle &node_handle) {
         std::string arm_id;
         if (!node_handle.getParam("arm_id", arm_id)) {
-            ROS_ERROR("MyCartesianVelocityController: Could not get parameter arm_id");
+            ROS_ERROR("ExuCobotCartesianVelocityController: Could not get parameter arm_id");
             return false;
         }
 
         velocity_cartesian_interface_ = robot_hardware->get<franka_hw::FrankaVelocityCartesianInterface>();
         if (velocity_cartesian_interface_ == nullptr) {
             ROS_ERROR(
-                    "MyCartesianVelocityController: Could not get Cartesian velocity interface from "
+                    "ExuCobotCartesianVelocityController: Could not get Cartesian velocity interface from "
                     "hardware");
             return false;
         }
@@ -43,13 +44,13 @@ namespace franka_example_controllers {
                     velocity_cartesian_interface_->getHandle(arm_id + "_robot"));
         } catch (const hardware_interface::HardwareInterfaceException &e) {
             ROS_ERROR_STREAM(
-                    "MyCartesianVelocityController: Exception getting Cartesian handle: " << e.what());
+                    "ExuCobotCartesianVelocityController: Exception getting Cartesian handle: " << e.what());
             return false;
         }
 
         auto state_interface = robot_hardware->get<franka_hw::FrankaStateInterface>();
         if (state_interface == nullptr) {
-            ROS_ERROR("MyCartesianVelocityController: Could not get state interface from hardware");
+            ROS_ERROR("ExuCobotCartesianVelocityController: Could not get state interface from hardware");
             return false;
         }
 
@@ -57,13 +58,13 @@ namespace franka_example_controllers {
           auto state_handle = state_interface->getHandle(arm_id + "_robot");
         } catch (const hardware_interface::HardwareInterfaceException& e) {
           ROS_ERROR_STREAM(
-              "MyCartesianVelocityController: Exception getting state handle: " << e.what());
+              "ExuCobotCartesianVelocityController: Exception getting state handle: " << e.what());
           return false;
         }
 
         // set callback method for updating target pose
         sub_desired_pose_ = node_handle.subscribe("setTargetPose", 20,
-                                                  &MyCartesianVelocityController::updateTargetPoseCallback, this,
+                                                  &ExuCobotCartesianVelocityController::updateTargetPoseCallback, this,
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
         if(polynomialDegree_ != 3 && polynomialDegree_ != 5){
@@ -102,7 +103,7 @@ namespace franka_example_controllers {
         return true;
     }
 
-    void MyCartesianVelocityController::starting(const ros::Time & /* time */) {
+    void ExuCobotCartesianVelocityController::starting(const ros::Time & /* time */) {
         std::array<double, 16> initial_pose = velocity_cartesian_handle_->getRobotState().O_T_EE_d;
 
         // set next positions on current positions to stay here (NOT ZERO!!!)
@@ -197,7 +198,7 @@ namespace franka_example_controllers {
         #endif
     }
 
-    const int MyCartesianVelocityController::getPositionBufferReserve(){
+    const int ExuCobotCartesianVelocityController::getPositionBufferReserve(){
 
         // depending on wheter writing or reading index is smaller/bigger, reserve has to be calculated in a specific way
         if (position_buffer_index_writing_ > position_buffer_index_reading_){
@@ -216,7 +217,7 @@ namespace franka_example_controllers {
         }
     }
 
-    std::vector<double> MyCartesianVelocityController::calcCoefs(State startState, State endState, double T){
+    std::vector<double> ExuCobotCartesianVelocityController::calcCoefs(State startState, State endState, double T){
 
         assert(T > 0);
 
@@ -252,7 +253,7 @@ namespace franka_example_controllers {
         return solution;
     }
 
-    State MyCartesianVelocityController::evaluatePolynomial(std::vector<double> &coef, double t){
+    State ExuCobotCartesianVelocityController::evaluatePolynomial(std::vector<double> &coef, double t){
 
         // t^2, t^3, t^4 and t^5 are needed multiple times -> calculate them once
         double t2 = t * t;
@@ -288,7 +289,7 @@ namespace franka_example_controllers {
     }
 
     #if ENABLE_LOGGING
-    void MyCartesianVelocityController::logEvaluatedTrajectory(){
+    void ExuCobotCartesianVelocityController::logEvaluatedTrajectory(){
 
         evaluatedTrajectoryFile_ << rosTimeString_ << "," << logTimeString_ << ",";
 
@@ -331,7 +332,7 @@ namespace franka_example_controllers {
         evalTrajLogger_->log(msg);
     }
 
-    void MyCartesianVelocityController::logCurrentPosition(const std::array<double, 16> &current_robot_state, const std::array< double, 7 > &current_joint_positions) {
+    void ExuCobotCartesianVelocityController::logCurrentPosition(const std::array<double, 16> &current_robot_state, const std::array< double, 7 > &current_joint_positions) {
         currentPositionFile_ << rosTimeString_ << "," << logTimeString_ << ",";
         currentPositionFile_ << current_robot_state[12] << ",";
         currentPositionFile_ << current_robot_state[13] << ",";
@@ -346,7 +347,7 @@ namespace franka_example_controllers {
         currentPositionFile_ << std::endl;
     }
 
-    void MyCartesianVelocityController::logTrajectoryCreation(const State3 &startState, const State3 &endState){
+    void ExuCobotCartesianVelocityController::logTrajectoryCreation(const State3 &startState, const State3 &endState){
 
         trajectoryCreationFile_ << rosTimeString_ << "," << logTimeString_ << ",";
 
@@ -391,7 +392,7 @@ namespace franka_example_controllers {
         trajectoryCreationFile_ << std::endl;
     }
 
-    void MyCartesianVelocityController::logCoefficients(){
+    void ExuCobotCartesianVelocityController::logCoefficients(){
 
         char coords[] = {'x', 'y', 'z'};
 
@@ -407,7 +408,7 @@ namespace franka_example_controllers {
     }
     #endif
 
-    void MyCartesianVelocityController::publishState(ros::Time now, const State3 &state){
+    void ExuCobotCartesianVelocityController::publishState(ros::Time now, const State3 &state){
         util::kinematicState3dStamped msg;
         // write struct into message
         msg.header.stamp = now;
@@ -426,7 +427,7 @@ namespace franka_example_controllers {
         pub_current_state_.publish(msg);
     }
 
-    void MyCartesianVelocityController::update(const ros::Time &time,
+    void ExuCobotCartesianVelocityController::update(const ros::Time &time,
                                            const ros::Duration &period) {
 
         // update timing variables
@@ -697,7 +698,7 @@ namespace franka_example_controllers {
         pub_current_pose_.publish(msgPose);
     }
 
-    void MyCartesianVelocityController::updateTargetPoseCallback(const util::segmentCommand &msg) {
+    void ExuCobotCartesianVelocityController::updateTargetPoseCallback(const util::segmentCommand &msg) {
 
         if(position_buffer_index_writing_ == position_buffer_index_reading_){
             std::cerr << "ERROR: Position buffer full" << std::endl;
@@ -763,7 +764,7 @@ namespace franka_example_controllers {
         roundState(state.z, precision);
     }
 
-    void MyCartesianVelocityController::updateTrajectory() {
+    void ExuCobotCartesianVelocityController::updateTrajectory() {
 
         // at last iteration segment_time was at e.g. 0.009 (if segment_duration_ is 0.01)
         // last calculation for previous segment has still to be done in order to let new segment start from correct position
@@ -859,7 +860,7 @@ namespace franka_example_controllers {
         position_buffer_index_reading_ = (position_buffer_index_reading_ + 1) % position_buffer_length_;
     }
 
-    void MyCartesianVelocityController::stopping(const ros::Time & /*time*/) {
+    void ExuCobotCartesianVelocityController::stopping(const ros::Time & /*time*/) {
         // WARNING: DO NOT SEND ZERO VELOCITIES HERE AS IN CASE OF ABORTING DURING MOTION
         // A JUMP TO ZERO WILL BE COMMANDED PUTTING HIGH LOADS ON THE ROBOT. LET THE DEFAULT
         // BUILT-IN STOPPING BEHAVIOR SLOW DOWN THE ROBOT.
@@ -878,6 +879,6 @@ namespace franka_example_controllers {
 
 }  // namespace franka_example_controllers
 
-PLUGINLIB_EXPORT_CLASS(franka_example_controllers::MyCartesianVelocityController,
+PLUGINLIB_EXPORT_CLASS(franka_example_controllers::ExuCobotCartesianVelocityController,
         controller_interface::ControllerBase
 )

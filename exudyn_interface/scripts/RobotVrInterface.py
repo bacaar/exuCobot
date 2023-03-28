@@ -100,9 +100,9 @@ class RobotVrInterface:
 
         # depending on used controller, set baseName for ros-topics
         if useImpedanceController:
-            self.__topicBase = "/my_cartesian_impedance_controller"
+            self.__topicBase = "/exucobot_cartesian_impedance_controller"
         else:
-            self.__topicBase = "/my_cartesian_velocity_controller"
+            self.__topicBase = "/exucobot_cartesian_velocity_controller"
 
         # just for the case that the rotation matrix isn't specified by the user aftewards, set it to identity-matrix as default
         self.setRotationMatrix(np.eye(3))
@@ -316,9 +316,9 @@ class VrInterface:
         
         # subscriber for current pose. Needed for localizing current end-effector position in vr-space
         if self.__impedanceController:
-            self.__topicBase = "/my_cartesian_impedance_controller"
+            self.__topicBase = "/exucobot_cartesian_impedance_controller"
         else:
-            self.__topicBase = "/my_cartesian_velocity_controller"
+            self.__topicBase = "/exucobot_cartesian_velocity_controller"
 
         self.__systemStateSub = rospy.Subscriber(self.__topicBase + "/SystemState", Float64MultiArray, self.__systemStateCallback)
 
@@ -663,11 +663,11 @@ class RobotInterface:
 
         # depending on used controller, different topics have to be used
         if self.__impedanceController:
-            topicBase = '/my_cartesian_impedance_controller'
+            topicBase = '/exucobot_cartesian_impedance_controller'
             brief = "IC"
             self.__commandClass = PoseStamped
         else:
-            topicBase = '/my_cartesian_velocity_controller'
+            topicBase = '/exucobot_cartesian_velocity_controller'
             brief = "VC"
             self.__commandClass = segmentCommand
 

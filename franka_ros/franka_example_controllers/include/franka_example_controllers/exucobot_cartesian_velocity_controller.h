@@ -1,8 +1,9 @@
+// Aaron Bacher, March 2022 - March 2023
+// aaronbacher@gmx.de
+//
+// based on example code from Franka Emika
 // Copyright (c) 2017 Franka Emika GmbH
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
-
-// modified by Aaron Bacher, March 2022 - March 2023
-// aaronbacher@gmx.de
 
 #pragma once
 
@@ -48,7 +49,7 @@ struct Command{
 
 namespace franka_example_controllers {
 
-    class MyCartesianVelocityController : public controller_interface::MultiInterfaceController<
+    class ExuCobotCartesianVelocityController : public controller_interface::MultiInterfaceController<
             franka_hw::FrankaVelocityCartesianInterface,
             franka_hw::FrankaStateInterface> {
     public:

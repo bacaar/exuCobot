@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <launch>
-  <arg name="robot_ip" default="192.168.5.1"/>
+  <arg name="robot_ip" default="192.168.5.1" />
   <arg name="load_gripper" default="true" />
   <include file="$(find franka_control)/launch/franka_control.launch" >
     <arg name="robot_ip" value="$(arg robot_ip)" />
@@ -8,5 +8,5 @@
   </include>
 
   <rosparam command="load" file="$(find franka_example_controllers)/config/franka_example_controllers.yaml" />
-  <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen"  args="my_cartesian_velocity_controller"/>
+  <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" args="exucobot_cartesian_velocity_controller"/>
 </launch>

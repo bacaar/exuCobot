@@ -3,7 +3,7 @@
 
 // modified by Aaron Bacher
 
-#include <franka_example_controllers/my_cartesian_impedance_controller.h>
+#include <franka_example_controllers/exucobot_cartesian_impedance_controller.h>
 
 #include <cmath>
 #include <memory>
@@ -21,18 +21,18 @@
 
 namespace franka_example_controllers {
 
-    bool MyCartesianImpedanceController::init(hardware_interface::RobotHW *robot_hw,
+    bool ExuCobotCartesianImpedanceController::init(hardware_interface::RobotHW *robot_hw,
                                                    ros::NodeHandle &node_handle){
         std::vector<double> cartesian_stiffness_vector;
         std::vector<double> cartesian_damping_vector;
 
         sub_equilibrium_pose_ = node_handle.subscribe(
-                "equilibrium_pose", 20, &MyCartesianImpedanceController::equilibriumPoseCallback, this,
+                "equilibrium_pose", 20, &ExuCobotCartesianImpedanceController::equilibriumPoseCallback, this,
                 ros::TransportHints().reliable().tcpNoDelay());
 
         // set callback method for updating target pose
         sub_desired_pose_ = node_handle.subscribe("setTargetPose", 20,
-                              &MyCartesianImpedanceController::updateDesiredPoseCallback, this,
+                              &ExuCobotCartesianImpedanceController::updateDesiredPoseCallback, this,
                               ros::TransportHints().reliable().tcpNoDelay());
 
         // create publisher for current pose
@@ -46,13 +46,13 @@ namespace franka_example_controllers {
 
         std::string arm_id;
         if (!node_handle.getParam("arm_id", arm_id)) {
-            ROS_ERROR_STREAM("MyCartesianImpedanceController: Could not read parameter arm_id");
+            ROS_ERROR_STREAM("ExuCobotCartesianImpedanceController: Could not read parameter arm_id");
             return false;
         }
         std::vector <std::string> joint_names;
         if (!node_handle.getParam("joint_names", joint_names) || joint_names.size() != 7) {
             ROS_ERROR(
-                    "MyCartesianImpedanceController: Invalid or no joint_names parameters provided, "
+                    "ExuCobotCartesianImpedanceController: Invalid or no joint_names parameters provided, "
                     "aborting controller init!");
             return false;
         }
@@ -60,7 +60,7 @@ namespace franka_example_controllers {
         auto *model_interface = robot_hw->get<franka_hw::FrankaModelInterface>();
         if (model_interface == nullptr) {
             ROS_ERROR_STREAM(
-                    "MyCartesianImpedanceController: Error getting model interface from hardware");
+                    "ExuCobotCartesianImpedanceController: Error getting model interface from hardware");
             return false;
         }
         try {
@@ -68,7 +68,7 @@ namespace franka_example_controllers {
                     model_interface->getHandle(arm_id + "_model"));
         } catch (hardware_interface::HardwareInterfaceException &ex) {
             ROS_ERROR_STREAM(
-                    "MyCartesianImpedanceController: Exception getting model handle from interface: "
+                    "ExuCobotCartesianImpedanceController: Exception getting model handle from interface: "
                             << ex.what());
             return false;
         }
@@ -76,7 +76,7 @@ namespace franka_example_controllers {
         auto *state_interface = robot_hw->get<franka_hw::FrankaStateInterface>();
         if (state_interface == nullptr) {
             ROS_ERROR_STREAM(
-                    "MyCartesianImpedanceController: Error getting state interface from hardware");
+                    "ExuCobotCartesianImpedanceController: Error getting state interface from hardware");
             return false;
         }
         try {
@@ -84,7 +84,7 @@ namespace franka_example_controllers {
                     state_interface->getHandle(arm_id + "_robot"));
         } catch (hardware_interface::HardwareInterfaceException &ex) {
             ROS_ERROR_STREAM(
-                    "MyCartesianImpedanceController: Exception getting state handle from interface: "
+                    "ExuCobotCartesianImpedanceController: Exception getting state handle from interface: "
                             << ex.what());
             return false;
         }
@@ -92,7 +92,7 @@ namespace franka_example_controllers {
         auto *effort_joint_interface = robot_hw->get<hardware_interface::EffortJointInterface>();
         if (effort_joint_interface == nullptr) {
             ROS_ERROR_STREAM(
-                    "MyCartesianImpedanceController: Error getting effort joint interface from hardware");
+                    "ExuCobotCartesianImpedanceController: Error getting effort joint interface from hardware");
             return false;
         }
         for (size_t i = 0; i < 7; ++i) {
@@ -100,7 +100,7 @@ namespace franka_example_controllers {
                 joint_handles_.push_back(effort_joint_interface->getHandle(joint_names[i]));
             } catch (const hardware_interface::HardwareInterfaceException &ex) {
                 ROS_ERROR_STREAM(
-                        "MyCartesianImpedanceController: Exception getting joint handles: " << ex.what());
+                        "ExuCobotCartesianImpedanceController: Exception getting joint handles: " << ex.what());
                 return false;
             }
         }
@@ -114,7 +114,7 @@ namespace franka_example_controllers {
 
                                                    dynamic_reconfigure_compliance_param_node_);
         dynamic_server_compliance_param_->setCallback(
-                boost::bind(&MyCartesianImpedanceController::complianceParamCallback, this, _1, _2));
+                boost::bind(&ExuCobotCartesianImpedanceController::complianceParamCallback, this, _1, _2));
 
         position_d_.setZero();
         orientation_d_.coeffs() << 0.0, 0.0, 0.0, 1.0;
@@ -137,7 +137,7 @@ namespace franka_example_controllers {
         return true;
     }
 
-    void MyCartesianImpedanceController::starting(const ros::Time & /*time*/) {
+    void ExuCobotCartesianImpedanceController::starting(const ros::Time & /*time*/) {
         // compute initial velocity with jacobian and set x_attractor and q_d_nullspace
         // to initial configuration
         franka::RobotState initial_state = state_handle_->getRobotState();
@@ -188,7 +188,7 @@ namespace franka_example_controllers {
         return res;
     }
 
-    void MyCartesianImpedanceController::update(const ros::Time &time,
+    void ExuCobotCartesianImpedanceController::update(const ros::Time &time,
                                                 const ros::Duration &period) {
 
         auto start = std::chrono::high_resolution_clock::now();
@@ -358,7 +358,7 @@ namespace franka_example_controllers {
         }
     }
 
-    void MyCartesianImpedanceController::updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg)
+    void ExuCobotCartesianImpedanceController::updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg)
     {
 
         //convert geometry_msgs/Vector3 to Eigen::Vector3d
@@ -421,7 +421,7 @@ namespace franka_example_controllers {
         targetLogFile_ << msg.pose.position.x << "," << msg.pose.position.y << "," << msg.pose.position.z << ",0.01\n";
     }
 
-    Eigen::Matrix<double, 7, 1> MyCartesianImpedanceController::saturateTorqueRate(
+    Eigen::Matrix<double, 7, 1> ExuCobotCartesianImpedanceController::saturateTorqueRate(
             const Eigen::Matrix<double, 7, 1> &tau_d_calculated,
             const Eigen::Matrix<double, 7, 1> &tau_J_d) {  // NOLINT (readability-identifier-naming)
         Eigen::Matrix<double, 7, 1> tau_d_saturated{};
@@ -433,7 +433,7 @@ namespace franka_example_controllers {
         return tau_d_saturated;
     }
 
-    void MyCartesianImpedanceController::complianceParamCallback(
+    void ExuCobotCartesianImpedanceController::complianceParamCallback(
             franka_example_controllers::compliance_paramConfig &config,
             uint32_t /*level*/) {
         cartesian_stiffness_target_.setIdentity();
@@ -457,7 +457,7 @@ namespace franka_example_controllers {
         std::cout << std::endl;
     }
 
-    void MyCartesianImpedanceController::equilibriumPoseCallback(
+    void ExuCobotCartesianImpedanceController::equilibriumPoseCallback(
             const geometry_msgs::PoseStampedConstPtr &msg) {
         //std::cout << "HALLO WELT---------------------------------------\n";
         /*
@@ -473,7 +473,7 @@ namespace franka_example_controllers {
          */
     }
 
-    void MyCartesianImpedanceController::stopping(const ros::Time & /*time*/) {
+    void ExuCobotCartesianImpedanceController::stopping(const ros::Time & /*time*/) {
         // WARNING: DO NOT SEND ZERO VELOCITIES HERE AS IN CASE OF ABORTING DURING MOTION
         // A JUMP TO ZERO WILL BE COMMANDED PUTTING HIGH LOADS ON THE ROBOT. LET THE DEFAULT
         // BUILT-IN STOPPING BEHAVIOR SLOW DOWN THE ROBOT.
@@ -484,6 +484,6 @@ namespace franka_example_controllers {
 
 }  // namespace franka_example_controllers
 
-PLUGINLIB_EXPORT_CLASS(franka_example_controllers::MyCartesianImpedanceController,
+PLUGINLIB_EXPORT_CLASS(franka_example_controllers::ExuCobotCartesianImpedanceController,
         controller_interface::ControllerBase
 )

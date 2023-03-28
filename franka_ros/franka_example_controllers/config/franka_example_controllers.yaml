@@ -47,8 +47,8 @@ cartesian_velocity_example_controller:
     type: franka_example_controllers/CartesianVelocityExampleController
     arm_id: panda
 
-my_cartesian_velocity_controller:
-    type: franka_example_controllers/MyCartesianVelocityController
+exucobot_cartesian_velocity_controller:
+    type: franka_example_controllers/ExuCobotCartesianVelocityController
     arm_id: panda
 
 model_example_controller:
@@ -112,8 +112,8 @@ cartesian_impedance_example_controller:
         - panda_joint6
         - panda_joint7
 
-my_cartesian_impedance_controller:
-    type: franka_example_controllers/MyCartesianImpedanceController
+exucobot_cartesian_impedance_controller:
+    type: franka_example_controllers/ExuCobotCartesianImpedanceController
     arm_id: panda
     joint_names:
         - panda_joint1
