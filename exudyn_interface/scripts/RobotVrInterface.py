@@ -17,6 +17,8 @@ from scipy.spatial.transform import Rotation
 
 from exudyn.utilities import *
 
+COUNTER = 0
+
 # define some global variables, needed in multiple places
 VR_POS_CORRECTION = np.array([0, -0.2, 0])
 VR_FPS = 60
@@ -143,6 +145,35 @@ class RobotVrInterface:
             return self.__robotInterface.update(mbs, t)
         else:
             return self.__vrInterface.update(mbs, SC)
+        
+
+    def simulate(self, mbs, SC, simulationSettings):
+        """_summary_
+
+        Args:
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+            SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
+            simulationSettings (exudyn.exudynCPP.SimulationSettings): Exudyn simulation settings
+        """
+
+        if self.__clientType == 1:
+            self.__robotInterface.simulate(mbs, simulationSettings)
+        else:
+            #self.__vrInterface.setSettings(SC)
+            self.__vrInterface.simulate(mbs)
+
+
+    def setSettings(self, SC):
+        """
+        method to set specified visualization settings for vr-view
+
+        Args:
+            SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
+        """
+        if self.__clientType == 1:
+            pass
+        else:
+            self.__vrInterface.setSettings(SC)
 
 
     def getExternalEfforts(self):
@@ -176,19 +207,6 @@ class RobotVrInterface:
             pass
         else:
             self.__vrInterface.setRotationMatrix(matrix)
-
-
-    def setSettings(self, SC):
-        """
-        method to set specified visualization settings for vr-view
-
-        Args:
-            SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
-        """
-        if self.__clientType == 1:
-            pass
-        else:
-            self.__vrInterface.setSettings(SC)
 
 
     def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):
@@ -527,6 +545,30 @@ class VrInterface:
             pass
 
         return mbs
+    
+
+    def simulate(self, mbs):
+        """
+        While the robotInterface really simulates the mbs, the VR interface only updates the vizualization
+
+        Args:
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+        """
+
+        simRunning = True
+        timout = 1/VR_FPS
+
+        while simRunning:
+
+            # update visualization data
+            mbs.systemData.SetSystemState(self.getCurrentSystemState(), exu.ConfigurationType.Visualization)
+            mbs.systemData.SetTime(3.14, exu.ConfigurationType.Visualization)
+
+            # update screen
+            mbs.SendRedrawSignal()
+
+            # do whatever is needed in between steps
+            exu.DoRendererIdleTasks(timout)
 
 
     def setRotationMatrix(self, matrix):
@@ -548,10 +590,13 @@ class VrInterface:
             SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
         """
 
+        print("setSettings")
+
         SC.visualizationSettings.general.drawCoordinateSystem = False
         SC.visualizationSettings.general.graphicsUpdateInterval = 1/VR_FPS # = 60 Hz
 
         SC.visualizationSettings.window.startupTimeout = 100000 # wait ms for SteamVR
+        SC.visualizationSettings.window.limitWindowToScreenSize = False # needed for screen size being smaller than HMD display size
         SC.visualizationSettings.window.renderWindowSize = [1972, 2192]  # HMD render size
 
         SC.visualizationSettings.interactive.lockModelView = True # lock rotation/translation/zoom of model
@@ -781,6 +826,11 @@ class RobotInterface:
             # TODO belongs in __publishSystemState()
             systemStateData = mbs.systemData.GetSystemState()
             systemStateList1d = []
+
+            # first entry is current time
+            #systemStateList1d.append(t)
+
+            # then systemData itself follows
             for array in systemStateData:
                 systemStateList1d.append(float(len(array)))
                 for i in range(len(array)):
@@ -790,6 +840,18 @@ class RobotInterface:
             self.__lastSystemStateUpdateTime = t
 
         return mbs
+
+
+    def simulate(self, mbs, simulationSettings):
+        """
+        Call exudyn solver for simulating system
+
+        Args:
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+            simulationSettings (exudyn.exudynCPP.SimulationSettings): Exudyn simulation settings
+        """
+
+        exu.SolveDynamic(mbs, simulationSettings)
 
 
     def __publishSystemState(self, systemData):
