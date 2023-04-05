@@ -552,6 +552,7 @@ class VrInterface:
         SC.visualizationSettings.general.graphicsUpdateInterval = 1/VR_FPS # = 60 Hz
 
         SC.visualizationSettings.window.startupTimeout = 100000 # wait ms for SteamVR
+        SC.visualizationSettings.window.limitWindowToScreenSize = False # needed for screen size being smaller than HMD display size
         SC.visualizationSettings.window.renderWindowSize = [1972, 2192]  # HMD render size
 
         SC.visualizationSettings.interactive.lockModelView = True # lock rotation/translation/zoom of model

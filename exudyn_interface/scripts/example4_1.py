@@ -224,7 +224,7 @@ def main(client, useImpedanceController):
     
     exu.SolveDynamic(mbs, simulationSettings)
     # TODO nur Daten aus solutionViewer auslesen und viewer aktualisieren? oder im solutionViewer aktualisier? auf jeden Fall nicht simulieren
-    
+
     exu.StopRenderer() #safely close rendering window!
 
 
