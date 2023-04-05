@@ -69,7 +69,7 @@ namespace franka_example_controllers {
     private:
 
         ros::Time logTime_;
-        ros::Duration elapsed_time_;
+        ros::Duration elapsedTime_;
 
         std::string logTimeString_;     // string with time starting at beginning of program
         std::string rosTimeString_;     // string with time starting at ros::Time(0)
@@ -117,48 +117,48 @@ namespace franka_example_controllers {
         ros::Duration overdueTime_;
 
         // max v,a,j values according to https://frankaemika.github.io/docs/control_parameters.html#limit-table
-        const double max_v_trans_ = 1.7; // m/s
-        const double max_a_trans_ = 13.0; // m/s²
-        const double max_j_trans_ = 6500.0; // m/s³
+        const double maxV_trans_ = 1.7; // m/s
+        const double maxA_trans_ = 13.0; // m/s²
+        const double maxJ_trans_ = 6500.0; // m/s³
 
         // called from updateTrajectory; calculates polynomial coefficients for single axis
         std::vector<double> calcCoefs(State startState, State endState, double T);
         // evaluates polynomial at given point of time
         State evaluatePolynomial(std::vector<double> &coef, double t);
 
-        franka_hw::FrankaVelocityCartesianInterface *velocity_cartesian_interface_;
-        std::unique_ptr <franka_hw::FrankaCartesianVelocityHandle> velocity_cartesian_handle_;
+        franka_hw::FrankaVelocityCartesianInterface *velocityCartesianInterface_;
+        std::unique_ptr <franka_hw::FrankaCartesianVelocityHandle> velocityCartesianHandle_;
 
-        State3 current_state_;    // pos, vel, acc and jerk for x, y, and z; describing current state of trajectory
+        State3 currentState_;    // pos, vel, acc and jerk for x, y, and z; describing current state of trajectory
         std::vector<std::vector<double>> coefs_;    // trajectory / polynom coefficients
 
-        std::array<double, 6> current_command_;
-        std::array<double, 6> last_command_;
+        std::array<double, 6> currentCommand_;
+        std::array<double, 6> lastCommand_;
 
-        std::vector<Command> position_buffer_;              // x, y and z value of next positions to travers
-        const int position_buffer_length_ = 50;             // length of position buffer. Also if buffer is vector, it's length is static
+        std::vector<Command> positionBuffer_;              // x, y and z value of next positions to travers
+        const int positionBufferLength_ = 50;             // length of position buffer. Also if buffer is vector, it's length is static
         // as position_buffer will be a ring buffer, current indices for reading and writing have to be stored
-        int position_buffer_index_writing_;                 // holds index in which to write next (write then increase)
-        int position_buffer_index_reading_;                 // holds index from which to read next (read then increase)
+        int positionBufferWritingIndex_;                 // holds index in which to write next (write then increase)
+        int positionBufferReadingIndex_;                 // holds index from which to read next (read then increase)
         const int getPositionBufferReserve();               // returns amount of stored next positions
 
-        bool allow_drift_ = true;           // true: if robot drifts away from reference path because of latencies, it will not try to get back to it
+        bool allowDrift_ = true;           // true: if robot drifts away from reference path because of latencies, it will not try to get back to it
 
         void publishState(ros::Time now, const State3 &state);  // method to publish current kinematic state to ROS topic
 
-        std::vector<double> current_reference__;    // only for analytics
+        std::vector<double> currentReference__;    // only for analytics
 
-        ros::Duration segment_duration_;               // planned duration of one segment in s
-        ros::Duration segment_time_;                   // time in current segment in s
+        ros::Duration segmentDuration_;               // planned duration of one segment in s
+        ros::Duration segmentTime_;                   // time in current segment in s
 
         // ROS publishers
-        ros::Publisher pub_current_reference_confirmation_;    // publisher for sending received reference back
-        ros::Publisher pub_commanded_velocity_;     // publisher for current commanded velocity
-        ros::Publisher pub_current_trajectory_pos_; // publisher for current trajectory position
-        ros::Publisher pub_current_pose_;   // publisher for current pose
-        ros::Publisher pub_current_state_;  // publisher for full kinematic state
+        ros::Publisher pubCurrentReferenceConfirmation_;    // publisher for sending received reference back
+        ros::Publisher pubCommandedVelocity_;     // publisher for current commanded velocity
+        ros::Publisher pubCurrentTrajectoryPos_; // publisher for current trajectory position
+        ros::Publisher pubCurrentPose_;   // publisher for current pose
+        ros::Publisher pubCurrentState_;  // publisher for full kinematic state
 
-        ros::Subscriber sub_desired_pose_;  // Subscriber for new desired pose
+        ros::Subscriber subDesiredPose_;  // Subscriber for new desired pose
     };
 
 }  // namespace franka_example_controllers

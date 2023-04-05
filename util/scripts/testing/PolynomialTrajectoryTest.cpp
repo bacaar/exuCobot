@@ -33,12 +33,12 @@ private:
 
     std::vector<std::vector<double>> current_state_;
     std::vector<double> current_target_;
-    std::vector<std::vector<double>> position_buffer_;
-    int position_buffer_index_reading_;
-    int position_buffer_index_writing_;
+    std::vector<std::vector<double>> positionBuffer_;
+    int positionBufferReadingIndex_;
+    int positionBufferWritingIndex_;
     std::vector<std::vector<double>> coefs_;
 
-    int position_buffer_length_;
+    int positionBufferLength_;
     std::vector<double>tVec_;
 
 };
@@ -47,16 +47,16 @@ TestClass::TestClass(std::vector<double> tVec, std::vector<double> pVec){
 
     current_state_ = std::vector<std::vector<double>>(3, std::vector<double>(3, 0));
     current_target_= std::vector<double>(3, 0);
-    //position_buffer_ = std::vector<std::vector<double>>(position_buffer_length_, std::vector<double>(3, 0));
-    position_buffer_index_reading_ = 0;
-    position_buffer_index_writing_ = 1;
+    //positionBuffer_ = std::vector<std::vector<double>>(positionBufferLength_, std::vector<double>(3, 0));
+    positionBufferReadingIndex_ = 0;
+    positionBufferWritingIndex_ = 1;
     coefs_ = std::vector<std::vector<double>>(3, std::vector<double>(6, 0));
 
-    position_buffer_length_ = tVec.size();
+    positionBufferLength_ = tVec.size();
     tVec_ = tVec;
 
     for(int i = 0; i < pVec.size(); ++i){
-        position_buffer_.push_back({0, pVec.at(i), 0});
+        positionBuffer_.push_back({0, pVec.at(i), 0});
     }
 }
 
@@ -101,42 +101,42 @@ void TestClass::updateTrajectory(){
         //std::array<double, 16> current_pose = cartesian_pose_handle_->getRobotState().O_T_EE_d;
 
         // index of next positions
-        int i1 = (position_buffer_index_reading_ + 1) % position_buffer_length_; // next position
-        int i2 = (position_buffer_index_reading_ + 2) % position_buffer_length_; // second next position
+        int i1 = (positionBufferReadingIndex_ + 1) % positionBufferLength_; // next position
+        int i2 = (positionBufferReadingIndex_ + 2) % positionBufferLength_; // second next position
 
         // calculate desired velocity for end of (first) segment as mean velocity of next two segments
         std::array<double, 3> next_velocity{};
         
         /*
-        next_velocity[0] = (position_buffer_[i2][0] - current_pose[12])/(segment_duration_*2);
-        next_velocity[1] = (position_buffer_[i2][1] - current_pose[13])/(segment_duration_*2);
-        next_velocity[2] = (position_buffer_[i2][2] - current_pose[14])/(segment_duration_*2);
+        next_velocity[0] = (positionBuffer_[i2][0] - current_pose[12])/(segment_duration_*2);
+        next_velocity[1] = (positionBuffer_[i2][1] - current_pose[13])/(segment_duration_*2);
+        next_velocity[2] = (positionBuffer_[i2][2] - current_pose[14])/(segment_duration_*2);
         */
 
-        next_velocity[0] = (position_buffer_[i2][0] - current_state_[0][0])/(segment_duration_*2);
-        next_velocity[1] = (position_buffer_[i2][1] - current_state_[1][0])/(segment_duration_*2);
-        next_velocity[2] = (position_buffer_[i2][2] - current_state_[2][0])/(segment_duration_*2);
+        next_velocity[0] = (positionBuffer_[i2][0] - current_state_[0][0])/(segment_duration_*2);
+        next_velocity[1] = (positionBuffer_[i2][1] - current_state_[1][0])/(segment_duration_*2);
+        next_velocity[2] = (positionBuffer_[i2][2] - current_state_[2][0])/(segment_duration_*2);
         
 
         // calculate polynom coefficients
         // TODO: using current velocity and acceleration from current_state_ vector is not 100% correct, as they are the vel and acc from last step
         /*
-        coefs_[0] = calcCoefs(current_pose[12], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
-        coefs_[1] = calcCoefs(current_pose[13], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
-        coefs_[2] = calcCoefs(current_pose[14], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
+        coefs_[0] = calcCoefs(current_pose[12], current_state_[0][1], current_state_[0][2], positionBuffer_[i1][0], next_velocity[0], 0, segment_duration_);
+        coefs_[1] = calcCoefs(current_pose[13], current_state_[1][1], current_state_[1][2], positionBuffer_[i1][1], next_velocity[1], 0, segment_duration_);
+        coefs_[2] = calcCoefs(current_pose[14], current_state_[2][1], current_state_[2][2], positionBuffer_[i1][2], next_velocity[2], 0, segment_duration_);
         */
 
 
         //current_state_[1][2] = 0;
         
-        coefs_[0] = calcCoefs(current_state_[0][0], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
-        coefs_[1] = calcCoefs(current_state_[1][0], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
-        coefs_[2] = calcCoefs(current_state_[2][0], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
+        coefs_[0] = calcCoefs(current_state_[0][0], current_state_[0][1], current_state_[0][2], positionBuffer_[i1][0], next_velocity[0], 0, segment_duration_);
+        coefs_[1] = calcCoefs(current_state_[1][0], current_state_[1][1], current_state_[1][2], positionBuffer_[i1][1], next_velocity[1], 0, segment_duration_);
+        coefs_[2] = calcCoefs(current_state_[2][0], current_state_[2][1], current_state_[2][2], positionBuffer_[i1][2], next_velocity[2], 0, segment_duration_);
         
 
         // for next segment
-        int old = position_buffer_index_reading_;
-        position_buffer_index_reading_ = (position_buffer_index_reading_ + 1) % position_buffer_length_;
+        int old = positionBufferReadingIndex_;
+        positionBufferReadingIndex_ = (positionBufferReadingIndex_ + 1) % positionBufferLength_;
     }
 
 void TestClass::loop(){
@@ -162,8 +162,8 @@ void TestClass::loop(){
                 current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
                 
                 updateTrajectory();
-                if (position_buffer_index_reading_ != 0)    // only for last iteration as index jumps to 0 because of modulo
-                    targetFile << "[" << t << ", " << position_buffer_[position_buffer_index_reading_-1][1] << "]," << std::endl;
+                if (positionBufferReadingIndex_ != 0)    // only for last iteration as index jumps to 0 because of modulo
+                    targetFile << "[" << t << ", " << positionBuffer_[positionBufferReadingIndex_-1][1] << "]," << std::endl;
 
                 // reset segment_time_ as new one starts now
                 // normally subtracting duration once should be enough

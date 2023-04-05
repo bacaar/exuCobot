@@ -31,8 +31,8 @@ namespace franka_example_controllers {
             return false;
         }
 
-        velocity_cartesian_interface_ = robot_hardware->get<franka_hw::FrankaVelocityCartesianInterface>();
-        if (velocity_cartesian_interface_ == nullptr) {
+        velocityCartesianInterface_ = robot_hardware->get<franka_hw::FrankaVelocityCartesianInterface>();
+        if (velocityCartesianInterface_ == nullptr) {
             ROS_ERROR(
                     "ExuCobotCartesianVelocityController: Could not get Cartesian velocity interface from "
                     "hardware");
@@ -40,8 +40,8 @@ namespace franka_example_controllers {
         }
 
         try {
-            velocity_cartesian_handle_ = std::make_unique<franka_hw::FrankaCartesianVelocityHandle>(
-                    velocity_cartesian_interface_->getHandle(arm_id + "_robot"));
+            velocityCartesianHandle_ = std::make_unique<franka_hw::FrankaCartesianVelocityHandle>(
+                    velocityCartesianInterface_->getHandle(arm_id + "_robot"));
         } catch (const hardware_interface::HardwareInterfaceException &e) {
             ROS_ERROR_STREAM(
                     "ExuCobotCartesianVelocityController: Exception getting Cartesian handle: " << e.what());
@@ -63,7 +63,7 @@ namespace franka_example_controllers {
         }
 
         // set callback method for updating reference pose
-        sub_desired_pose_ = node_handle.subscribe("referencePose", 20,
+        subDesiredPose_ = node_handle.subscribe("referencePose", 20,
                                                   &ExuCobotCartesianVelocityController::updateReferencePoseCallback, this,
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
@@ -76,25 +76,25 @@ namespace franka_example_controllers {
         }
 
         // create publisher for returning reference pose
-        pub_current_reference_confirmation_ = node_handle.advertise<geometry_msgs::PoseStamped>("currentReference", 20);
+        pubCurrentReferenceConfirmation_ = node_handle.advertise<geometry_msgs::PoseStamped>("currentReference", 20);
 
         // create publisher for current command
-        pub_commanded_velocity_ = node_handle.advertise<geometry_msgs::Vector3Stamped>("commandedVelocity", 20);
+        pubCommandedVelocity_ = node_handle.advertise<geometry_msgs::Vector3Stamped>("commandedVelocity", 20);
 
         // create publisher for current pose
-        pub_current_trajectory_pos_ = node_handle.advertise<geometry_msgs::Vector3Stamped>("evaluatedTrajectory", 20);
+        pubCurrentTrajectoryPos_ = node_handle.advertise<geometry_msgs::Vector3Stamped>("evaluatedTrajectory", 20);
 
         // create publisher for current pose
-        pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("currentPose", 20);
+        pubCurrentPose_ = node_handle.advertise<geometry_msgs::PoseStamped>("currentPose", 20);
 
         // create publisher for current state
-        pub_current_state_ = node_handle.advertise<util::posVelAccJerk3dStamped>("currentState", 20);
+        pubCurrentState_ = node_handle.advertise<util::posVelAccJerk3dStamped>("currentState", 20);
 
         // initialize variables
-        current_reference__ = std::vector<double>(4, 0);    // (x, y, z, dt)
-        position_buffer_ = std::vector<Command>(position_buffer_length_, {0, 0, 0, 0});
-        position_buffer_index_reading_ = 0;
-        position_buffer_index_writing_ = 1;
+        currentReference__ = std::vector<double>(4, 0);    // (x, y, z, dt)
+        positionBuffer_ = std::vector<Command>(positionBufferLength_, {0, 0, 0, 0});
+        positionBufferReadingIndex_ = 0;
+        positionBufferWritingIndex_ = 1;
         coefs_ = std::vector<std::vector<double>>(3, std::vector<double>(6, 0));
 
         std::cout << "INFO: Starting velocity Controller with interpolation polynomial degree " << polynomialDegree_;
@@ -104,22 +104,22 @@ namespace franka_example_controllers {
     }
 
     void ExuCobotCartesianVelocityController::starting(const ros::Time & /* time */) {
-        std::array<double, 16> initial_pose = velocity_cartesian_handle_->getRobotState().O_T_EE_d;
+        std::array<double, 16> initial_pose = velocityCartesianHandle_->getRobotState().O_T_EE_d;
 
         // set next positions on current positions to stay here (NOT ZERO!!!)
         // TODO can I let this on zero because of my brilliant ring buffer logic?
 
-        // set position entries of current_state_ vector to current positions
-        current_state_.x.pos = initial_pose[12];
-        current_state_.y.pos = initial_pose[13];
-        current_state_.z.pos = initial_pose[14];
+        // set position entries of currentState_ vector to current positions
+        currentState_.x.pos = initial_pose[12];
+        currentState_.y.pos = initial_pose[13];
+        currentState_.z.pos = initial_pose[14];
 
-        last_command_ = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // initialize variable, assume that robot is standing still
+        lastCommand_ = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // initialize variable, assume that robot is standing still
 
         // initialize timing variables
         logTime_ = ros::Time(0);
-        segment_time_ = ros::Duration(0);
-        elapsed_time_ = ros::Duration(0.0);
+        segmentTime_ = ros::Duration(0);
+        elapsedTime_ = ros::Duration(0.0);
 
         #if ENABLE_LOGGING
         // do some logging and initialize loggers / open log files and write csv header
@@ -201,11 +201,11 @@ namespace franka_example_controllers {
     const int ExuCobotCartesianVelocityController::getPositionBufferReserve(){
 
         // depending on wheter writing or reading index is smaller/bigger, reserve has to be calculated in a specific way
-        if (position_buffer_index_writing_ > position_buffer_index_reading_){
-            return position_buffer_index_writing_ - position_buffer_index_reading_ - 1;
+        if (positionBufferWritingIndex_ > positionBufferReadingIndex_){
+            return positionBufferWritingIndex_ - positionBufferReadingIndex_ - 1;
         }
-        else if (position_buffer_index_writing_ < position_buffer_index_reading_){
-            return position_buffer_index_writing_ + position_buffer_length_ - position_buffer_index_reading_- 1;
+        else if (positionBufferWritingIndex_ < positionBufferReadingIndex_){
+            return positionBufferWritingIndex_ + positionBufferLength_ - positionBufferReadingIndex_- 1;
         }
         else{
             #if ENABLE_LOGGING
@@ -294,40 +294,40 @@ namespace franka_example_controllers {
         evaluatedTrajectoryFile_ << rosTimeString_ << "," << logTimeString_ << ",";
 
         if(!logYonly_) {
-            evaluatedTrajectoryFile_ << current_state_.x.pos << ",";
-            evaluatedTrajectoryFile_ << current_state_.x.vel << ",";
-            evaluatedTrajectoryFile_ << current_state_.x.acc << ",";
-            evaluatedTrajectoryFile_ << current_state_.x.jerk << ",";
+            evaluatedTrajectoryFile_ << currentState_.x.pos << ",";
+            evaluatedTrajectoryFile_ << currentState_.x.vel << ",";
+            evaluatedTrajectoryFile_ << currentState_.x.acc << ",";
+            evaluatedTrajectoryFile_ << currentState_.x.jerk << ",";
         }
 
-        evaluatedTrajectoryFile_ << current_state_.y.pos << ",";
-        evaluatedTrajectoryFile_ << current_state_.y.vel << ",";
-        evaluatedTrajectoryFile_ << current_state_.y.acc << ",";
-        evaluatedTrajectoryFile_ << current_state_.y.jerk;
+        evaluatedTrajectoryFile_ << currentState_.y.pos << ",";
+        evaluatedTrajectoryFile_ << currentState_.y.vel << ",";
+        evaluatedTrajectoryFile_ << currentState_.y.acc << ",";
+        evaluatedTrajectoryFile_ << currentState_.y.jerk;
 
         if(!logYonly_) {
             evaluatedTrajectoryFile_ << ",";
-            evaluatedTrajectoryFile_ << current_state_.z.pos << ",";
-            evaluatedTrajectoryFile_ << current_state_.z.vel << ",";
-            evaluatedTrajectoryFile_ << current_state_.z.acc << ",";
-            evaluatedTrajectoryFile_ << current_state_.z.jerk;
+            evaluatedTrajectoryFile_ << currentState_.z.pos << ",";
+            evaluatedTrajectoryFile_ << currentState_.z.vel << ",";
+            evaluatedTrajectoryFile_ << currentState_.z.acc << ",";
+            evaluatedTrajectoryFile_ << currentState_.z.jerk;
         }
 
         evaluatedTrajectoryFile_ << std::endl;
 
         std::string msg = rosTimeString_ + "," + logTimeString_ + ","
-                + std::to_string(current_state_.x.pos) + ","
-                + std::to_string(current_state_.x.vel) + ","
-                + std::to_string(current_state_.x.acc) + ","
-                + std::to_string(current_state_.x.jerk) + ","
-                + std::to_string(current_state_.y.pos) + ","
-                + std::to_string(current_state_.y.vel) + ","
-                + std::to_string(current_state_.y.acc) + ","
-                + std::to_string(current_state_.y.jerk) + ","
-                + std::to_string(current_state_.z.pos) + ","
-                + std::to_string(current_state_.z.vel) + ","
-                + std::to_string(current_state_.z.acc) + ","
-                + std::to_string(current_state_.z.jerk);
+                + std::to_string(currentState_.x.pos) + ","
+                + std::to_string(currentState_.x.vel) + ","
+                + std::to_string(currentState_.x.acc) + ","
+                + std::to_string(currentState_.x.jerk) + ","
+                + std::to_string(currentState_.y.pos) + ","
+                + std::to_string(currentState_.y.vel) + ","
+                + std::to_string(currentState_.y.acc) + ","
+                + std::to_string(currentState_.y.jerk) + ","
+                + std::to_string(currentState_.z.pos) + ","
+                + std::to_string(currentState_.z.vel) + ","
+                + std::to_string(currentState_.z.acc) + ","
+                + std::to_string(currentState_.z.jerk);
 
         evalTrajLogger_->log(msg);
     }
@@ -387,7 +387,7 @@ namespace franka_example_controllers {
             trajectoryCreationFile_ << endState.z.acc << ",";
         }
 
-        trajectoryCreationFile_ << segment_duration_.toSec();
+        trajectoryCreationFile_ << segmentDuration_.toSec();
 
         trajectoryCreationFile_ << std::endl;
     }
@@ -424,15 +424,15 @@ namespace franka_example_controllers {
         msg.state.z.vel  = state.z.vel;
         msg.state.z.acc  = state.z.acc;
         msg.state.z.jerk = state.z.jerk;
-        pub_current_state_.publish(msg);
+        pubCurrentState_.publish(msg);
     }
 
     void ExuCobotCartesianVelocityController::update(const ros::Time &time,
                                            const ros::Duration &period) {
 
         // update timing variables
-        elapsed_time_ += period;
-        segment_time_ += period;
+        elapsedTime_ += period;
+        segmentTime_ += period;
 
         #if ENABLE_LOGGING
         static ros::Time lastRosTime = ros::Time(0);
@@ -458,7 +458,7 @@ namespace franka_example_controllers {
         static int counter = 0;
 
         // get current pose of manipulator
-        std::array<double, 16> current_robot_state= velocity_cartesian_handle_->getRobotState().O_T_EE_d;
+        std::array<double, 16> current_robot_state= velocityCartesianHandle_->getRobotState().O_T_EE_d;
 
         // when starting the controller, wait until position buffer is filled with [minimalPositionBufferSize_] values
         if(!started){
@@ -470,8 +470,8 @@ namespace franka_example_controllers {
 
         if(started){
 
-            // if segment_duration_ has passed (=last segment is finished), calc new trajectory
-            if(segment_time_ >= segment_duration_){
+            // if segmentDuration_ has passed (=last segment is finished), calc new trajectory
+            if(segmentTime_ >= segmentDuration_){
                 #if ENABLE_LOGGING
                 generalLogFile_ << "new Trajectory needed" << std::endl;
                 #endif
@@ -480,7 +480,7 @@ namespace franka_example_controllers {
                 if(getPositionBufferReserve() >= 1){
 
                     // if endTime of last segment != now, some time has passed since finishing of last trajectory and needs to be recovered
-                    overdueTime_ = segment_time_ - segment_duration_;
+                    overdueTime_ = segmentTime_ - segmentDuration_;
 
                     // when getting in here the first time, overdue time quite big (several seconds), depending on how long
                     // it takes to start exudyn. So ignore first time
@@ -498,19 +498,19 @@ namespace franka_example_controllers {
                         generalLogFile_ << "Overdue time: " << overdueTime_ << std::endl;
                     }
 
-                    generalLogFile_ << "updating trajectory after " << segment_time_ << " s" << std::endl;
+                    generalLogFile_ << "updating trajectory after " << segmentTime_ << " s" << std::endl;
                     trajectoryCreationFile2_ << rosTimeString_ << "," << logTimeString_ << ",";
                     #endif
                     updateTrajectory();
 
-                    // reset segment_time_ as new one starts now
+                    // reset segmentTime_ as new one starts now
                     // if overdueTime_ != 0, less time is available to finish current (new) trajectory
-                    segment_time_ = overdueTime_;
+                    segmentTime_ = overdueTime_;
                     #if ENABLE_LOGGING
-                    generalLogFile_ << "setting segment_time_ to " << segment_time_ << std::endl;
+                    generalLogFile_ << "setting segmentTime_ to " << segmentTime_ << std::endl;
                     #endif
                 }
-                else { // if there is no further entry in position_buffer_, keep last velocity
+                else { // if there is no further entry in positionBuffer_, keep last velocity
                     #if ENABLE_LOGGING
                     std::cerr << "WARNING: No further entry to calculate new segment available, keep last velocity" << std::endl;
                     generalLogFile_ << "WARNING: No further entry to calculate new segment available, keep last velocity" << std::endl;
@@ -527,34 +527,34 @@ namespace franka_example_controllers {
 
                     // just update current state
                     // update position; velocity remains the same and therefor acceleration is 0
-                    current_state_.x = {current_robot_state[12], current_state_.x.vel, 0};
-                    current_state_.y = {current_robot_state[13], current_state_.y.vel, 0};
-                    current_state_.z = {current_robot_state[14], current_state_.z.vel, 0};
+                    currentState_.x = {current_robot_state[12], currentState_.x.vel, 0};
+                    currentState_.y = {current_robot_state[13], currentState_.y.vel, 0};
+                    currentState_.z = {current_robot_state[14], currentState_.z.vel, 0};
                 }
             }
 
             // if within segment_duration, calc new state
             // can't be "else" to above statement, as it also has to be executed if trajectory has just been updated
-            if(segment_time_ < segment_duration_) {
+            if(segmentTime_ < segmentDuration_) {
                 // calculate new positions, velocities and accelerations
                 #if ENABLE_LOGGING
                 generalLogFile_ << "evaluating trajectory" << std::endl;
                 #endif
-                current_state_.x = evaluatePolynomial(coefs_[0], segment_time_.toSec());
-                current_state_.y = evaluatePolynomial(coefs_[1], segment_time_.toSec());
-                current_state_.z = evaluatePolynomial(coefs_[2], segment_time_.toSec());
+                currentState_.x = evaluatePolynomial(coefs_[0], segmentTime_.toSec());
+                currentState_.y = evaluatePolynomial(coefs_[1], segmentTime_.toSec());
+                currentState_.z = evaluatePolynomial(coefs_[2], segmentTime_.toSec());
 
                 #if ENABLE_LOGGING
                 // get current pose
-                std::array<double, 7> current_joint_positions= velocity_cartesian_handle_->getRobotState().q;
+                std::array<double, 7> current_joint_positions= velocityCartesianHandle_->getRobotState().q;
                 logEvaluatedTrajectory();
                 logCurrentPosition(current_robot_state, current_joint_positions);
                 #endif
 
                 // extract new velocities
-                double vx = current_state_.x.vel;
-                double vy = current_state_.y.vel;
-                double vz = current_state_.z.vel;
+                double vx = currentState_.x.vel;
+                double vy = currentState_.y.vel;
+                double vz = currentState_.z.vel;
 
                 // for now, any rotation is neglected
                 double wx, wy, wz;
@@ -563,21 +563,21 @@ namespace franka_example_controllers {
                 wz = 0;
 
                 // update command
-                current_command_ = {vx, vy, vz, wx, wy, wz};
+                currentCommand_ = {vx, vy, vz, wx, wy, wz};
 
                 if(exitIfTheoreticalValuesExceedLimits_) {
 
                     // check if v, a and j are within absolute limits
 
                     // acceleration
-                    double ax = current_state_.x.acc;
-                    double ay = current_state_.y.acc;
-                    double az = current_state_.z.acc;
+                    double ax = currentState_.x.acc;
+                    double ay = currentState_.y.acc;
+                    double az = currentState_.z.acc;
 
                     // jerk
-                    double jx = current_state_.x.jerk;
-                    double jy = current_state_.y.jerk;
-                    double jz = current_state_.z.jerk;
+                    double jx = currentState_.x.jerk;
+                    double jy = currentState_.y.jerk;
+                    double jz = currentState_.z.jerk;
 
                     double jAbs = sqrt(jx * jx + jy * jy + jz * jz);
                     double aAbs = sqrt(ax * ax + ay * ay + az * az);
@@ -585,7 +585,7 @@ namespace franka_example_controllers {
                     bool quit = false;
 
                     // add small constant because of numerical inaccuracy
-                    if (jAbs > max_j_trans_ + 0.0001) {
+                    if (jAbs > maxJ_trans_ + 0.0001) {
                         #if ENABLE_LOGGING
                         generalLogFile_ << "ERROR: Jerk too high" << std::endl;
                         #endif
@@ -593,7 +593,7 @@ namespace franka_example_controllers {
                         quit = true;
                     }
 
-                    if (aAbs > max_a_trans_ + 0.0001) {
+                    if (aAbs > maxA_trans_ + 0.0001) {
                         #if ENABLE_LOGGING
                         generalLogFile_ << "ERROR: Acceleration too high" << std::endl;
                         #endif
@@ -601,7 +601,7 @@ namespace franka_example_controllers {
                         quit = true;
                     }
 
-                    if (vAbs > max_v_trans_ + 0.0001) {
+                    if (vAbs > maxV_trans_ + 0.0001) {
                         #if ENABLE_LOGGING
                         generalLogFile_ << "ERROR: Velocity too high" << std::endl;
                         #endif
@@ -625,23 +625,23 @@ namespace franka_example_controllers {
                         exit(-1);
                     }
 
-                    current_command_ = {vx, vy, vz, wx, wy, wz};
+                    currentCommand_ = {vx, vy, vz, wx, wy, wz};
                 }
             }
 
             // check if new command is possible
             // max velocity change is max_acc * dt
-            double max_dv = max_a_trans_ * 0.001;
+            double max_dv = maxA_trans_ * 0.001;
             for(int i = 0; i < 3; ++i){ // check for all three axes
 
                 // velocity change
-                int dv = current_command_[i]-last_command_[i];
+                int dv = currentCommand_[i]-lastCommand_[i];
 
                 if(abs(dv) >= max_dv){
                     // if desired velocity change is too high, cap it
 
                     #if ENABLE_LOGGING
-                    std::cerr << "Last v: " << last_command_[i] << "\t next v: " << current_command_[i];
+                    std::cerr << "Last v: " << lastCommand_[i] << "\t next v: " << currentCommand_[i];
                     std::cerr << "\tdv: " << dv;
                     std::cerr << "\texceeds limit dv of " << max_dv;
                     #endif
@@ -650,35 +650,35 @@ namespace franka_example_controllers {
                     int sign = dv > 0 ? 1 : -1;     // dv can't be 0, as then above if-statement would not be fulfilled
 
                     // apply max velocity change but not more
-                    current_command_[i] = last_command_[i] + max_dv * sign;
+                    currentCommand_[i] = lastCommand_[i] + max_dv * sign;
 
                     #if ENABLE_LOGGING
-                    std::cerr << "\t-> next v: " << current_command_[i] << std::endl;
+                    std::cerr << "\t-> next v: " << currentCommand_[i] << std::endl;
                     #endif
                 }
             }
 
             #if ENABLE_LOGGING
             // pass velocity to robot control and log it
-            commandLogFile_ << rosTimeString_ << "," << logTimeString_ << ", " << current_command_[0] << ", " << current_command_[1] << ", " << current_command_[2] << std::endl;
+            commandLogFile_ << rosTimeString_ << "," << logTimeString_ << ", " << currentCommand_[0] << ", " << currentCommand_[1] << ", " << currentCommand_[2] << std::endl;
             #endif
 
             // check if one of commanded velocities is NaN. Can't reproduce error but once I got a "FrankaHW::controlCallback: Got NaN command!" fatal error
             for(int i = 0; i < 6; ++i){
-                if(isnan(current_command_[i])){
+                if(isnan(currentCommand_[i])){
                     #if ENABLE_LOGGING
                     generalLogFile_ << "ERROR: Command [" << i << "] is NaN" << std::endl;
-                    generalLogFile_ << "Segment time: " << segment_time_ << "\tSegment duration: " << segment_duration_ << "\toverdue time: " << overdueTime_ << std::endl;
+                    generalLogFile_ << "Segment time: " << segmentTime_ << "\tSegment duration: " << segmentDuration_ << "\toverdue time: " << overdueTime_ << std::endl;
                     #endif
                     exit(-1);
                 }
             }
 
             // pass command to robot
-            velocity_cartesian_handle_->setCommand(current_command_);
+            velocityCartesianHandle_->setCommand(currentCommand_);
 
             // save given command for next iteration
-            last_command_ = current_command_;
+            lastCommand_ = currentCommand_;
         }
 
         #if ENABLE_LOGGING
@@ -695,12 +695,12 @@ namespace franka_example_controllers {
         msgPose.pose.position.x = current_robot_state[12];
         msgPose.pose.position.y = current_robot_state[13];
         msgPose.pose.position.z = current_robot_state[14];
-        pub_current_pose_.publish(msgPose);
+        pubCurrentPose_.publish(msgPose);
     }
 
     void ExuCobotCartesianVelocityController::updateReferencePoseCallback(const util::segmentCommand &msg) {
 
-        if(position_buffer_index_writing_ == position_buffer_index_reading_){
+        if(positionBufferWritingIndex_ == positionBufferReadingIndex_){
             std::cerr << "ERROR: Position buffer full" << std::endl;
             #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Position buffer full" << std::endl;
@@ -715,7 +715,7 @@ namespace franka_example_controllers {
         state.z = {msg.z.pos, msg.z.vel, msg.z.acc, 0.0};
 
         // store command in fifo queue
-        position_buffer_[position_buffer_index_writing_] = {state, msg.dt};
+        positionBuffer_[positionBufferWritingIndex_] = {state, msg.dt};
 
         if(msg.dt <= 0){
             #if ENABLE_LOGGING
@@ -726,13 +726,13 @@ namespace franka_example_controllers {
         }
 
         // increase writing index
-        position_buffer_index_writing_ = (position_buffer_index_writing_ + 1) % position_buffer_length_;
+        positionBufferWritingIndex_ = (positionBufferWritingIndex_ + 1) % positionBufferLength_;
 
         // for analytics
-        current_reference__[0] = msg.x.pos;
-        current_reference__[1] = msg.y.pos;
-        current_reference__[2] = msg.z.pos;
-        current_reference__[3] = msg.dt;
+        currentReference__[0] = msg.x.pos;
+        currentReference__[1] = msg.y.pos;
+        currentReference__[2] = msg.z.pos;
+        currentReference__[3] = msg.dt;
 
         #if ENABLE_LOGGING
         referenceLogFile_ << rosTimeString_ << "," << logTimeString_ << ",";
@@ -766,33 +766,33 @@ namespace franka_example_controllers {
 
     void ExuCobotCartesianVelocityController::updateTrajectory() {
 
-        // at last iteration segment_time was at e.g. 0.009 (if segment_duration_ is 0.01)
+        // at last iteration segment_time was at e.g. 0.009 (if segmentDuration_ is 0.01)
         // last calculation for previous segment has still to be done in order to let new segment start from correct position
-        current_state_.x = evaluatePolynomial(coefs_[0], segment_duration_.toSec());
-        current_state_.y = evaluatePolynomial(coefs_[1], segment_duration_.toSec());
-        current_state_.z = evaluatePolynomial(coefs_[2], segment_duration_.toSec());
+        currentState_.x = evaluatePolynomial(coefs_[0], segmentDuration_.toSec());
+        currentState_.y = evaluatePolynomial(coefs_[1], segmentDuration_.toSec());
+        currentState_.z = evaluatePolynomial(coefs_[2], segmentDuration_.toSec());
 
         #if ENABLE_LOGGING
-        //publishState(logTime_, current_state_);
+        //publishState(logTime_, currentState_);
         logEvaluatedTrajectory();
         generalLogFile_ << "evaluating trajectory" << std::endl;
         #endif
 
         // get current robot state
-        std::array<double, 16> current_robot_state = velocity_cartesian_handle_->getRobotState().O_T_EE_d;
+        std::array<double, 16> current_robot_state = velocityCartesianHandle_->getRobotState().O_T_EE_d;
 
-        // if dift is allowed or it is the first time a trajectory is generated, current_state_ must be set
-        if (allow_drift_ || (current_state_.x.pos == 0 && current_state_.y.pos == 0 && current_state_.z.pos == 0)) {
+        // if dift is allowed or it is the first time a trajectory is generated, currentState_ must be set
+        if (allowDrift_ || (currentState_.x.pos == 0 && currentState_.y.pos == 0 && currentState_.z.pos == 0)) {
             // let trajectory start with calcualted velocity and acceleration, but with current (measured) position
-            current_state_.x.pos = current_robot_state[12];
-            current_state_.y.pos = current_robot_state[13];
-            current_state_.z.pos = current_robot_state[14];
+            currentState_.x.pos = current_robot_state[12];
+            currentState_.y.pos = current_robot_state[13];
+            currentState_.z.pos = current_robot_state[14];
         }
 
         // startState equals current state, except .pos might be taken from robot end-effector position
-        State3 startState = current_state_;
+        State3 startState = currentState_;
 
-        double distance = cartesianDistance({current_state_.x.pos, current_state_.y.pos, current_state_.z.pos},
+        double distance = cartesianDistance({currentState_.x.pos, currentState_.y.pos, currentState_.z.pos},
                                             {current_robot_state[12], current_robot_state[13], current_robot_state[14]});
 
         // distance must not be bigger than maximal distance which can be covered in one step (0.001s) with max velocity
@@ -800,7 +800,7 @@ namespace franka_example_controllers {
         // of "libfranka: Move command aborted: motion aborted by reflex!", the robot would stop working, but this
         // controller would carry on and spam error messages in console. So with this condition this controller stops as
         // well.
-        if (distance >= max_v_trans_ * 0.001) {
+        if (distance >= maxV_trans_ * 0.001) {
             std::cerr << "[" << rosTimeString_ << "] ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
             #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Robot and Controller not in sync! Cartesian distance: " << distance << " m" << std::endl;
@@ -809,9 +809,9 @@ namespace franka_example_controllers {
         }
 
         // index of next positions
-        int i1 = (position_buffer_index_reading_ + 1) % position_buffer_length_; // next position
+        int i1 = (positionBufferReadingIndex_ + 1) % positionBufferLength_; // next position
 
-        if(position_buffer_[i1].dt <= 0){
+        if(positionBuffer_[i1].dt <= 0){
             #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Desired segment-time must be >0" << std::endl;
             #else
@@ -820,10 +820,10 @@ namespace franka_example_controllers {
             exit(-1);
         }
 
-        segment_duration_ = ros::Duration(position_buffer_[i1].dt);
+        segmentDuration_ = ros::Duration(positionBuffer_[i1].dt);
 
         #if ENABLE_LOGGING
-        generalLogFile_ << "new segment_duration_ is " << segment_duration_.toSec() << " s" << std::endl;
+        generalLogFile_ << "new segmentDuration_ is " << segmentDuration_.toSec() << " s" << std::endl;
         #endif
 
         // calculate trajectory endstate
@@ -831,9 +831,9 @@ namespace franka_example_controllers {
 
         // get endState._.pos from position buffer
         for(int c = 0; c < 3; ++c){     // for coordinates c = x, y, z
-            endState[c].pos = position_buffer_[i1][c].pos;
-            endState[c].vel = position_buffer_[i1][c].vel;
-            endState[c].acc = position_buffer_[i1][c].acc;
+            endState[c].pos = positionBuffer_[i1][c].pos;
+            endState[c].vel = positionBuffer_[i1][c].vel;
+            endState[c].acc = positionBuffer_[i1][c].acc;
         }
 
         #if ENABLE_LOGGING
@@ -843,13 +843,13 @@ namespace franka_example_controllers {
         trajectoryCreationFile2_ << (endState.y.pos - startState.y.pos) << ",\t";           // dp1
         trajectoryCreationFile2_ << (endState.y.vel - startState.y.vel) << ",\t";           // dv
         trajectoryCreationFile2_ << (endState.y.acc - startState.y.acc) << ",\t";           // da
-        trajectoryCreationFile2_ << segment_duration_.toSec() << std::endl;
+        trajectoryCreationFile2_ << segmentDuration_.toSec() << std::endl;
         #endif
 
         // calculate polynom coefficients
-        coefs_[0] = calcCoefs(startState.x, endState.x, segment_duration_.toSec());
-        coefs_[1] = calcCoefs(startState.y, endState.y, segment_duration_.toSec());
-        coefs_[2] = calcCoefs(startState.z, endState.z, segment_duration_.toSec());
+        coefs_[0] = calcCoefs(startState.x, endState.x, segmentDuration_.toSec());
+        coefs_[1] = calcCoefs(startState.y, endState.y, segmentDuration_.toSec());
+        coefs_[2] = calcCoefs(startState.z, endState.z, segmentDuration_.toSec());
 
         #if ENABLE_LOGGING
         logTrajectoryCreation(startState, endState);
@@ -857,7 +857,7 @@ namespace franka_example_controllers {
         #endif
 
         // for next segment
-        position_buffer_index_reading_ = (position_buffer_index_reading_ + 1) % position_buffer_length_;
+        positionBufferReadingIndex_ = (positionBufferReadingIndex_ + 1) % positionBufferLength_;
     }
 
     void ExuCobotCartesianVelocityController::stopping(const ros::Time & /*time*/) {

@@ -80,11 +80,11 @@ namespace franka_example_controllers {
         pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentPose", 20);
 
         // initialize variables
-        current_state_ = std::vector<std::vector<double>>(3, std::vector<double>(3, 0));
-        current_reference__ = std::vector<double>(3, 0);
-        position_buffer_ = std::vector<std::vector<double>>(position_buffer_length_, std::vector<double>(3, 0));
-        position_buffer_index_reading_ = 0;
-        position_buffer_index_writing_ = 1;
+        currentState_ = std::vector<std::vector<double>>(3, std::vector<double>(3, 0));
+        currentReference__ = std::vector<double>(3, 0);
+        positionBuffer_ = std::vector<std::vector<double>>(positionBufferLength_, std::vector<double>(3, 0));
+        positionBufferReadingIndex_ = 0;
+        positionBufferWritingIndex_ = 1;
         coefs_ = std::vector<std::vector<double>>(3, std::vector<double>(6, 0));
 
         return true;
@@ -96,10 +96,10 @@ namespace franka_example_controllers {
         // set next positions on current positions to stay here (NOT ZERO!!!) 
         // TODO can I let this on zero because of my brilliant ring buffer logic?
 
-        // set position entries of current_state_ vector to current positions
-        current_state_[0][0] = initial_pose_[12];
-        current_state_[1][0] = initial_pose_[13];
-        current_state_[2][0] = initial_pose_[14];
+        // set position entries of currentState_ vector to current positions
+        currentState_[0][0] = initial_pose_[12];
+        currentState_[1][0] = initial_pose_[13];
+        currentState_[2][0] = initial_pose_[14];
 
         segment_time_ = 0;
 
@@ -112,11 +112,11 @@ namespace franka_example_controllers {
 
     const int MyCartesianPoseController::getPositionBufferReserve(){
         
-        if (position_buffer_index_writing_ > position_buffer_index_reading_){
-            return position_buffer_index_writing_ - position_buffer_index_reading_ - 1;
+        if (positionBufferWritingIndex_ > positionBufferReadingIndex_){
+            return positionBufferWritingIndex_ - positionBufferReadingIndex_ - 1;
         }
-        else if (position_buffer_index_writing_ < position_buffer_index_reading_){
-            return position_buffer_index_writing_ + position_buffer_length_ - position_buffer_index_reading_- 1;
+        else if (positionBufferWritingIndex_ < positionBufferReadingIndex_){
+            return positionBufferWritingIndex_ + positionBufferLength_ - positionBufferReadingIndex_- 1;
         }
         else{
             std::cerr << "ERROR: Writing index has catched reading index!";
@@ -164,7 +164,7 @@ namespace franka_example_controllers {
         elapsed_time_ += period;
         segment_time_ += period.toSec();
 
-        //std::cerr << "Update\t pos buffer write : " << position_buffer_index_writing_ << "\t read: " << position_buffer_index_reading_ << "\treserve: " << getPositionBufferReserve() << std::endl;
+        //std::cerr << "Update\t pos buffer write : " << positionBufferWritingIndex_ << "\t read: " << positionBufferReadingIndex_ << "\treserve: " << getPositionBufferReserve() << std::endl;
 
         static bool started = false;
         static int counter = 0;
@@ -192,9 +192,9 @@ namespace franka_example_controllers {
 
                     // at last iteration segment_time was at e.g. 0.009 (if segment_duration_ is 0.01)
                     // last calculation for previous segment has still to be done in order to let new segment start from correct position
-                    current_state_[0] = evaluatePolynom(coefs_[0], segment_time_);
-                    current_state_[1] = evaluatePolynom(coefs_[1], segment_time_);
-                    current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
+                    currentState_[0] = evaluatePolynom(coefs_[0], segment_time_);
+                    currentState_[1] = evaluatePolynom(coefs_[1], segment_time_);
+                    currentState_[2] = evaluatePolynom(coefs_[2], segment_time_);
 
                     updateTrajectory();
                     
@@ -218,20 +218,20 @@ namespace franka_example_controllers {
             // if within semgent_duration, calc new state
             if(segment_time_ <= segment_duration_){
                 // calculat new positions, velocities and accelerations
-                current_state_[0] = evaluatePolynom(coefs_[0], segment_time_);
-                current_state_[1] = evaluatePolynom(coefs_[1], segment_time_);
-                current_state_[2] = evaluatePolynom(coefs_[2], segment_time_);
+                currentState_[0] = evaluatePolynom(coefs_[0], segment_time_);
+                currentState_[1] = evaluatePolynom(coefs_[1], segment_time_);
+                currentState_[2] = evaluatePolynom(coefs_[2], segment_time_);
 
                 // when debugging
                 if (max_segments != 0){
-                    std::cerr << "[" << current_state_[1][0] << ", " << current_state_[1][1] << ", " << current_state_[1][2] << ", " << elapsed_time_.toSec() << "],\n";
+                    std::cerr << "[" << currentState_[1][0] << ", " << currentState_[1][1] << ", " << currentState_[1][2] << ", " << elapsed_time_.toSec() << "],\n";
                 }
 
                 // compose new pose
                 std::array<double, 16> new_pose = current_pose;
-                new_pose[12] = current_state_[0][0];
-                new_pose[13] = current_state_[1][0];
-                new_pose[14] = current_state_[2][0];
+                new_pose[12] = currentState_[0][0];
+                new_pose[13] = currentState_[1][0];
+                new_pose[14] = currentState_[2][0];
 
                 // pass new pose to robot control
                 cartesian_pose_handle_->setCommand(new_pose);
@@ -252,15 +252,15 @@ namespace franka_example_controllers {
         msg.header.stamp = ros::Time::now();
 
         // current target pos
-        //msg.pose.position.x = current_reference__[0];
-        //msg.pose.position.y = current_reference__[1];
-        //msg.pose.position.z = current_reference__[2];
+        //msg.pose.position.x = currentReference__[0];
+        //msg.pose.position.y = currentReference__[1];
+        //msg.pose.position.z = currentReference__[2];
         //pub_current_reference_.publish(msg);
 
         // current trajectory val
-        msg.pose.position.x = current_state_[0][0];
-        msg.pose.position.y = current_state_[1][0];
-        msg.pose.position.z = current_state_[2][0];
+        msg.pose.position.x = currentState_[0][0];
+        msg.pose.position.y = currentState_[1][0];
+        msg.pose.position.z = currentState_[2][0];
         pub_current_trajectory_.publish(msg);
 
         // current pos
@@ -277,19 +277,19 @@ namespace franka_example_controllers {
         msgnew.header.stamp = ros::Time::now();
         pub_current_reference_.publish(msgnew);
 
-        if(position_buffer_index_writing_ == position_buffer_index_reading_){
+        if(positionBufferWritingIndex_ == positionBufferReadingIndex_){
             std::cerr << "Position buffer full!\n";
             exit(-1);
         }
 
-        position_buffer_[position_buffer_index_writing_] = {msg.pose.position.x, msg.pose.position.y, msg.pose.position.z};
-        int old = position_buffer_index_writing_;
-        position_buffer_index_writing_ = (position_buffer_index_writing_ + 1) % position_buffer_length_;
+        positionBuffer_[positionBufferWritingIndex_] = {msg.pose.position.x, msg.pose.position.y, msg.pose.position.z};
+        int old = positionBufferWritingIndex_;
+        positionBufferWritingIndex_ = (positionBufferWritingIndex_ + 1) % positionBufferLength_;
 
         // for analytics
-        current_reference__[0] = msg.pose.position.x;
-        current_reference__[1] = msg.pose.position.y;
-        current_reference__[2] = msg.pose.position.z;
+        currentReference__[0] = msg.pose.position.x;
+        currentReference__[1] = msg.pose.position.y;
+        currentReference__[2] = msg.pose.position.z;
     }
 
     void MyCartesianPoseController::updateTrajectory(){
@@ -298,43 +298,43 @@ namespace franka_example_controllers {
         std::array<double, 16> current_pose = cartesian_pose_handle_->getRobotState().O_T_EE_d;
 
         // index of next positions
-        int i1 = (position_buffer_index_reading_ + 1) % position_buffer_length_; // next position
-        int i2 = (position_buffer_index_reading_ + 2) % position_buffer_length_; // second next position
+        int i1 = (positionBufferReadingIndex_ + 1) % positionBufferLength_; // next position
+        int i2 = (positionBufferReadingIndex_ + 2) % positionBufferLength_; // second next position
 
         // calculate desired velocity for end of (first) segment as mean velocity of next two segments
         std::array<double, 3> next_velocity{};
         
         if(testing_){
-            next_velocity[0] = (position_buffer_[i2][0] - current_state_[0][0])/(segment_duration_*2);
-            next_velocity[1] = (position_buffer_[i2][1] - current_state_[1][0])/(segment_duration_*2);
-            next_velocity[2] = (position_buffer_[i2][2] - current_state_[2][0])/(segment_duration_*2);
+            next_velocity[0] = (positionBuffer_[i2][0] - currentState_[0][0])/(segment_duration_*2);
+            next_velocity[1] = (positionBuffer_[i2][1] - currentState_[1][0])/(segment_duration_*2);
+            next_velocity[2] = (positionBuffer_[i2][2] - currentState_[2][0])/(segment_duration_*2);
         }
         else{
-            next_velocity[0] = (position_buffer_[i2][0] - current_pose[12])/(segment_duration_*2);
-            next_velocity[1] = (position_buffer_[i2][1] - current_pose[13])/(segment_duration_*2);
-            next_velocity[2] = (position_buffer_[i2][2] - current_pose[14])/(segment_duration_*2);
+            next_velocity[0] = (positionBuffer_[i2][0] - current_pose[12])/(segment_duration_*2);
+            next_velocity[1] = (positionBuffer_[i2][1] - current_pose[13])/(segment_duration_*2);
+            next_velocity[2] = (positionBuffer_[i2][2] - current_pose[14])/(segment_duration_*2);
         }
 
         
         // calculate polynom coefficients
-        // TODO: using current velocity and acceleration from current_state_ vector is not 100% correct, as they are the vel and acc from last step
+        // TODO: using current velocity and acceleration from currentState_ vector is not 100% correct, as they are the vel and acc from last step
         
         // std::cerr are for evaluating trajectory in pyhton, to control if calculation is correct
         if(testing_){
-            coefs_[0] = calcCoefs(current_state_[0][0], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
-            coefs_[1] = calcCoefs(current_state_[1][0], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
-            coefs_[2] = calcCoefs(current_state_[2][0], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
-            std::cerr << "[[" << current_state_[1][0];
+            coefs_[0] = calcCoefs(currentState_[0][0], currentState_[0][1], currentState_[0][2], positionBuffer_[i1][0], next_velocity[0], 0, segment_duration_);
+            coefs_[1] = calcCoefs(currentState_[1][0], currentState_[1][1], currentState_[1][2], positionBuffer_[i1][1], next_velocity[1], 0, segment_duration_);
+            coefs_[2] = calcCoefs(currentState_[2][0], currentState_[2][1], currentState_[2][2], positionBuffer_[i1][2], next_velocity[2], 0, segment_duration_);
+            std::cerr << "[[" << currentState_[1][0];
         }
         else{
-            coefs_[0] = calcCoefs(current_pose[12], current_state_[0][1], current_state_[0][2], position_buffer_[i1][0], next_velocity[0], 0, segment_duration_);
-            coefs_[1] = calcCoefs(current_pose[13], current_state_[1][1], current_state_[1][2], position_buffer_[i1][1], next_velocity[1], 0, segment_duration_);
-            coefs_[2] = calcCoefs(current_pose[14], current_state_[2][1], current_state_[2][2], position_buffer_[i1][2], next_velocity[2], 0, segment_duration_);
+            coefs_[0] = calcCoefs(current_pose[12], currentState_[0][1], currentState_[0][2], positionBuffer_[i1][0], next_velocity[0], 0, segment_duration_);
+            coefs_[1] = calcCoefs(current_pose[13], currentState_[1][1], currentState_[1][2], positionBuffer_[i1][1], next_velocity[1], 0, segment_duration_);
+            coefs_[2] = calcCoefs(current_pose[14], currentState_[2][1], currentState_[2][2], positionBuffer_[i1][2], next_velocity[2], 0, segment_duration_);
             std::cerr << "[[" << current_pose[13];
         }
         
-        std::cerr<< ", " << current_state_[1][1] << ", " << current_state_[1][2];
-        std::cerr << ", " << position_buffer_[i1][1] << ", " << next_velocity[1] << ", " << 0 << ", " << segment_duration_ << "],\t\t\t";
+        std::cerr<< ", " << currentState_[1][1] << ", " << currentState_[1][2];
+        std::cerr << ", " << positionBuffer_[i1][1] << ", " << next_velocity[1] << ", " << 0 << ", " << segment_duration_ << "],\t\t\t";
         std::cerr << "[";
         for(int i = 0; i < 6; ++i){
             std::cerr << coefs_[1][i];
@@ -343,8 +343,8 @@ namespace franka_example_controllers {
         std::cerr << "]]," << std::endl;
 
         // for next segment
-        int old = position_buffer_index_reading_;
-        position_buffer_index_reading_ = (position_buffer_index_reading_ + 1) % position_buffer_length_;
+        int old = positionBufferReadingIndex_;
+        positionBufferReadingIndex_ = (positionBufferReadingIndex_ + 1) % positionBufferLength_;
     }
 
 }  // namespace franka_example_controllers

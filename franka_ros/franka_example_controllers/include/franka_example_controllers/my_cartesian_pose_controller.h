@@ -40,22 +40,22 @@ namespace franka_example_controllers {
         std::array<double, 16> initial_pose_{};
         //std::array<double, 16> desired_pose_{};
 
-        std::vector<std::vector<double>> current_state_;    // pos, vel and acc for x, y, and z; describing current state of trajectory
+        std::vector<std::vector<double>> currentState_;    // pos, vel and acc for x, y, and z; describing current state of trajectory
         std::vector<std::vector<double>> coefs_;    // trajectory / polynom coefficients
 
-        std::vector<std::vector<double>> position_buffer_;  // x, y and z value of next positions to travers
-        const int position_buffer_length_ = 50;             // length of position buffer. Also if buffer is vector, it's length is static
+        std::vector<std::vector<double>> positionBuffer_;  // x, y and z value of next positions to travers
+        const int positionBufferLength_ = 50;             // length of position buffer. Also if buffer is vector, it's length is static
         // as position_buffer will be a ring buffer, current indices for reading and writing have to be stored
-        int position_buffer_index_writing_;                 // holds index in which to write next (write then increase)
-        int position_buffer_index_reading_;                 // holds index from which to read next (read then increase)
+        int positionBufferWritingIndex_;                 // holds index in which to write next (write then increase)
+        int positionBufferReadingIndex_;                 // holds index from which to read next (read then increase)
         const int getPositionBufferReserve();               // returns amount of stored next positions
 
-        std::vector<double> current_reference__;    // only for analytics
+        std::vector<double> currentReference__;    // only for analytics
 
         const double segment_duration_ = 0.01;  // planned duration of one segment in s
         double segment_time_;                   // time in current segment in s  
 
-        const bool testing_ = false;        // flag to use current_state_ instead of current_pose_
+        const bool testing_ = false;        // flag to use currentState_ instead of current_pose_
 
         ros::Publisher pub_current_reference_; // publisher for current registered target position
         ros::Publisher pub_current_trajectory_; // publisher for current trajectory value
