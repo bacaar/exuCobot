@@ -49,6 +49,11 @@ namespace franka_example_controllers {
         std::unique_ptr <franka_hw::FrankaModelHandle> model_handle_;
         std::vector <hardware_interface::JointHandle> joint_handles_;
 
+        int translationalStiffness_ = 3600;
+        int rotationalStiffness_ = 80;
+        int translationalDamping_ = 80;
+        int rotationalDamping_ = 10;
+
         double filter_params_{0.005};
         double nullspace_stiffness_{20.0};
         double nullspace_stiffness_reference_{20.0};
