@@ -217,13 +217,16 @@ def main(client, useImpedanceController):
     SC.visualizationSettings.openGL.initialZoom = 0.5
     
     simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
+
     robotVrInterface.setSettings(SC)
 
     # exudyn magic
     exu.StartRenderer()
     
-    exu.SolveDynamic(mbs, simulationSettings)
+    #exu.SolveDynamic(mbs, simulationSettings)
     # TODO nur Daten aus solutionViewer auslesen und viewer aktualisieren? oder im solutionViewer aktualisier? auf jeden Fall nicht simulieren
+
+    robotVrInterface.simulate(mbs, SC, simulationSettings)
 
     exu.StopRenderer() #safely close rendering window!
 
