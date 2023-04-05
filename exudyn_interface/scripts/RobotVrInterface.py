@@ -811,16 +811,17 @@ class RobotInterface:
             vel_ = mbs.GetSensorValues(mbs.variables['vel'])
             acc_ = mbs.GetSensorValues(mbs.variables['acc'])
 
-            rot_ = mbs.GetSensorValues(mbs.variables['rotation'])
+            #rot_ = mbs.GetSensorValues(mbs.variables['rotation'])
             
             # convert data to numpy arrays
             pos = np.array(pos_)
             vel = np.array(vel_)
             acc = np.array(acc_)
-            rot = np.array(rot_)
+            #rot = np.array(rot_)
 
-            # calculate angle
-            angleX = float(round(180+np.rad2deg(rot[0]), 4))
+            # calculate angle (implemented but not used at the moment)
+            #angleX = float(round(180+np.rad2deg(rot[0]), 4))
+            angleX = 0
 
             self.__publishRobotCommand(pos, vel, acc, angleX, t)
             self.__lastRobotCommandSentTime = t
