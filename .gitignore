@@ -10,6 +10,6 @@ cmake-build-debug/
 *.log
 *.csv
 
-# build and devel files
+# build devel files
 **/build/
 **/devel/
