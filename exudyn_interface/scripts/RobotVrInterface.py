@@ -159,8 +159,7 @@ class RobotVrInterface:
         if self.__clientType == 1:
             self.__robotInterface.simulate(mbs, simulationSettings)
         else:
-            #self.__vrInterface.setSettings(SC)
-            self.__vrInterface.simulate(mbs)
+            self.__vrInterface.simulate(mbs, SC)
 
 
     def setSettings(self, SC):
@@ -328,6 +327,7 @@ class VrInterface:
         self.__globalStartPos = np.array([0.0, 0.0, 0.0])
 
         self.__systemStateData = None
+        self.__currentSimulationTime = 0
 
         # init ROS node
         rospy.init_node('ExudynVrInterface', anonymous=True)
@@ -547,12 +547,13 @@ class VrInterface:
         return mbs
     
 
-    def simulate(self, mbs):
+    def simulate(self, mbs, SC):
         """
         While the robotInterface really simulates the mbs, the VR interface only updates the vizualization
 
         Args:
             mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+            SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
         """
 
         simRunning = True
@@ -562,7 +563,9 @@ class VrInterface:
 
             # update visualization data
             mbs.systemData.SetSystemState(self.getCurrentSystemState(), exu.ConfigurationType.Visualization)
-            mbs.systemData.SetTime(3.14, exu.ConfigurationType.Visualization)
+            mbs.systemData.SetTime(self.__currentSimulationTime, exu.ConfigurationType.Visualization)
+
+            self.update(mbs, SC)
 
             # update screen
             mbs.SendRedrawSignal()
@@ -589,8 +592,6 @@ class VrInterface:
         Args:
             SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
         """
-
-        print("setSettings")
 
         SC.visualizationSettings.general.drawCoordinateSystem = False
         SC.visualizationSettings.general.graphicsUpdateInterval = 1/VR_FPS # = 60 Hz
@@ -633,13 +634,16 @@ class VrInterface:
         # [3, x1, x2, x3, 2, y1, y2]
         # so every vector begins with its length
 
+        # however, before systemData itself: first data of vector is simTime
+        self.__currentSimulationTime = systemState.data[0]
+
         # amount of arrays in systemData: 5
         nArrays = 5
 
         buf = [[] for i in range(nArrays)]
         
         currentList = 0
-        index = 0
+        index = 1
         
         # iterate over message data and write it into buf
         for i in range(nArrays):
@@ -828,7 +832,7 @@ class RobotInterface:
             systemStateList1d = []
 
             # first entry is current time
-            #systemStateList1d.append(t)
+            systemStateList1d.append(t)
 
             # then systemData itself follows
             for array in systemStateData:
