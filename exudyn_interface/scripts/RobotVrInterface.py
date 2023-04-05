@@ -19,9 +19,24 @@ from exudyn.utilities import *
 
 COUNTER = 0
 
-# define some global variables, needed in multiple places
-VR_POS_CORRECTION = np.array([0, -0.2, 0])
+## define some hardcoded variables. All needed for vrInterface only
+
+# position of handheld controller, which is mounted on robot table and thus indicates (relative) robot position
+HHC_POS_IN_VR_FRAME = np.array([1.38436, 0.833307, 0.326828])
+
+# translation from above named hand held controller to robot base frame
+HHC_TO_ROBOT_BASE = np.array([0.86, -0.045, -0.43])	# =~ position of robot on table
+
+# apparently above created robot position is not very intuitive
+# with this variable position can be further translated
+VR_POS_CORRECTION = np.array([0, -0.25, 0])
+
+HAND_MODEL_OFFSET = [0.02, 0.06, 0.00]
+
+# desired frames per second
 VR_FPS = 60
+
+##
 
 def parseArgv(argv):
     """
@@ -354,12 +369,11 @@ class VrInterface:
         """
 
         ## coordinates of controller in vr frame
-        # for the moment this is hardcoded
-        tc = np.array([1.38006377,  0.84095681,  0.2752991])
+        tc = HHC_POS_IN_VR_FRAME
         tc = tc + VR_POS_CORRECTION             
 
         ## transformation matrix from controller to robot base in vr frame
-        trb = np.array([0.86, -0.045, -0.43])   # =~ position of robot on table
+        trb = HHC_TO_ROBOT_BASE
 
         ## listen to topic to get current robot end effector pose
         print("Locating robot in VR space")
@@ -478,11 +492,10 @@ class VrInterface:
 
         ## create Hand
         graphicsHand = GraphicsDataFromSTLfile("hand_stl/Hand_R_centered_2.stl",    # TODO: this is not very flexible (does not work when file called from another directory)
-                                               #color=[0.7, 0.5, 0.3, 1],   # brown
                                                color=[0.95, 0.8, 0.8, 1],   # skin-color / pink
                                                scale=0.001,
                                                Aoff=np.eye(3) @ RotationMatrixZ(np.pi/8) @ RotationMatrixY(np.pi),
-                                               pOff=[0.06, 0.02, 0.00])
+                                               pOff=HAND_MODEL_OFFSET)
 
         self.__oHand = mbs.AddObject(ObjectGround(visualization=VObjectGround(graphicsData=[graphicsHand])))
 
