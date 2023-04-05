@@ -51,18 +51,18 @@ namespace franka_example_controllers {
 
         double filter_params_{0.005};
         double nullspace_stiffness_{20.0};
-        double nullspace_stiffness_target_{20.0};
+        double nullspace_stiffness_reference_{20.0};
         const double delta_tau_max_{1.0};
         Eigen::Matrix<double, 6, 6> cartesian_stiffness_;
-        Eigen::Matrix<double, 6, 6> cartesian_stiffness_target_;
+        Eigen::Matrix<double, 6, 6> cartesian_stiffness_reference_;
         Eigen::Matrix<double, 6, 6> cartesian_damping_;
-        Eigen::Matrix<double, 6, 6> cartesian_damping_target_;
+        Eigen::Matrix<double, 6, 6> cartesian_damping_reference_;
         Eigen::Matrix<double, 7, 1> q_d_nullspace_;
         Eigen::Vector3d position_d_;
         Eigen::Quaterniond orientation_d_;
-        std::mutex position_and_orientation_d_target_mutex_;
-        Eigen::Vector3d position_d_target_;
-        Eigen::Quaterniond orientation_d_target_;
+        std::mutex position_and_orientation_d_reference_mutex_;
+        Eigen::Vector3d position_d_reference_;
+        Eigen::Quaterniond orientation_d_reference_;
 
         // Dynamic reconfigure
         std::unique_ptr <dynamic_reconfigure::Server<franka_example_controllers::compliance_paramConfig>>
@@ -81,7 +81,7 @@ namespace franka_example_controllers {
         std::string rosTimeString_;     // string with time starting at ros::Time(0)
 
         // log files
-        std::ofstream targetLogFile_;
+        std::ofstream referenceLogFile_;
         std::ofstream currentPositionFile_;
 
         // for measuring required time [us] of update-method
@@ -100,9 +100,9 @@ namespace franka_example_controllers {
 
         ros::Publisher pub_current_pose_; // publisher for current pose
         ros::Publisher pub_current_error_; // publisher for current pose
-        ros::Publisher pub_current_target_; // publisher for current registered target position
+        ros::Publisher pub_current_reference_; // publisher for current registered reference position
 
-        // TODO: variable name management: there is no difference between desired and target pose... different names make it difficult to read/understand
+        // TODO: variable name management: there is no difference between desired and reference pose... different names make it difficult to read/understand
 
         ros::Subscriber sub_equilibrium_pose_; // Equilibrium pose subscriber
         ros::Subscriber sub_desired_pose_;   // Subscriber for new desired pose

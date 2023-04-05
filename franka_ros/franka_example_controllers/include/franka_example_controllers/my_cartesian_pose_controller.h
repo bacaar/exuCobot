@@ -30,7 +30,7 @@ namespace franka_example_controllers {
 
     private:
 
-        void updateTargetPoseCallback(const geometry_msgs::PoseStamped &msg);
+        void updateReferencePoseCallback(const geometry_msgs::PoseStamped &msg);
 
         void updateTrajectory();
 
@@ -50,14 +50,14 @@ namespace franka_example_controllers {
         int position_buffer_index_reading_;                 // holds index from which to read next (read then increase)
         const int getPositionBufferReserve();               // returns amount of stored next positions
 
-        std::vector<double> current_target_;    // only for analytics
+        std::vector<double> current_reference__;    // only for analytics
 
         const double segment_duration_ = 0.01;  // planned duration of one segment in s
         double segment_time_;                   // time in current segment in s  
 
         const bool testing_ = false;        // flag to use current_state_ instead of current_pose_
 
-        ros::Publisher pub_current_target_; // publisher for current registered target position
+        ros::Publisher pub_current_reference_; // publisher for current registered target position
         ros::Publisher pub_current_trajectory_; // publisher for current trajectory value
         ros::Publisher pub_current_pose_;   // publisher for current pose
 

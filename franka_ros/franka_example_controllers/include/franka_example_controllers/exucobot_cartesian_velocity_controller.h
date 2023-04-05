@@ -21,7 +21,7 @@
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Vector3Stamped.h>
-#include <util/kinematicState3dStamped.h>
+#include <util/posVelAccJerk3dStamped.h>
 #include <util/segmentCommand.h>
 
 #include "franka_example_controllers/state.h"
@@ -75,7 +75,7 @@ namespace franka_example_controllers {
         std::string rosTimeString_;     // string with time starting at ros::Time(0)
 
         // callback method: is called when new command from Exudyn arrives
-        void updateTargetPoseCallback(const util::segmentCommand &msg);
+        void updateReferencePoseCallback(const util::segmentCommand &msg);
 
         // updates trajectory -> creates new segment when previous is finished
         void updateTrajectory();
@@ -96,7 +96,7 @@ namespace franka_example_controllers {
         std::ofstream generalLogFile_;
 
         // various files for logging values
-        std::ofstream targetLogFile_;
+        std::ofstream referenceLogFile_;
         std::ofstream commandLogFile_;
         std::ofstream evaluatedTrajectoryFile_;
         std::ofstream currentPositionFile_;
@@ -146,13 +146,13 @@ namespace franka_example_controllers {
 
         void publishState(ros::Time now, const State3 &state);  // method to publish current kinematic state to ROS topic
 
-        std::vector<double> current_target_;    // only for analytics
+        std::vector<double> current_reference__;    // only for analytics
 
         ros::Duration segment_duration_;               // planned duration of one segment in s
         ros::Duration segment_time_;                   // time in current segment in s
 
         // ROS publishers
-        ros::Publisher pub_current_target_confirmation_;    // publisher for sending received target back
+        ros::Publisher pub_current_reference_confirmation_;    // publisher for sending received reference back
         ros::Publisher pub_commanded_velocity_;     // publisher for current commanded velocity
         ros::Publisher pub_current_trajectory_pos_; // publisher for current trajectory position
         ros::Publisher pub_current_pose_;   // publisher for current pose

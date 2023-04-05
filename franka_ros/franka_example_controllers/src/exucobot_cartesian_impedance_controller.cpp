@@ -30,19 +30,19 @@ namespace franka_example_controllers {
                 "equilibrium_pose", 20, &ExuCobotCartesianImpedanceController::equilibriumPoseCallback, this,
                 ros::TransportHints().reliable().tcpNoDelay());
 
-        // set callback method for updating target pose
-        sub_desired_pose_ = node_handle.subscribe("setTargetPose", 20,
+        // set callback method for updating reference pose
+        sub_desired_pose_ = node_handle.subscribe("referencePose", 20,
                               &ExuCobotCartesianImpedanceController::updateDesiredPoseCallback, this,
                               ros::TransportHints().reliable().tcpNoDelay());
 
         // create publisher for current pose
-        pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentPose", 20);
+        pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("currentPose", 20);
 
         // create publisher for current pose
-        pub_current_error_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentError", 20);
+        pub_current_error_ = node_handle.advertise<geometry_msgs::PoseStamped>("currentError", 20);
 
-        // create publisher for current target pose
-        pub_current_target_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentTarget", 20);
+        // create publisher for current reference pose
+        pub_current_reference_ = node_handle.advertise<geometry_msgs::PoseStamped>("currentReference", 20);
 
         std::string arm_id;
         if (!node_handle.getParam("arm_id", arm_id)) {
@@ -118,8 +118,8 @@ namespace franka_example_controllers {
 
         position_d_.setZero();
         orientation_d_.coeffs() << 0.0, 0.0, 0.0, 1.0;
-        position_d_target_.setZero();
-        orientation_d_target_.coeffs() << 0.0, 0.0, 0.0, 1.0;
+        position_d_reference_.setZero();
+        orientation_d_reference_.coeffs() << 0.0, 0.0, 0.0, 1.0;
 
         cartesian_stiffness_.setZero();
         cartesian_damping_.setZero();
@@ -151,15 +151,15 @@ namespace franka_example_controllers {
         // set equilibrium point to current state
         position_d_ = initial_transform.translation();
         orientation_d_ = Eigen::Quaterniond(initial_transform.linear());
-        position_d_target_ = initial_transform.translation();
-        orientation_d_target_ = Eigen::Quaterniond(initial_transform.linear());
+        position_d_reference_ = initial_transform.translation();
+        orientation_d_reference_ = Eigen::Quaterniond(initial_transform.linear());
 
-        targetLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/targetIC.csv", std::ios::out);
+        referenceLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/referenceIC.csv", std::ios::out);
         currentPositionFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/currentPositionIC.csv", std::ios::out);
 
-        if(!targetLogFile_.is_open()) { std::cerr << "WARNING: Could not create/open target log file!\n"; }
+        if(!referenceLogFile_.is_open()) { std::cerr << "WARNING: Could not create/open reference log file!\n"; }
         else {
-            targetLogFile_ << "rt,t,px,py,pz,dt\n";
+            referenceLogFile_ << "rt,t,px,py,pz,dt\n";
         }
 
         if(!currentPositionFile_.is_open()) { std::cerr << "WARNING: Could not create open current position log file!\n"; }
@@ -243,15 +243,15 @@ namespace franka_example_controllers {
         pub_current_pose_.publish(msg);
 
         /*
-        // publish current target pose
-        msg.pose.position.x = position_d_target_[0];
-        msg.pose.position.y = position_d_target_[1];
-        msg.pose.position.z = position_d_target_[2];
-        msg.pose.orientation.x = orientation_d_target_.x();
-        msg.pose.orientation.y = orientation_d_target_.y();
-        msg.pose.orientation.z = orientation_d_target_.z();
-        msg.pose.orientation.w = orientation_d_target_.w();
-        pub_current_target_.publish(msg);
+        // publish current reference pose
+        msg.pose.position.x = position_d_reference_[0];
+        msg.pose.position.y = position_d_reference_[1];
+        msg.pose.position.z = position_d_reference_[2];
+        msg.pose.orientation.x = orientation_d_reference_.x();
+        msg.pose.orientation.y = orientation_d_reference_.y();
+        msg.pose.orientation.z = orientation_d_reference_.z();
+        msg.pose.orientation.w = orientation_d_reference_.w();
+        pub_current_reference_.publish(msg);
          */
 
         // compute error to desired pose
@@ -309,17 +309,17 @@ namespace franka_example_controllers {
         }
 
         // update parameters changed online either through dynamic reconfigure or through the interactive
-        // target by filtering
+        // reference by filtering
         cartesian_stiffness_ =
-                filter_params_ * cartesian_stiffness_target_ + (1.0 - filter_params_) * cartesian_stiffness_;
+                filter_params_ * cartesian_stiffness_reference_ + (1.0 - filter_params_) * cartesian_stiffness_;
         cartesian_damping_ =
-                filter_params_ * cartesian_damping_target_ + (1.0 - filter_params_) * cartesian_damping_;
+                filter_params_ * cartesian_damping_reference_ + (1.0 - filter_params_) * cartesian_damping_;
         nullspace_stiffness_ =
-                filter_params_ * nullspace_stiffness_target_ + (1.0 - filter_params_) * nullspace_stiffness_;
-        std::lock_guard <std::mutex> position_d_target_mutex_lock(
-                position_and_orientation_d_target_mutex_);
-        position_d_ = filter_params_ * position_d_target_ + (1.0 - filter_params_) * position_d_;
-        orientation_d_ = orientation_d_.slerp(filter_params_, orientation_d_target_);
+                filter_params_ * nullspace_stiffness_reference_ + (1.0 - filter_params_) * nullspace_stiffness_;
+        std::lock_guard <std::mutex> position_d_reference_mutex_lock(
+                position_and_orientation_d_reference_mutex_);
+        position_d_ = filter_params_ * position_d_reference_ + (1.0 - filter_params_) * position_d_;
+        orientation_d_ = orientation_d_.slerp(filter_params_, orientation_d_reference_);
 
         if(false) { // toggle for analytics
             auto stop = std::chrono::high_resolution_clock::now();
@@ -365,9 +365,9 @@ namespace franka_example_controllers {
         //tf::vectorMsgToEigen(msg, position_d_);   // TODO use this function?! (prettier)
 
         /*
-        position_d_target_(0) = msg.pose.position.x;
-        position_d_target_(1) = msg.pose.position.y;
-        position_d_target_(2) = msg.pose.position.z;
+        position_d_reference_(0) = msg.pose.position.x;
+        position_d_reference_(1) = msg.pose.position.y;
+        position_d_reference_(2) = msg.pose.position.z;
 
         orientation_d_.coeffs() << msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w;
          */
@@ -408,17 +408,17 @@ namespace franka_example_controllers {
             }
         }
 
-        std::lock_guard <std::mutex> position_d_target_mutex_lock(
-                position_and_orientation_d_target_mutex_);
-        position_d_target_ << msg.pose.position.x, msg.pose.position.y, msg.pose.position.z;
-        Eigen::Quaterniond last_orientation_d_target(orientation_d_target_);
-        orientation_d_target_.coeffs() << msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w;
-        if (last_orientation_d_target.coeffs().dot(orientation_d_target_.coeffs()) < 0.0) {
-            orientation_d_target_.coeffs() << -orientation_d_target_.coeffs();
+        std::lock_guard <std::mutex> position_d_reference_mutex_lock(
+                position_and_orientation_d_reference_mutex_);
+        position_d_reference_ << msg.pose.position.x, msg.pose.position.y, msg.pose.position.z;
+        Eigen::Quaterniond last_orientation_d_reference(orientation_d_reference_);
+        orientation_d_reference_.coeffs() << msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w;
+        if (last_orientation_d_reference.coeffs().dot(orientation_d_reference_.coeffs()) < 0.0) {
+            orientation_d_reference_.coeffs() << -orientation_d_reference_.coeffs();
         }
 
-        targetLogFile_ << rosTimeString_ << "," << logTimeString_ << ",";
-        targetLogFile_ << msg.pose.position.x << "," << msg.pose.position.y << "," << msg.pose.position.z << ",0.01\n";
+        referenceLogFile_ << rosTimeString_ << "," << logTimeString_ << ",";
+        referenceLogFile_ << msg.pose.position.x << "," << msg.pose.position.y << "," << msg.pose.position.z << ",0.01\n";
     }
 
     Eigen::Matrix<double, 7, 1> ExuCobotCartesianImpedanceController::saturateTorqueRate(
@@ -436,23 +436,23 @@ namespace franka_example_controllers {
     void ExuCobotCartesianImpedanceController::complianceParamCallback(
             franka_example_controllers::compliance_paramConfig &config,
             uint32_t /*level*/) {
-        cartesian_stiffness_target_.setIdentity();
-        cartesian_stiffness_target_.topLeftCorner(3, 3)
+        cartesian_stiffness_reference_.setIdentity();
+        cartesian_stiffness_reference_.topLeftCorner(3, 3)
                 << config.translational_stiffness * Eigen::Matrix3d::Identity() * 18;
-        cartesian_stiffness_target_.bottomRightCorner(3, 3)
+        cartesian_stiffness_reference_.bottomRightCorner(3, 3)
                 << config.rotational_stiffness * Eigen::Matrix3d::Identity() * 8;
-        cartesian_damping_target_.setIdentity();
+        cartesian_damping_reference_.setIdentity();
         // Damping ratio = 1
-        cartesian_damping_target_.topLeftCorner(3, 3)
+        cartesian_damping_reference_.topLeftCorner(3, 3)
                 << 2.0 * sqrt(config.translational_stiffness * 8) * Eigen::Matrix3d::Identity();
-        cartesian_damping_target_.bottomRightCorner(3, 3)
+        cartesian_damping_reference_.bottomRightCorner(3, 3)
                 << 2.0 * sqrt(config.rotational_stiffness * 1) * Eigen::Matrix3d::Identity();
-        nullspace_stiffness_target_ = config.nullspace_stiffness;
+        nullspace_stiffness_reference_ = config.nullspace_stiffness;
 
         std::cout << "\nStiffness modified!\n";
-        std::cout << "Cartesian stiffness:\n" << cartesian_stiffness_target_ << std::endl;
-        std::cout << "Cartesian damping:\n" << cartesian_damping_target_ << std::endl;
-        std::cout << "Nullspace Stiffnes target: " << nullspace_stiffness_target_ << std::endl;
+        std::cout << "Cartesian stiffness:\n" << cartesian_stiffness_reference_ << std::endl;
+        std::cout << "Cartesian damping:\n" << cartesian_damping_reference_ << std::endl;
+        std::cout << "Nullspace Stiffnes reference: " << nullspace_stiffness_reference_ << std::endl;
 
         std::cout << std::endl;
     }
@@ -461,14 +461,14 @@ namespace franka_example_controllers {
             const geometry_msgs::PoseStampedConstPtr &msg) {
         //std::cout << "HALLO WELT---------------------------------------\n";
         /*
-        std::lock_guard <std::mutex> position_d_target_mutex_lock(
-                position_and_orientation_d_target_mutex_);
-        position_d_target_ << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
-        Eigen::Quaterniond last_orientation_d_target(orientation_d_target_);
-        orientation_d_target_.coeffs() << msg->pose.orientation.x, msg->pose.orientation.y,
+        std::lock_guard <std::mutex> position_d_reference_mutex_lock(
+                position_and_orientation_d_reference_mutex_);
+        position_d_reference_ << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
+        Eigen::Quaterniond last_orientation_d_reference(orientation_d_reference_);
+        orientation_d_reference_.coeffs() << msg->pose.orientation.x, msg->pose.orientation.y,
                 msg->pose.orientation.z, msg->pose.orientation.w;
-        if (last_orientation_d_target.coeffs().dot(orientation_d_target_.coeffs()) < 0.0) {
-            orientation_d_target_.coeffs() << -orientation_d_target_.coeffs();
+        if (last_orientation_d_reference.coeffs().dot(orientation_d_reference_.coeffs()) < 0.0) {
+            orientation_d_reference_.coeffs() << -orientation_d_reference_.coeffs();
         }
          */
     }
@@ -478,7 +478,7 @@ namespace franka_example_controllers {
         // A JUMP TO ZERO WILL BE COMMANDED PUTTING HIGH LOADS ON THE ROBOT. LET THE DEFAULT
         // BUILT-IN STOPPING BEHAVIOR SLOW DOWN THE ROBOT.
 
-        targetLogFile_.close();
+        referenceLogFile_.close();
         currentPositionFile_.close();
     }
 

@@ -62,9 +62,9 @@ namespace franka_example_controllers {
           return false;
         }
 
-        // set callback method for updating target pose
-        sub_desired_pose_ = node_handle.subscribe("setTargetPose", 20,
-                                                  &ExuCobotCartesianVelocityController::updateTargetPoseCallback, this,
+        // set callback method for updating reference pose
+        sub_desired_pose_ = node_handle.subscribe("referencePose", 20,
+                                                  &ExuCobotCartesianVelocityController::updateReferencePoseCallback, this,
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
         if(polynomialDegree_ != 3 && polynomialDegree_ != 5){
@@ -75,23 +75,23 @@ namespace franka_example_controllers {
             exit(-1);
         }
 
-        // create publisher for returning target pose
-        pub_current_target_confirmation_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentTarget", 20);
+        // create publisher for returning reference pose
+        pub_current_reference_confirmation_ = node_handle.advertise<geometry_msgs::PoseStamped>("currentReference", 20);
 
         // create publisher for current command
-        pub_commanded_velocity_ = node_handle.advertise<geometry_msgs::Vector3Stamped>("getCommandedVelocity", 20);
+        pub_commanded_velocity_ = node_handle.advertise<geometry_msgs::Vector3Stamped>("commandedVelocity", 20);
 
         // create publisher for current pose
-        pub_current_trajectory_pos_ = node_handle.advertise<geometry_msgs::Vector3Stamped>("getEvaluatedTrajectory", 20);
+        pub_current_trajectory_pos_ = node_handle.advertise<geometry_msgs::Vector3Stamped>("evaluatedTrajectory", 20);
 
         // create publisher for current pose
-        pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentPose", 20);
+        pub_current_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("currentPose", 20);
 
         // create publisher for current state
-        pub_current_state_ = node_handle.advertise<util::kinematicState3dStamped>("getCurrentState", 20);
+        pub_current_state_ = node_handle.advertise<util::posVelAccJerk3dStamped>("currentState", 20);
 
         // initialize variables
-        current_target_ = std::vector<double>(4, 0);    // (x, y, z, dt)
+        current_reference__ = std::vector<double>(4, 0);    // (x, y, z, dt)
         position_buffer_ = std::vector<Command>(position_buffer_length_, {0, 0, 0, 0});
         position_buffer_index_reading_ = 0;
         position_buffer_index_writing_ = 1;
@@ -135,7 +135,7 @@ namespace franka_example_controllers {
         logThreader_.addLogger(evalTrajLogger_);
 
         generalLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/general.log", std::ios::out);
-        targetLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/targetVC.csv", std::ios::out);
+        referenceLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/referenceVC.csv", std::ios::out);
         commandLogFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/commands.csv", std::ios::out);
         evaluatedTrajectoryFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/evaluatedTrajectory.csv", std::ios::out);
         currentPositionFile_.open("/home/robocup/catkinAaron/src/exuCobot/log/currentPositionVC.csv", std::ios::out);
@@ -153,9 +153,9 @@ namespace franka_example_controllers {
             }
         }
 
-        if(!targetLogFile_.is_open()) { std::cerr << "WARNING: Could not create open target log file!\n"; }
+        if(!referenceLogFile_.is_open()) { std::cerr << "WARNING: Could not create open reference log file!\n"; }
         else {
-            targetLogFile_ << "rt,t,px,py,pz,dt\n";
+            referenceLogFile_ << "rt,t,px,py,pz,dt\n";
         }
 
         if(!commandLogFile_.is_open()) { std::cerr << "WARNING: Could not create open evaluated trajectory log file!\n"; }
@@ -409,7 +409,7 @@ namespace franka_example_controllers {
     #endif
 
     void ExuCobotCartesianVelocityController::publishState(ros::Time now, const State3 &state){
-        util::kinematicState3dStamped msg;
+        util::posVelAccJerk3dStamped msg;
         // write struct into message
         msg.header.stamp = now;
         msg.state.x.pos  = state.x.pos;
@@ -448,7 +448,7 @@ namespace franka_example_controllers {
         generalLogFile_ << ") new step after " << period.toSec() << " s" << std::endl;
 
         std::string msg = "new step after " + std::to_string(period.toSec()) + " s";
-        evalTrajLogger_->log(msg, LogLevel::Debug, timeStr);
+        evalTrajLogger_->log(msg);//, LogLevel::Debug, timeStr);
 
         lastRosTime = time;
         lastLogTime = logTime_;
@@ -698,7 +698,7 @@ namespace franka_example_controllers {
         pub_current_pose_.publish(msgPose);
     }
 
-    void ExuCobotCartesianVelocityController::updateTargetPoseCallback(const util::segmentCommand &msg) {
+    void ExuCobotCartesianVelocityController::updateReferencePoseCallback(const util::segmentCommand &msg) {
 
         if(position_buffer_index_writing_ == position_buffer_index_reading_){
             std::cerr << "ERROR: Position buffer full" << std::endl;
@@ -729,14 +729,14 @@ namespace franka_example_controllers {
         position_buffer_index_writing_ = (position_buffer_index_writing_ + 1) % position_buffer_length_;
 
         // for analytics
-        current_target_[0] = msg.x.pos;
-        current_target_[1] = msg.y.pos;
-        current_target_[2] = msg.z.pos;
-        current_target_[3] = msg.dt;
+        current_reference__[0] = msg.x.pos;
+        current_reference__[1] = msg.y.pos;
+        current_reference__[2] = msg.z.pos;
+        current_reference__[3] = msg.dt;
 
         #if ENABLE_LOGGING
-        targetLogFile_ << rosTimeString_ << "," << logTimeString_ << ",";
-        targetLogFile_ << msg.x << "," << msg.y << "," << msg.z << "," << msg.dt << std::endl;
+        referenceLogFile_ << rosTimeString_ << "," << logTimeString_ << ",";
+        referenceLogFile_ << msg.x << "," << msg.y << "," << msg.z << "," << msg.dt << std::endl;
         #endif
     }
 
@@ -867,7 +867,7 @@ namespace franka_example_controllers {
 
         #if ENABLE_LOGGING
         generalLogFile_.close();
-        targetLogFile_.close();
+        referenceLogFile_.close();
         commandLogFile_.close();
         evaluatedTrajectoryFile_.close();
         currentPositionFile_.close();

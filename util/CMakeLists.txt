@@ -54,6 +54,9 @@ add_message_files(
   posVelAcc.msg
   posVelAcc3d.msg
   posVelAcc3dStamped.msg
+  posVelAccJerk.msg
+  posVelAccJerk3d.msg
+  posVelAccJerk3dStamped.msg
   segmentCommand.msg
   segmentCommandStamped.msg
 )

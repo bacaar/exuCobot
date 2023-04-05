@@ -67,11 +67,11 @@ namespace franka_example_controllers {
 
         // set callback method for updating target pose
         sub_desired_pose_ = node_handle.subscribe("setTargetPose", 20,
-                                                  &MyCartesianPoseController::updateTargetPoseCallback, this,
+                                                  &MyCartesianPoseController::updateReferencePoseCallback, this,
                                                   ros::TransportHints().reliable().tcpNoDelay());
 
         // create publisher for current target pose
-        pub_current_target_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentTarget", 20);
+        pub_current_reference_ = node_handle.advertise<geometry_msgs::PoseStamped>("getCurrentTarget", 20);
 
         // create publisher for current pose
         pub_current_trajectory_ = node_handle.advertise<geometry_msgs::PoseStamped>("getEvaluatedTrajectory", 20);
@@ -81,7 +81,7 @@ namespace franka_example_controllers {
 
         // initialize variables
         current_state_ = std::vector<std::vector<double>>(3, std::vector<double>(3, 0));
-        current_target_ = std::vector<double>(3, 0);
+        current_reference__ = std::vector<double>(3, 0);
         position_buffer_ = std::vector<std::vector<double>>(position_buffer_length_, std::vector<double>(3, 0));
         position_buffer_index_reading_ = 0;
         position_buffer_index_writing_ = 1;
@@ -252,10 +252,10 @@ namespace franka_example_controllers {
         msg.header.stamp = ros::Time::now();
 
         // current target pos
-        //msg.pose.position.x = current_target_[0];
-        //msg.pose.position.y = current_target_[1];
-        //msg.pose.position.z = current_target_[2];
-        //pub_current_target_.publish(msg);
+        //msg.pose.position.x = current_reference__[0];
+        //msg.pose.position.y = current_reference__[1];
+        //msg.pose.position.z = current_reference__[2];
+        //pub_current_reference_.publish(msg);
 
         // current trajectory val
         msg.pose.position.x = current_state_[0][0];
@@ -270,12 +270,12 @@ namespace franka_example_controllers {
         pub_current_pose_.publish(msg);
     }
 
-    void MyCartesianPoseController::updateTargetPoseCallback(const geometry_msgs::PoseStamped &msg) {
+    void MyCartesianPoseController::updateReferencePoseCallback(const geometry_msgs::PoseStamped &msg) {
 
         // send it back immediately
         geometry_msgs::PoseStamped msgnew = msg;
         msgnew.header.stamp = ros::Time::now();
-        pub_current_target_.publish(msgnew);
+        pub_current_reference_.publish(msgnew);
 
         if(position_buffer_index_writing_ == position_buffer_index_reading_){
             std::cerr << "Position buffer full!\n";
@@ -287,9 +287,9 @@ namespace franka_example_controllers {
         position_buffer_index_writing_ = (position_buffer_index_writing_ + 1) % position_buffer_length_;
 
         // for analytics
-        current_target_[0] = msg.pose.position.x;
-        current_target_[1] = msg.pose.position.y;
-        current_target_[2] = msg.pose.position.z;
+        current_reference__[0] = msg.pose.position.x;
+        current_reference__[1] = msg.pose.position.y;
+        current_reference__[2] = msg.pose.position.z;
     }
 
     void MyCartesianPoseController::updateTrajectory(){

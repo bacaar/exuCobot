@@ -353,7 +353,7 @@ class VrInterface:
         else:
             self.__topicBase = "/exucobot_cartesian_velocity_controller"
 
-        self.__systemStateSub = rospy.Subscriber(self.__topicBase + "/SystemState", Float64MultiArray, self.__systemStateCallback)
+        self.__systemStateSub = rospy.Subscriber(self.__topicBase + "/systemState", Float64MultiArray, self.__systemStateCallback)
 
 
     def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):
@@ -387,7 +387,7 @@ class VrInterface:
             if eefPos is None:
                 eefPos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
-        eefPosSub = rospy.Subscriber(self.__topicBase + "/getCurrentPose", PoseStamped, poseCallback)
+        eefPosSub = rospy.Subscriber(self.__topicBase + "/currentPose", PoseStamped, poseCallback)
 
         # wait 5 seconds to locate global start position
         while eefPos is None:
@@ -734,16 +734,16 @@ class RobotInterface:
             self.__commandClass = segmentCommand
 
         # publisher for pendulum poses (=endeffector positions)
-        self.__pub = rospy.Publisher(topicBase + '/setTargetPose', self.__commandClass, queue_size=1000)
+        self.__pub = rospy.Publisher(topicBase + '/referencePose', self.__commandClass, queue_size=1000)
 
         # publisher for system data
-        self.__pubS = rospy.Publisher(topicBase + '/SystemState', Float64MultiArray, queue_size=1)
+        self.__pubS = rospy.Publisher(topicBase + '/systemState', Float64MultiArray, queue_size=1)
         
         # publisher for filtered force
-        self.__pubF = rospy.Publisher(topicBase + '/analysis/getRegisteredForce', WrenchStamped, queue_size=10)
+        self.__pubF = rospy.Publisher(topicBase + '/analysis/registeredForce', WrenchStamped, queue_size=10)
 
         # subscriber for current pose
-        globalStartPosSub = rospy.Subscriber(topicBase + "/getCurrentPose", PoseStamped, self.__currentPoseCallback)
+        globalStartPosSub = rospy.Subscriber(topicBase + "/currentPose", PoseStamped, self.__currentPoseCallback)
 
         # subscriber for external forces
         rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, self.__externalEffortCallback)
@@ -834,7 +834,7 @@ class RobotInterface:
 
             # calculate angle (implemented but not used at the moment)
             #angleX = float(round(180+np.rad2deg(rot[0]), 4))
-            angleX = 0
+            angleX = 180.0  # robot EEF facing down
 
             self.__publishRobotCommand(pos, vel, acc, angleX, t)
             self.__lastRobotCommandSentTime = t
