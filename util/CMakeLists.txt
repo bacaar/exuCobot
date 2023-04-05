@@ -51,9 +51,9 @@ catkin_python_setup()
 ## Generate messages in the 'msg' folder
 add_message_files(
   FILES
-  kinematicState.msg
-  kinematicState3d.msg
-  kinematicState3dStamped.msg
+  posVelAcc.msg
+  posVelAcc3d.msg
+  posVelAcc3dStamped.msg
   segmentCommand.msg
   segmentCommandStamped.msg
 )

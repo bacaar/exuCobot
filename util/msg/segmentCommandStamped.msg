@@ -1,3 +1,3 @@
 Header header
-kinematicState3d state
+posVelAcc3d state
 float64 dt
