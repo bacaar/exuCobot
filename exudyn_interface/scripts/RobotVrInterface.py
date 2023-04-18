@@ -613,7 +613,7 @@ class VrInterface:
             simRunning = not mbs.GetRenderEngineStopFlag()  # user can stop program by pressing 'q'
 
             # do whatever is needed in between steps
-            dt = time.time()-t0     # probably a little bit overkill, as dt is very small (~e-5)
+            dt = time.time()-t0     # probably a little bit overkill, as dt is very small (~ e-5)
             effectiveTimeout = timeout - dt
             if effectiveTimeout <= 0:
                 effectiveTimeout = 0.0001
