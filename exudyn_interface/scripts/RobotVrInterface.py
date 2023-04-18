@@ -927,7 +927,9 @@ class RobotInterface:
 
         # then systemData itself follows
         for array in systemStateData:
+            # add length of next array
             systemStateList1d.append(float(len(array)))
+            # add array itself
             for i in range(len(array)):
                 systemStateList1d.append(array[i])
 
