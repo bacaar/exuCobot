@@ -894,20 +894,8 @@ class RobotInterface:
 
         if t - self.__lastSystemStateUpdateTime >= self.__systemStateUpdateInterval:
             # publish system state vor vrInterface
-            # TODO belongs in __publishSystemState()
             systemStateData = mbs.systemData.GetSystemState()
-            systemStateList1d = []
-
-            # first entry is current time
-            systemStateList1d.append(t)
-
-            # then systemData itself follows
-            for array in systemStateData:
-                systemStateList1d.append(float(len(array)))
-                for i in range(len(array)):
-                    systemStateList1d.append(array[i])
-
-            self.__publishSystemState(systemStateList1d)
+            self.__publishSystemState(systemStateData, t)
             self.__lastSystemStateUpdateTime = t
 
 
@@ -923,17 +911,29 @@ class RobotInterface:
         exu.SolveDynamic(mbs, simulationSettings)
 
 
-    def __publishSystemState(self, systemData):
+    def __publishSystemState(self, systemStateData, t):
         """
         Publish current system state to ros-topic
 
         Args:
-            systemData (list): full Exudyn SystemState concatenated in 1d list
+            systemStateData (list): full Exudyn SystemState
+            t (float): simulation time
         """
+
+        systemStateList1d = []
+
+        # first entry is current time
+        systemStateList1d.append(t)
+
+        # then systemData itself follows
+        for array in systemStateData:
+            systemStateList1d.append(float(len(array)))
+            for i in range(len(array)):
+                systemStateList1d.append(array[i])
 
         msg = Float64MultiArray()
         
-        msg.data = systemData # dataList
+        msg.data = systemStateList1d # dataList
         self.__pubS.publish(msg)
 
 
