@@ -115,12 +115,6 @@ class RobotVrInterface:
             self.__vrInterface = VrInterface(useImpedanceController)
             self.__clientType = 2
 
-        # depending on used controller, set baseName for ros-topics
-        if useImpedanceController:
-            self.__topicBase = "/exucobot_cartesian_impedance_controller"
-        else:
-            self.__topicBase = "/exucobot_cartesian_velocity_controller"
-
         # just for the case that the rotation matrix isn't specified by the user aftewards, set it to identity-matrix as default
         self.setRotationMatrix(np.eye(3))
 
