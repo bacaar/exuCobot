@@ -6,7 +6,6 @@ cmake-build-debug/
 **/__pycache__/
 
 # log files
-**/log/
 *.log
 *.csv
 
