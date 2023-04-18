@@ -20,9 +20,6 @@ import sys
 def main(client, useImpedanceController):
 
     ## Simulation parameters
-    tRes = 0.001    # step size in s
-    tEnd = 10000    # simulation time in s
-
     g = 9.81    # gravity in m/s^2
 
     l = 0.5     # z-dim of pendulum
@@ -177,12 +174,10 @@ def main(client, useImpedanceController):
     mbs.SetPreStepUserFunction(PreStepUserFunction)
 
     # assemble multi body system with all previous specified properties and components
-    mbs.Assemble()
+    mbs.Assemble() 
 
     # set simulation settings
     simulationSettings = exu.SimulationSettings() #takes currently set values or default values
-    simulationSettings.timeIntegration.endTime = tEnd
-    simulationSettings.timeIntegration.numberOfSteps = int(tEnd/tRes)
     simulationSettings.timeIntegration.newton.relativeTolerance = 1e-8*100
     simulationSettings.timeIntegration.newton.absoluteTolerance = 1e-10
     simulationSettings.timeIntegration.verboseMode = 1 # if 0 no output; higher --> more output information about solver
@@ -195,24 +190,11 @@ def main(client, useImpedanceController):
     simulationSettings.solutionSettings.solutionInformation = "3D Pendulum"
     simulationSettings.solutionSettings.writeSolutionToFile = False
     
-    SC.visualizationSettings.general.autoFitScene = False
     SC.visualizationSettings.openGL.initialModelRotation = viewMatrix
     SC.visualizationSettings.openGL.initialCenterPoint = [0., -l/2, 0.] # screen coordinates, not model coordinates
     SC.visualizationSettings.openGL.initialZoom = 0.5
-    
-    simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
-
-    robotVrInterface.setSettings(SC)
-
-    # exudyn magic
-    exu.StartRenderer()
-    
-    #exu.SolveDynamic(mbs, simulationSettings)
-    # TODO nur Daten aus solutionViewer auslesen und viewer aktualisieren? oder im solutionViewer aktualisier? auf jeden Fall nicht simulieren
 
     robotVrInterface.simulate(mbs, SC, simulationSettings)
-
-    exu.StopRenderer() #safely close rendering window!
 
 
 if __name__ == "__main__":

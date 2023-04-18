@@ -122,6 +122,9 @@ class RobotVrInterface:
         # just for the case that the rotation matrix isn't specified by the user aftewards, set it to identity-matrix as default
         self.setRotationMatrix(np.eye(3))
 
+        self.__tRes = 0.001    # step size in s
+        self.__tEnd = 10000
+
     
     def createEnvironment(self, mbs):
         """
@@ -169,21 +172,38 @@ class RobotVrInterface:
             simulationSettings (exudyn.exudynCPP.SimulationSettings): Exudyn simulation settings
         """
 
+        self.__setSettings(SC)
+
+        # exudyn magic
+        exu.StartRenderer()
+
         if self.__clientType == 1:
             self.__robotInterface.simulate(mbs, simulationSettings)
         else:
             self.__vrInterface.simulate(mbs, SC)
 
+        exu.StopRenderer() #safely close rendering window!
 
-    def setSettings(self, SC):
+
+    def __setSettings(self, SC):
         """
         method to set specified visualization settings for vr-view
 
         Args:
             SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
         """
+
+        # set common settings for both robot and vr interface
+        SC.visualizationSettings.general.autoFitScene = False
+
+        # individual settings
         if self.__clientType == 1:
-            pass
+            #pass    # nothing to do here
+            simulationSettings = exu.SimulationSettings() #takes currently set values or default values
+            simulationSettings.timeIntegration.endTime = self.__tEnd
+            simulationSettings.timeIntegration.numberOfSteps = int(self.__tEnd/self.__tRes)
+
+            simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
         else:
             self.__vrInterface.setSettings(SC)
 
