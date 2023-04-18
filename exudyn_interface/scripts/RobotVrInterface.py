@@ -383,6 +383,9 @@ class VrInterface:
 
         self.__systemStateSub = rospy.Subscriber(self.__topicBase + "/systemState", Float64MultiArray, self.__systemStateCallback)
 
+        # variable to track wheter "simulation on robot-client not running" warning has been printed to console or not
+        self.__printedSimNotRunningWarning = False
+
 
     def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):
         """
@@ -542,11 +545,14 @@ class VrInterface:
             exudyn.exudynCPP.MainSystem: modified mbs must be returned
         """
 
-        ## get and apply simulation update from robot client
-        data = self.getCurrentSystemState()
-
-        if data is not None:
-            mbs.systemData.SetSystemState(data)
+        # update visualization data
+        if self.__systemStateData is not None:
+            mbs.systemData.SetSystemState(self.__systemStateData, exu.ConfigurationType.Visualization)
+            mbs.systemData.SetTime(self.__currentSimulationTime, exu.ConfigurationType.Visualization)
+        else:
+            if not self.__printedSimNotRunningWarning:
+                print("Warning: No running simulation (robot-client) found")
+                self.__printedSimNotRunningWarning = True
 
         ## locate Tracker and move hand object there
         renderState = SC.GetRenderState()
@@ -600,10 +606,6 @@ class VrInterface:
 
             t0 = time.time()
 
-            # update visualization data
-            mbs.systemData.SetSystemState(self.getCurrentSystemState(), exu.ConfigurationType.Visualization)
-            mbs.systemData.SetTime(self.__currentSimulationTime, exu.ConfigurationType.Visualization)
-
             self.update(mbs, SC)
 
             # update screen
@@ -655,16 +657,6 @@ class VrInterface:
         SC.visualizationSettings.openGL.enableLight0 = True
         SC.visualizationSettings.openGL.light0position = [-1,1.5,3,0]
         SC.visualizationSettings.openGL.shadow = 0.5
-
-
-    def getCurrentSystemState(self):
-        """
-        getter-method: returns current system data (updated by __systemStateCallback(...))
-
-        Returns:
-            list: Exudyn system state
-        """
-        return self.__systemStateData
 
 
     def __systemStateCallback(self, systemState):
