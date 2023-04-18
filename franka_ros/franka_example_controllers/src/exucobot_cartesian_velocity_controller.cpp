@@ -97,34 +97,7 @@ namespace franka_example_controllers {
         positionBufferWritingIndex_ = 1;
         coefs_ = std::vector<std::vector<double>>(3, std::vector<double>(6, 0));
 
-        std::cout << "INFO: Starting velocity Controller with interpolation polynomial degree " << polynomialDegree_;
-        std::cout << " and nominal position buffer size " << minimalPositionBufferSize_ << std::endl;
-
-        return true;
-    }
-
-    void ExuCobotCartesianVelocityController::starting(const ros::Time & /* time */) {
-        std::array<double, 16> initial_pose = velocityCartesianHandle_->getRobotState().O_T_EE_d;
-
-        // set next positions on current positions to stay here (NOT ZERO!!!)
-        // TODO can I let this on zero because of my brilliant ring buffer logic?
-
-        // set position entries of currentState_ vector to current positions
-        currentState_.x.pos = initial_pose[12];
-        currentState_.y.pos = initial_pose[13];
-        currentState_.z.pos = initial_pose[14];
-
-        lastCommand_ = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // initialize variable, assume that robot is standing still
-
-        // initialize timing variables
-        logTime_ = ros::Time(0);
-        segmentTime_ = ros::Duration(0);
-        elapsedTime_ = ros::Duration(0.0);
-
         #if ENABLE_LOGGING
-        // do some logging and initialize loggers / open log files and write csv header
-        std::cout << "This thread's id: " << std::this_thread::get_id() << std::endl;
-
         textLogger_ = std::make_shared<TextLogger>("/home/robocup/catkinAaron/src/exuCobot/log/textLog.log", LogLevel::Debug, true, false, true);
         evalTrajLogger_ = std::make_shared<CsvLogger>("evalTrajLog.csv");
 
@@ -195,6 +168,32 @@ namespace franka_example_controllers {
         else {
             trajectoryCreationFile2_ << "rt,t,cpy,npy,cvy,nvy,cay,nay,dpy,dvy,day,dt\n";
         }
+        #endif
+
+        std::cout << "INFO: Initialized velocity Controller with interpolation polynomial degree " << polynomialDegree_;
+        std::cout << " and nominal position buffer size " << minimalPositionBufferSize_ << std::endl;
+
+        return true;
+    }
+
+    void ExuCobotCartesianVelocityController::starting(const ros::Time & /* time */) {
+        std::array<double, 16> initial_pose = velocityCartesianHandle_->getRobotState().O_T_EE_d;
+
+        // set position entries of currentState_ vector to current positions
+        currentState_.x.pos = initial_pose[12];
+        currentState_.y.pos = initial_pose[13];
+        currentState_.z.pos = initial_pose[14];
+
+        lastCommand_ = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // initialize variable, assume that robot is standing still
+
+        // initialize timing variables
+        logTime_ = ros::Time(0);
+        segmentTime_ = ros::Duration(0);
+        elapsedTime_ = ros::Duration(0.0);
+
+        #if ENABLE_LOGGING
+        // do some logging and initialize loggers / open log files and write csv header
+        std::cout << "This thread's id: " << std::this_thread::get_id() << std::endl;
         #endif
     }
 
