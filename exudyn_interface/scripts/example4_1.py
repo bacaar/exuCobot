@@ -129,7 +129,7 @@ def main(client, useImpedanceController):
                                         damping=d,
                                         visualization={'show': False, 'drawSize': -1, 'color': [-1]*4}))
 
-    mbs = robotVrInterface.createEnvironment(mbs)
+    robotVrInterface.createEnvironment(mbs)
 
     if client == 1:
 
@@ -167,7 +167,7 @@ def main(client, useImpedanceController):
 
     def PreStepUserFunction(mbs, t):
 
-        mbs = robotVrInterface.update(mbs, SC, t)
+        robotVrInterface.update(mbs, SC, t)
         
         return True
 

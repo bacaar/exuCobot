@@ -132,15 +132,12 @@ class RobotVrInterface:
 
         Args:
             mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
-
-        Returns:
-            exudyn.exudynCPP.MainSystem: modified mbs must be returned
         """
 
         if self.__clientType == 1:
-            return mbs
+            pass
         else:
-            return self.__vrInterface.createEnvironment(mbs)
+            self.__vrInterface.createEnvironment(mbs)
 
 
     def update(self, mbs, SC, t):
@@ -152,15 +149,12 @@ class RobotVrInterface:
             mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
             SC (exudyn.exudynCPP.SystemContainer): Exudyn system container
             t (float): elapsed time since simulation start
-
-        Returns:
-            exudyn.exudynCPP.MainSystem: modified mbs must be returned
         """
 
         if self.__clientType == 1:
-            return self.__robotInterface.update(mbs, t)
+            self.__robotInterface.update(mbs, t)
         else:
-            return self.__vrInterface.update(mbs, SC)
+            self.__vrInterface.update(mbs, SC)
         
 
     def simulate(self, mbs, SC, simulationSettings):
@@ -172,7 +166,7 @@ class RobotVrInterface:
             simulationSettings (exudyn.exudynCPP.SimulationSettings): Exudyn simulation settings
         """
 
-        self.__setSettings(SC, simulationSettings)   
+        self.__setSettings(SC)   
 
         # simulate for a very long time in real time
         simulationSettings.timeIntegration.endTime = self.__tEnd
@@ -190,7 +184,7 @@ class RobotVrInterface:
         exu.StopRenderer() #safely close rendering window!
 
 
-    def __setSettings(self, SC, simulationSettings):
+    def __setSettings(self, SC):
         """
         method to set specified visualization settings for vr-view
 
@@ -341,8 +335,6 @@ def createTable(mbs, pos, dim, tableTopThickness, tableBaseThickness, tableTopCo
                                visualization=VObjectGround(graphicsData=[graphicsTableBase])))
     mbs.AddObject(ObjectGround(referencePosition=pos+np.array([dim[0]-tableBaseThickness, dim[1]-tableBaseThickness, 0]),
                                visualization=VObjectGround(graphicsData=[graphicsTableBase])))
-
-    return mbs
 
 
 class VrInterface:
@@ -505,8 +497,8 @@ class VrInterface:
 
 
         ## create table
-        mbs = createTable(mbs, self.__robotBase+np.array([-0.3, -0.4, -0.78]), np.array([1.2, 0.8, 0.78]), 0.1, 0.08, [0.3, 0.3, 0.3, 1], [0.75, 0.75, 0.75, 1])
-        mbs = createTable(mbs, self.__robotBase+np.array([0.9, -0.94, -0.78]), np.array([2, 1, 0.72]), 0.025, 0.045, [1, 0.8, 0.4, 1], [0.75, 0.75, 0.75, 1])
+        createTable(mbs, self.__robotBase+np.array([-0.3, -0.4, -0.78]), np.array([1.2, 0.8, 0.78]), 0.1, 0.08, [0.3, 0.3, 0.3, 1], [0.75, 0.75, 0.75, 1])
+        createTable(mbs, self.__robotBase+np.array([0.9, -0.94, -0.78]), np.array([2, 1, 0.72]), 0.025, 0.045, [1, 0.8, 0.4, 1], [0.75, 0.75, 0.75, 1])
 
         ## create Hand
         graphicsHand = GraphicsDataFromSTLfile("hand_stl/Hand_R_centered_2.stl",    # TODO: this is not very flexible (does not work when file called from another directory)
@@ -516,8 +508,6 @@ class VrInterface:
                                                pOff=HAND_MODEL_OFFSET)
 
         self.__oHand = mbs.AddObject(ObjectGround(visualization=VObjectGround(graphicsData=[graphicsHand])))
-
-        return mbs
     
 
     def update(self, mbs, SC):
@@ -574,8 +564,6 @@ class VrInterface:
 
         else:
             pass
-
-        return mbs
     
 
     def simulate(self, mbs, SC):
@@ -877,8 +865,6 @@ class RobotInterface:
 
             self.__publishSystemState(systemStateList1d)
             self.__lastSystemStateUpdateTime = t
-
-        return mbs
 
 
     def simulate(self, mbs, simulationSettings):
