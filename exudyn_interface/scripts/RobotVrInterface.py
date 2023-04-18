@@ -172,9 +172,14 @@ class RobotVrInterface:
             simulationSettings (exudyn.exudynCPP.SimulationSettings): Exudyn simulation settings
         """
 
-        self.__setSettings(SC)
+        self.__setSettings(SC, simulationSettings)   
 
-        # exudyn magic
+        # simulate for a very long time in real time
+        simulationSettings.timeIntegration.endTime = self.__tEnd
+        simulationSettings.timeIntegration.numberOfSteps = int(self.__tEnd/self.__tRes)
+        simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
+
+        # start rendering
         exu.StartRenderer()
 
         if self.__clientType == 1:
@@ -185,7 +190,7 @@ class RobotVrInterface:
         exu.StopRenderer() #safely close rendering window!
 
 
-    def __setSettings(self, SC):
+    def __setSettings(self, SC, simulationSettings):
         """
         method to set specified visualization settings for vr-view
 
@@ -198,12 +203,7 @@ class RobotVrInterface:
 
         # individual settings
         if self.__clientType == 1:
-            #pass    # nothing to do here
-            simulationSettings = exu.SimulationSettings() #takes currently set values or default values
-            simulationSettings.timeIntegration.endTime = self.__tEnd
-            simulationSettings.timeIntegration.numberOfSteps = int(self.__tEnd/self.__tRes)
-
-            simulationSettings.timeIntegration.simulateInRealtime = True    # crucial for operating with robot
+            pass # nothing to do here
         else:
             self.__vrInterface.setSettings(SC)
 
