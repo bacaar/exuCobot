@@ -17,8 +17,6 @@ from scipy.spatial.transform import Rotation
 
 from exudyn.utilities import *
 
-COUNTER = 0
-
 ## define some hardcoded variables. All needed for vrInterface only
 
 # position of handheld controller, which is mounted on robot table and thus indicates (relative) robot position
@@ -585,6 +583,9 @@ class VrInterface:
 
             # do whatever is needed in between steps
             exu.DoRendererIdleTasks(timout)
+
+            # check wheter to continue or stopping visualizing
+            simRunning = not mbs.GetRenderEngineStopFlag()  # user can stop program by pressing 'q'
 
 
     def setRotationMatrix(self, matrix):
