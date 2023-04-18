@@ -139,6 +139,22 @@ class RobotVrInterface:
         else:
             self.__vrInterface.createEnvironment(mbs)
 
+    
+    def setUIP(self, marker, mbs):
+        """
+        method to set UIP in model and to add cllback function to apply effforts on it
+
+        Args:
+            marker (exudyn.exudynCPP.MarkerIndex): Exudyn marker at UIP position
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+        """
+
+        if self.__clientType == 1:
+            self.__robotInterface.setUIP(marker, mbs)
+        else:
+            pass
+
+
 
     def update(self, mbs, SC, t):
         """
@@ -806,6 +822,26 @@ class RobotInterface:
         """
 
         return self.__extEfforts
+    
+
+    def setUIP(self, marker, mbs):
+        """
+        method to set UIP in model and to add cllback function to apply effforts on it
+
+        Args:
+            marker (exudyn.exudynCPP.MarkerIndex): Exudyn marker at UIP position
+            mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
+        """
+
+        # external applied forces
+        def UFload(mbs, t, load):
+            f = self.getExternalEfforts()[:3]
+            f[0] = 0    # lock x direction
+            return f
+        
+        mbs.AddLoad(LoadForceVector(markerNumber=marker,
+                                    loadVector=[0, 0, 0],
+                                    loadVectorUserFunction=UFload))
 
     
     def update(self, mbs, t):

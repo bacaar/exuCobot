@@ -131,18 +131,8 @@ def main(client, useImpedanceController):
 
     robotVrInterface.createEnvironment(mbs)
 
-    if client == 1:
-
-        # external applied forces
-        def UFload(mbs, t, load):
-            f = robotVrInterface.getExternalEfforts()[:3]
-            f[0] = 0    # lock x direction
-            return f
-        
-        mF = mbs.AddMarker(MarkerNodeRigid(nodeNumber=nTip))
-        mbs.AddLoad(LoadForceVector(markerNumber=mF,
-                                    loadVector=[0, 0, 0],
-                                    loadVectorUserFunction=UFload))
+    mF = mbs.AddMarker(MarkerNodeRigid(nodeNumber=nTip))
+    robotVrInterface.setUIP(mF, mbs)
 
     # sensor for position of endpoint of pendulum
     sensorPos = mbs.AddSensor(SensorBody(bodyNumber=bTip,
