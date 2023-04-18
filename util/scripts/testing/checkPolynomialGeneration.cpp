@@ -16,7 +16,7 @@ Script for testing creation of polynomial trajectories
 #include "csv.h"
 
 // struct representing kinematic state for one dimension
-struct State{
+struct SamplingPoint{
     double pos = 0;
     double vel = 0;
     double acc = 0;
@@ -24,15 +24,15 @@ struct State{
 };
 
 // struct representing kinematic state for three dimensions
-struct State3{
-    State x;
-    State y;
-    State z;
+struct SamplingPoint3{
+    SamplingPoint x;
+    SamplingPoint y;
+    SamplingPoint z;
 };
 
 int polynomialDegree_ = 5;
 
-std::vector<double> calcCoefs(State startState, State endState, double T){
+std::vector<double> calcCoefs(SamplingPoint startState, SamplingPoint endState, double T){
     double T2 = T*T;
     double T3 = T2 * T;
 

@@ -86,7 +86,7 @@ add_library(franka_example_controllers
   src/exucobot_cartesian_impedance_controller.cpp
   src/my_joint_position_controller.cpp
   src/joint_wall.cpp
-  src/state.cpp)
+  src/samplingPoint.cpp)
 
 add_dependencies(franka_example_controllers
   ${${PROJECT_NAME}_EXPORTED_TARGETS}

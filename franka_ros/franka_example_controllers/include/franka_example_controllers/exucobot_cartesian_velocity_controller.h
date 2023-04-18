@@ -24,7 +24,7 @@
 #include <util/posVelAccJerk3dStamped.h>
 #include <util/segmentCommand.h>
 
-#include "franka_example_controllers/state.h"
+#include "franka_example_controllers/samplingPoint.h"
 
 #include "franka_example_controllers/Logger.h"
 
@@ -32,14 +32,14 @@
 
 // struct representing a command received by Exudyn
 struct Command{
-    State3 state;   // kinematic state holding pos, vel and acc for all three axes
-    double dt;      // time in which new state should be reached
+    SamplingPoint3 sp;   // sampling point holding pos, vel and acc for all three axes
+    double dt;      // time in which new sampling point should be reached
 
     // operator to be able to iterate over three axes
-    State operator[] (int i){
-        if(i == 0) return state.x;
-        else if (i == 1) return state.y;
-        else if (i == 2) return state.z;
+    SamplingPoint operator[] (int i){
+        if(i == 0) return sp.x;
+        else if (i == 1) return sp.y;
+        else if (i == 2) return sp.z;
         else{
             std::cerr << "ERROR: Index " << i << " out of range 3. Use .dt to access time\n";
             exit(-1);
@@ -85,7 +85,7 @@ namespace franka_example_controllers {
 
         void logEvaluatedTrajectory();
         void logCurrentPosition(const std::array<double, 16> &current_pose, const std::array< double, 7 > &current_joint_positions);
-        void logTrajectoryCreation(const State3 &startState, const State3 &endState);
+        void logTrajectoryCreation(const SamplingPoint3 &startState, const SamplingPoint3 &endState);
         void logCoefficients();
 
         std::shared_ptr<TextLogger> textLogger_;
@@ -122,14 +122,14 @@ namespace franka_example_controllers {
         const double maxJ_trans_ = 6500.0; // m/s³
 
         // called from updateTrajectory; calculates polynomial coefficients for single axis
-        std::vector<double> calcCoefs(State startState, State endState, double T);
+        std::vector<double> calcCoefs(SamplingPoint startState, SamplingPoint endState, double T);
         // evaluates polynomial at given point of time
-        State evaluatePolynomial(std::vector<double> &coef, double t);
+        SamplingPoint evaluatePolynomial(std::vector<double> &coef, double t);
 
         franka_hw::FrankaVelocityCartesianInterface *velocityCartesianInterface_;
         std::unique_ptr <franka_hw::FrankaCartesianVelocityHandle> velocityCartesianHandle_;
 
-        State3 currentState_;    // pos, vel, acc and jerk for x, y, and z; describing current state of trajectory
+        SamplingPoint3 currentState_;    // pos, vel, acc and jerk for x, y, and z; describing current state of trajectory
         std::vector<std::vector<double>> coefs_;    // trajectory / polynom coefficients
 
         std::array<double, 6> currentCommand_;
@@ -144,7 +144,7 @@ namespace franka_example_controllers {
 
         bool allowDrift_ = true;           // true: if robot drifts away from reference path because of latencies, it will not try to get back to it
 
-        void publishState(ros::Time now, const State3 &state);  // method to publish current kinematic state to ROS topic
+        void publishState(ros::Time now, const SamplingPoint3 &state);  // method to publish current kinematic state to ROS topic
 
         std::vector<double> currentReference__;    // only for analytics
 

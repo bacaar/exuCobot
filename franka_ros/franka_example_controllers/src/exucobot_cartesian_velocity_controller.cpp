@@ -217,7 +217,7 @@ namespace franka_example_controllers {
         }
     }
 
-    std::vector<double> ExuCobotCartesianVelocityController::calcCoefs(State startState, State endState, double T){
+    std::vector<double> ExuCobotCartesianVelocityController::calcCoefs(SamplingPoint startState, SamplingPoint endState, double T){
 
         assert(T > 0);
 
@@ -253,7 +253,7 @@ namespace franka_example_controllers {
         return solution;
     }
 
-    State ExuCobotCartesianVelocityController::evaluatePolynomial(std::vector<double> &coef, double t){
+    SamplingPoint ExuCobotCartesianVelocityController::evaluatePolynomial(std::vector<double> &coef, double t){
 
         // t^2, t^3, t^4 and t^5 are needed multiple times -> calculate them once
         double t2 = t * t;
@@ -261,7 +261,7 @@ namespace franka_example_controllers {
         double t4 = t3 * t;
         double t5 = t4 * t;
 
-        State state;
+        SamplingPoint state;
 
         state.pos  =    coef[0]*t5 +    coef[1]*t4 +   coef[2]*t3 +   coef[3]*t2 + coef[4]*t + coef[5];
         state.vel  =  5*coef[0]*t4 +  4*coef[1]*t3 + 3*coef[2]*t2 + 2*coef[3]*t  + coef[4];
@@ -347,7 +347,7 @@ namespace franka_example_controllers {
         currentPositionFile_ << std::endl;
     }
 
-    void ExuCobotCartesianVelocityController::logTrajectoryCreation(const State3 &startState, const State3 &endState){
+    void ExuCobotCartesianVelocityController::logTrajectoryCreation(const SamplingPoint3 &startState, const SamplingPoint3 &endState){
 
         trajectoryCreationFile_ << rosTimeString_ << "," << logTimeString_ << ",";
 
@@ -408,7 +408,7 @@ namespace franka_example_controllers {
     }
     #endif
 
-    void ExuCobotCartesianVelocityController::publishState(ros::Time now, const State3 &state){
+    void ExuCobotCartesianVelocityController::publishState(ros::Time now, const SamplingPoint3 &state){
         util::posVelAccJerk3dStamped msg;
         // write struct into message
         msg.header.stamp = now;
@@ -709,7 +709,7 @@ namespace franka_example_controllers {
         }
 
         // store received command in struct. Jerk is not passed / is zero
-        State3 state;
+        SamplingPoint3 state;
         state.x = {msg.x.pos, msg.x.vel, msg.x.acc, 0.0};
         state.y = {msg.y.pos, msg.y.vel, msg.y.acc, 0.0};
         state.z = {msg.z.pos, msg.z.vel, msg.z.acc, 0.0};
@@ -749,7 +749,7 @@ namespace franka_example_controllers {
     }
 
     // function to round state to desired precision
-    void roundState(State &state, int precision){
+    void roundState(SamplingPoint &state, int precision){
         double multiplier = pow(10, precision);
 
         state.pos = round(state.pos * multiplier)/multiplier;
@@ -758,7 +758,7 @@ namespace franka_example_controllers {
     }
 
     // rounds 3d state to desired precision
-    void roundState3(State3 &state, int precision){
+    void roundState3(SamplingPoint3 &state, int precision){
         roundState(state.x, precision);
         roundState(state.y, precision);
         roundState(state.z, precision);
@@ -790,7 +790,7 @@ namespace franka_example_controllers {
         }
 
         // startState equals current state, except .pos might be taken from robot end-effector position
-        State3 startState = currentState_;
+        SamplingPoint3 startState = currentState_;
 
         double distance = cartesianDistance({currentState_.x.pos, currentState_.y.pos, currentState_.z.pos},
                                             {current_robot_state[12], current_robot_state[13], current_robot_state[14]});
@@ -827,7 +827,7 @@ namespace franka_example_controllers {
         #endif
 
         // calculate trajectory endstate
-        State3 endState;
+        SamplingPoint3 endState;
 
         // get endState._.pos from position buffer
         for(int c = 0; c < 3; ++c){     // for coordinates c = x, y, z
