@@ -109,9 +109,9 @@ namespace franka_example_controllers {
 
         // some constants
         const int polynomialDegree_ = 5;
-        const int minimalPositionBufferSize_ = 4;
+        const int minimalCommandBufferSize_ = 4;
         const bool exitIfTheoreticalValuesExceedLimits_ = true;
-        const bool exitIfPositionBufferEmpty_ = false;
+        const bool exitIfCommandBufferEmpty_ = false;
 
         // if controller can't create new trajectory segment when previous is finished, overdueTime gets accumulated and must be recovered afterwards
         ros::Duration overdueTime_;
@@ -135,12 +135,12 @@ namespace franka_example_controllers {
         std::array<double, 6> currentCommand_;
         std::array<double, 6> lastCommand_;
 
-        std::vector<Command> positionBuffer_;              // x, y and z value of next positions to travers
-        const int positionBufferLength_ = 50;             // length of position buffer. Also if buffer is vector, it's length is static
+        std::vector<Command> commandBuffer_;              // x, y and z value of next positions to travers
+        const int commandBufferLength_ = 50;             // length of position buffer. Also if buffer is vector, it's length is static
         // as position_buffer will be a ring buffer, current indices for reading and writing have to be stored
-        int positionBufferWritingIndex_;                 // holds index in which to write next (write then increase)
-        int positionBufferReadingIndex_;                 // holds index from which to read next (read then increase)
-        const int getPositionBufferReserve();               // returns amount of stored next positions
+        int commandBufferWritingIndex_;                 // holds index in which to write next (write then increase)
+        int commandBufferReadingIndex_;                 // holds index from which to read next (read then increase)
+        const int getCommandBufferReserve();               // returns amount of stored next positions
 
         bool allowDrift_ = true;           // true: if robot drifts away from reference path because of latencies, it will not try to get back to it
 

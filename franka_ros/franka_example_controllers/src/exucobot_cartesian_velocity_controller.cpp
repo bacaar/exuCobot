@@ -92,9 +92,9 @@ namespace franka_example_controllers {
 
         // initialize variables
         currentReference__ = std::vector<double>(4, 0);    // (x, y, z, dt)
-        positionBuffer_ = std::vector<Command>(positionBufferLength_, {0, 0, 0, 0});
-        positionBufferReadingIndex_ = 0;
-        positionBufferWritingIndex_ = 1;
+        commandBuffer_ = std::vector<Command>(commandBufferLength_, {0, 0, 0, 0});
+        commandBufferReadingIndex_ = 0;
+        commandBufferWritingIndex_ = 1;
         coefs_ = std::vector<std::vector<double>>(3, std::vector<double>(6, 0));
 
         #if ENABLE_LOGGING
@@ -171,7 +171,7 @@ namespace franka_example_controllers {
         #endif
 
         std::cout << "INFO: Initialized velocity Controller with interpolation polynomial degree " << polynomialDegree_;
-        std::cout << " and nominal position buffer size " << minimalPositionBufferSize_ << std::endl;
+        std::cout << " and nominal position buffer size " << minimalCommandBufferSize_ << std::endl;
 
         return true;
     }
@@ -197,14 +197,14 @@ namespace franka_example_controllers {
         #endif
     }
 
-    const int ExuCobotCartesianVelocityController::getPositionBufferReserve(){
+    const int ExuCobotCartesianVelocityController::getCommandBufferReserve(){
 
         // depending on wheter writing or reading index is smaller/bigger, reserve has to be calculated in a specific way
-        if (positionBufferWritingIndex_ > positionBufferReadingIndex_){
-            return positionBufferWritingIndex_ - positionBufferReadingIndex_ - 1;
+        if (commandBufferWritingIndex_ > commandBufferReadingIndex_){
+            return commandBufferWritingIndex_ - commandBufferReadingIndex_ - 1;
         }
-        else if (positionBufferWritingIndex_ < positionBufferReadingIndex_){
-            return positionBufferWritingIndex_ + positionBufferLength_ - positionBufferReadingIndex_- 1;
+        else if (commandBufferWritingIndex_ < commandBufferReadingIndex_){
+            return commandBufferWritingIndex_ + commandBufferLength_ - commandBufferReadingIndex_- 1;
         }
         else{
             #if ENABLE_LOGGING
@@ -459,11 +459,11 @@ namespace franka_example_controllers {
         // get current pose of manipulator
         std::array<double, 16> current_robot_state= velocityCartesianHandle_->getRobotState().O_T_EE_d;
 
-        // when starting the controller, wait until position buffer is filled with [minimalPositionBufferSize_] values
+        // when starting the controller, wait until position buffer is filled with [minimalCommandBufferSize_] values
         if(!started){
-            if(getPositionBufferReserve() >= minimalPositionBufferSize_){
+            if(getCommandBufferReserve() >= minimalCommandBufferSize_){
                 started = true;
-                std::cerr << "Buffer partly filled with " << getPositionBufferReserve() << " entries. Starting-permission granted." << std::endl;
+                std::cerr << "Buffer partly filled with " << getCommandBufferReserve() << " entries. Starting-permission granted." << std::endl;
             }
         }
 
@@ -476,7 +476,7 @@ namespace franka_example_controllers {
                 #endif
 
                 // new trajectory can only be generated if next command is already available
-                if(getPositionBufferReserve() >= 1){
+                if(getCommandBufferReserve() >= 1){
 
                     // if endTime of last segment != now, some time has passed since finishing of last trajectory and needs to be recovered
                     overdueTime_ = segmentTime_ - segmentDuration_;
@@ -509,13 +509,13 @@ namespace franka_example_controllers {
                     generalLogFile_ << "setting segmentTime_ to " << segmentTime_ << std::endl;
                     #endif
                 }
-                else { // if there is no further entry in positionBuffer_, keep last velocity
+                else { // if there is no further entry in commandBuffer_, keep last velocity
                     #if ENABLE_LOGGING
                     std::cerr << "WARNING: No further entry to calculate new segment available, keep last velocity" << std::endl;
                     generalLogFile_ << "WARNING: No further entry to calculate new segment available, keep last velocity" << std::endl;
                     #endif
 
-                    if(exitIfPositionBufferEmpty_) {
+                    if(exitIfCommandBufferEmpty_) {
                         #if ENABLE_LOGGING
                         generalLogFile_ << "ERROR: Position buffer empty" << std::endl;
                         #else
@@ -699,7 +699,7 @@ namespace franka_example_controllers {
 
     void ExuCobotCartesianVelocityController::updateReferencePoseCallback(const util::segmentCommand &msg) {
 
-        if(positionBufferWritingIndex_ == positionBufferReadingIndex_){
+        if(commandBufferWritingIndex_ == commandBufferReadingIndex_){
             std::cerr << "ERROR: Position buffer full" << std::endl;
             #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Position buffer full" << std::endl;
@@ -714,7 +714,7 @@ namespace franka_example_controllers {
         state.z = {msg.z.pos, msg.z.vel, msg.z.acc, 0.0};
 
         // store command in fifo queue
-        positionBuffer_[positionBufferWritingIndex_] = {state, msg.dt};
+        commandBuffer_[commandBufferWritingIndex_] = {state, msg.dt};
 
         if(msg.dt <= 0){
             #if ENABLE_LOGGING
@@ -725,7 +725,7 @@ namespace franka_example_controllers {
         }
 
         // increase writing index
-        positionBufferWritingIndex_ = (positionBufferWritingIndex_ + 1) % positionBufferLength_;
+        commandBufferWritingIndex_ = (commandBufferWritingIndex_ + 1) % commandBufferLength_;
 
         // for analytics
         currentReference__[0] = msg.x.pos;
@@ -808,9 +808,9 @@ namespace franka_example_controllers {
         }
 
         // index of next positions
-        int i1 = (positionBufferReadingIndex_ + 1) % positionBufferLength_; // next position
+        int i1 = (commandBufferReadingIndex_ + 1) % commandBufferLength_; // next position
 
-        if(positionBuffer_[i1].dt <= 0){
+        if(commandBuffer_[i1].dt <= 0){
             #if ENABLE_LOGGING
             generalLogFile_ << "ERROR: Desired segment-time must be >0" << std::endl;
             #else
@@ -819,7 +819,7 @@ namespace franka_example_controllers {
             exit(-1);
         }
 
-        segmentDuration_ = ros::Duration(positionBuffer_[i1].dt);
+        segmentDuration_ = ros::Duration(commandBuffer_[i1].dt);
 
         #if ENABLE_LOGGING
         generalLogFile_ << "new segmentDuration_ is " << segmentDuration_.toSec() << " s" << std::endl;
@@ -830,9 +830,9 @@ namespace franka_example_controllers {
 
         // get endState._.pos from position buffer
         for(int c = 0; c < 3; ++c){     // for coordinates c = x, y, z
-            endState[c].pos = positionBuffer_[i1][c].pos;
-            endState[c].vel = positionBuffer_[i1][c].vel;
-            endState[c].acc = positionBuffer_[i1][c].acc;
+            endState[c].pos = commandBuffer_[i1][c].pos;
+            endState[c].vel = commandBuffer_[i1][c].vel;
+            endState[c].acc = commandBuffer_[i1][c].acc;
         }
 
         #if ENABLE_LOGGING
@@ -856,7 +856,7 @@ namespace franka_example_controllers {
         #endif
 
         // for next segment
-        positionBufferReadingIndex_ = (positionBufferReadingIndex_ + 1) % positionBufferLength_;
+        commandBufferReadingIndex_ = (commandBufferReadingIndex_ + 1) % commandBufferLength_;
     }
 
     void ExuCobotCartesianVelocityController::stopping(const ros::Time & /*time*/) {
