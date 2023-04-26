@@ -712,7 +712,7 @@ class RobotInterface:
         self.__impedanceController = useImpedanceController
 
         # timing variable to know when to send new command to robot or when to publish new mbs system state update
-        self.__robotCommandSendInterval = 0.02 #0.006    #s
+        self.__robotCommandSendInterval = 0.03#0.02 #0.006    #s
         self.__lastRobotCommandSentTime = -self.__robotCommandSendInterval
         self.__systemStateUpdateInterval = 1/VR_FPS  #s
         self.__lastSystemStateUpdateTime = -self.__systemStateUpdateInterval
@@ -789,7 +789,7 @@ class RobotInterface:
         self.__logFile.close()
 
 
-    def getExternalEfforts(self):
+    def __getExternalEfforts(self):
         """
         getter-method for external efforts
 
@@ -811,7 +811,7 @@ class RobotInterface:
 
         # external applied forces
         def UFload(mbs, t, load):
-            f = self.getExternalEfforts()[:3]
+            f = self.__getExternalEfforts()[:3]
             f[0] = 0    # lock x direction
             return f
         
