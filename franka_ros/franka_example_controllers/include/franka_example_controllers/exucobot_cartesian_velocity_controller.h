@@ -109,7 +109,7 @@ namespace franka_example_controllers {
 
         // some constants
         const int polynomialDegree_ = 5;
-        const int minimalCommandBufferSize_ = 4;
+        const int minimalCommandBufferSize_ = 3;
         const bool exitIfTheoreticalValuesExceedLimits_ = true;
         const bool exitIfCommandBufferEmpty_ = false;
 
