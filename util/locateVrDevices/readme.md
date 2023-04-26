@@ -7,4 +7,4 @@ Author: Aaron Bacher
 
 ## Compilation
 
-g++ locateVrDevices.cpp -lopenvr_api -o locateVrDevices
+`g++ locateVrDevices.cpp -lopenvr_api -o locateVrDevices`
