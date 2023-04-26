@@ -94,7 +94,7 @@ class RobotVrInterface:
     thus does not anything by itself, just calls respective methods of robot or vr interfaces
     """
 
-    def __init__(self, clientType, useImpedanceController=False) -> None:
+    def __init__(self, clientType, useImpedanceController=False, rotMatrix=np.eye(3)) -> None:
         """
         Initialization method for RobotVrInterface
 
@@ -102,6 +102,7 @@ class RobotVrInterface:
             mbs (exudyn.exudynCPP.MainSystem): multi-body simulation system from exudyn
             clientType (int): may be 1 if this instance should be the robot interface, 2 for the vr interface
             useImpedanceController (bool, optional): flag to use impedance controller. Defaults to False (velocity controller).
+            rotMatrix (np.array[float64] shape=(3,3)): rotation matrix
         """
         
         # make sure client type is valid
@@ -114,9 +115,7 @@ class RobotVrInterface:
         else:
             self.__vrInterface = VrInterface(useImpedanceController)
             self.__clientType = 2
-
-        # just for the case that the rotation matrix isn't specified by the user aftewards, set it to identity-matrix as default
-        self.setRotationMatrix(np.eye(3))
+            self.__vrInterface.setRotationMatrix(rotMatrix)
 
         self.__tRes = 0.001    # step size in s
         self.__tEnd = 10000
@@ -228,23 +227,6 @@ class RobotVrInterface:
             return self.__robotInterface.getExternalEfforts()
         else:
             return [0, 0, 0, 0, 0, 0]
-
-
-    def setRotationMatrix(self, matrix):
-        """
-        setter-method for rotation (view) matrix
-        if matrix != np.eye(3), must be called before determineRobotStartPosition(...)
-        only relevant for vr interface
-
-        Args:
-            matrix (np.array[float64] shape=(3,3)): rotation matrix
-        """
-
-        self.__rotationMatrix = matrix
-        if self.__clientType == 1:
-            pass
-        else:
-            self.__vrInterface.setRotationMatrix(matrix)
 
 
     def determineRobotStartPosition(self, interactionPointOffset=np.array([0,0,0])):

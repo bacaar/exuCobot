@@ -34,10 +34,8 @@ def main(client, useImpedanceController):
     SC = exu.SystemContainer()
     mbs = SC.AddSystem()
 
-    robotVrInterface = RobotVrInterface(client, useImpedanceController)
-
     viewMatrix = np.eye(3) @ RotationMatrixZ(np.pi) @ RotationMatrixX(np.pi/2)
-    robotVrInterface.setRotationMatrix(viewMatrix)
+    robotVrInterface = RobotVrInterface(client, useImpedanceController, viewMatrix)
 
     interactionPointOffset = np.array([0,-l,0])
     origin = robotVrInterface.determineRobotStartPosition(interactionPointOffset)
