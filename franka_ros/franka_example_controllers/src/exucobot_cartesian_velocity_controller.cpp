@@ -432,12 +432,12 @@ namespace franka_example_controllers {
         // update timing variables
         elapsedTime_ += period;
         segmentTime_ += period;
+        logTime_ += period;
 
         #if ENABLE_LOGGING
         static ros::Time lastRosTime = ros::Time(0);
         static ros::Time lastLogTime = ros::Time(0);
 
-        logTime_ += period;
         logTimeString_ = getRosTimeString(logTime_);
         rosTimeString_ = getRosTimeString(time);
         std::string timeStr = logTimeString_ + ", " + rosTimeString_;

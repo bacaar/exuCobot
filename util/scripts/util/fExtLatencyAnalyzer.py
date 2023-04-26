@@ -76,7 +76,7 @@ def currentPoseCallback(data):
         currentPoseList.append([t, data.pose.position.x, data.pose.position.y, data.pose.position.z])
 
 
-def main():
+def main(t):
     rospy.init_node('fExtLatencyAnalyzer', anonymous=True)
     global scriptStartTime
     global isRecording
@@ -85,16 +85,19 @@ def main():
     plotYOnly = True
 
     # duration of recording
-    duration = 10
+    if t > 0:
+        duration = t
+    else:
+        duration = 2
 
     # setup subscribers
     rospy.Subscriber("/franka_state_controller/F_ext", WrenchStamped, externalForceCallback)    # force published by franka controller
     rospy.Subscriber("/my_cartesian_impedance_controller/analysis/getExternalForce", WrenchStamped, externalForceCallback2)       # force received by exudyn
     rospy.Subscriber("/my_cartesian_impedance_controller/setTargetPose", PoseStamped, targetPoseCallback)
     rospy.Subscriber("/my_cartesian_impedance_controller/getCurrentPose", PoseStamped, currentPoseCallback)
-    rospy.Subscriber("/my_cartesian_velocity_controller/analysis/getExternalForce", WrenchStamped, externalForceCallback2)       # force received by exudyn
-    rospy.Subscriber("/my_cartesian_velocity_controller/setTargetPose", segmentCommand, targetPoseCallback2)
-    rospy.Subscriber("/my_cartesian_velocity_controller/getCurrentPose", PoseStamped, currentPoseCallback)
+    rospy.Subscriber("/exucobot_cartesian_velocity_controller/analysis/registeredForce", WrenchStamped, externalForceCallback2)       # force received by exudyn
+    rospy.Subscriber("/exucobot_cartesian_velocity_controller/referencePose", segmentCommand, targetPoseCallback2)
+    rospy.Subscriber("/exucobot_cartesian_velocity_controller/currentPose", PoseStamped, currentPoseCallback)
 
     # record data from topics for duration of time
     print("Starting recording for {} seconds".format(duration))
@@ -160,8 +163,7 @@ def main():
 
         ax2.plot(forceInput2[:, 0], forceInput2[:, 2], "r")
         ax2.set_ylabel("force input in N")
-
-        #ax2.legend(["published", "received"])
+        ax2.legend(["published", "received"])
 
         fig.legend(["target pos", "current pos", "published force", "received force"])
 
@@ -169,7 +171,7 @@ def main():
         org1 = 0.0  # Origin of first axis
         org2 = 0.0  # Origin of second axis
         pos = 0.5  # Position the two origins are aligned
-        align.yaxes(ax, org1, ax2, org2, pos)
+        #align.yaxes(ax, org1, ax2, org2, pos)
 
     else:
         # plot x, y and z axes in different subplots
@@ -198,4 +200,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    duration = 0
+    if len(sys.argv) > 1:
+        duration = int(sys.argv[1])
+    main(duration)
