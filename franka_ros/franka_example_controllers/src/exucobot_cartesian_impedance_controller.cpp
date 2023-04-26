@@ -26,13 +26,9 @@ namespace franka_example_controllers {
         std::vector<double> cartesian_stiffness_vector;
         std::vector<double> cartesian_damping_vector;
 
-        sub_equilibrium_pose_ = node_handle.subscribe(
-                "equilibrium_pose", 20, &ExuCobotCartesianImpedanceController::equilibriumPoseCallback, this,
-                ros::TransportHints().reliable().tcpNoDelay());
-
         // set callback method for updating reference pose
         sub_desired_pose_ = node_handle.subscribe("referencePose", 20,
-                              &ExuCobotCartesianImpedanceController::updateDesiredPoseCallback, this,
+                              &ExuCobotCartesianImpedanceController::updateReferencePoseCallback, this,
                               ros::TransportHints().reliable().tcpNoDelay());
 
         // create publisher for current pose
@@ -358,7 +354,7 @@ namespace franka_example_controllers {
         }
     }
 
-    void ExuCobotCartesianImpedanceController::updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg)
+    void ExuCobotCartesianImpedanceController::updateReferencePoseCallback(const geometry_msgs::PoseStamped &msg)
     {
 
         //convert geometry_msgs/Vector3 to Eigen::Vector3d
@@ -456,22 +452,6 @@ namespace franka_example_controllers {
         std::cout << "Nullspace Stiffnes reference: " << nullspace_stiffness_reference_ << std::endl;
 
         std::cout << std::endl;
-    }
-
-    void ExuCobotCartesianImpedanceController::equilibriumPoseCallback(
-            const geometry_msgs::PoseStampedConstPtr &msg) {
-        //std::cout << "HALLO WELT---------------------------------------\n";
-        /*
-        std::lock_guard <std::mutex> position_d_reference_mutex_lock(
-                position_and_orientation_d_reference_mutex_);
-        position_d_reference_ << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
-        Eigen::Quaterniond last_orientation_d_reference(orientation_d_reference_);
-        orientation_d_reference_.coeffs() << msg->pose.orientation.x, msg->pose.orientation.y,
-                msg->pose.orientation.z, msg->pose.orientation.w;
-        if (last_orientation_d_reference.coeffs().dot(orientation_d_reference_.coeffs()) < 0.0) {
-            orientation_d_reference_.coeffs() << -orientation_d_reference_.coeffs();
-        }
-         */
     }
 
     void ExuCobotCartesianImpedanceController::stopping(const ros::Time & /*time*/) {

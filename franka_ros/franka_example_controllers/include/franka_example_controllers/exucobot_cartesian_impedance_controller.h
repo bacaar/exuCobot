@@ -77,9 +77,7 @@ namespace franka_example_controllers {
         void complianceParamCallback(franka_example_controllers::compliance_paramConfig &config,
                                      uint32_t level);
 
-        void equilibriumPoseCallback(const geometry_msgs::PoseStampedConstPtr &msg);
-
-        void updateDesiredPoseCallback(const geometry_msgs::PoseStamped &msg);
+        void updateReferencePoseCallback(const geometry_msgs::PoseStamped &msg);
 
         ros::Time logTime_;
         std::string logTimeString_;     // string with time starting at beginning of program
